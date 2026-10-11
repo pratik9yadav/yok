@@ -57,7 +57,8 @@ CHECK_GPU = """
 import os, shutil, subprocess
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # Kaggle gives two GPUs; training uses one
 if not shutil.which("nvidia-smi"):
-    raise RuntimeError("No GPU. Click Runtime > Change runtime type > T4 GPU > Save, then Runtime > Run all.")
+    raise RuntimeError("No GPU. Colab: Runtime > Change runtime type > T4 GPU > Save, then Run all. "
+                       "Kaggle: verify your phone number at kaggle.com/settings, then run again.")
 print(subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
                      capture_output=True, text=True).stdout)
 """

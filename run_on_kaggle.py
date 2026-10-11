@@ -34,6 +34,24 @@ def connect():
     return api, f"{user}/{SLUG}"
 
 
+def check_gpu(api) -> None:
+    """Stop before starting a run that would get no GPU (Kaggle gives none until the phone is verified)."""
+    try:
+        quota = api.quota_view().gpu_quota
+        allowed, used, reserved = quota.total_time_allowed, quota.time_used, quota.time_reserved
+    except Exception as e:  # noqa: BLE001 - only a hint; never block a run on it
+        print("Could not read the GPU quota:", e, flush=True)
+        return
+    hours = lambda t: (t.total_seconds() if t else 0) / 3600
+    left = hours(allowed) - hours(used) - hours(reserved)
+    print(f"Kaggle GPU time left this week: {left:.1f} h of {hours(allowed):.0f} h", flush=True)
+    if hours(allowed) == 0:
+        sys.exit("This Kaggle account gets no GPU. Verify your phone number at "
+                 "https://www.kaggle.com/settings (Phone verification), then run again.")
+    if left < 1:
+        sys.exit("Less than 1 hour of Kaggle GPU time left this week. It resets weekly.")
+
+
 def push(api, kernel: str) -> None:
     folder = Path(tempfile.mkdtemp())
     shutil.copy(HERE / "train_colab.ipynb", folder / "train_colab.ipynb")
@@ -106,6 +124,7 @@ def main() -> None:
     opts = args.parse_args()
     api, kernel = connect()
     if not opts.wait:
+        check_gpu(api)
         push(api, kernel)
         time.sleep(30)
     ok = wait(api, kernel)
