@@ -37,3 +37,11 @@ runs it, and saves it back with File → Save a copy in GitHub; then read its ou
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:
 `{"product": ..., "said": ..., "answer": {"in_stock": ..., "price_inr": ..., "delivery": ..., "alternative": ...}}`.
 Keep `data/test.jsonl` separate from training data (a test checks this).
+
+## Results so far and what is next
+See "Results" in README.md (run 8: test 83% / hard 43% after training; exported file 87% / 50%).
+`results.json` in a run's output holds, per set, scores, mistakes and every raw reply. The
+notebook also tests the exported GGUF through llama-server on CPU (`results_gguf.json`).
+Next step that helps most: more varied training data (real transcripts if the owner has any;
+otherwise realistic examples that are NOT copied from `data/hard_test.jsonl`, which stays held out).
+Then run again (about 30 minutes, free). Use the repo's `Modelfile`, not the one Unsloth writes.

@@ -117,8 +117,8 @@ def list_output(api, kernel: str) -> None:
     try:
         files = api.kernels_list_files(kernel, page_size=100).files or []
         for f in files:
-            size = getattr(f, "size", None) or 0
-            print(f"   {getattr(f, 'name', f)}  {int(size) / 1e6:,.0f} MB")
+            size = int(getattr(f, "size", None) or 0)
+            print(f"   {getattr(f, 'name', f)}" + (f"  {size / 1e6:,.0f} MB" if size else ""))
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print("Could not list the output files:", e)
 

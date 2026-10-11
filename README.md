@@ -36,6 +36,34 @@ The model files end up in the run's **Output** tab on kaggle.com.
    https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 2. Ask Claude to "train the model", or tap **Actions → Train on Kaggle → Run workflow**.
 
+## Results (Kaggle T4, Qwen3-4B-Instruct-2507, 2 epochs, run 8)
+Share of calls where all four fields are exactly right. `test` = 30 hand-written calls, `hard` =
+56 calls in styles the training data does not have. Neither is ever trained on.
+
+| | simple rules, no AI* | model before training | after training | exported Q4_K_M file |
+|---|---|---|---|---|
+| test (30) | 77% | 63% | 83% | 87% |
+| hard (56) | 30% | 27% | 43% | 50% |
+
+*A keyword/regex program written by an independent reviewer (not in this repo).
+
+How to read it: training clearly helps (+20 and +16 points) and the exported file is as good as the
+trained model. But 30 and 56 calls are few (one call is 3 and 2 points), so 83% vs 87% is noise, and on
+the easy set the model is only about level with the rules. The hard set shows the real gap:
+the model still picks the wrong number when a reply has several (bulk price, old price, the price of
+the alternative) and answers `false` for delivery when nothing was said. The 400 training examples are
+made up from templates; real call transcripts are the next big improvement.
+
+## Use the model
+1. Kaggle → your notebook `wimb-shop-model-training` → **Output** tab → download
+   `wimb-shop-model/wimb-shop-model.Q4_K_M.gguf` (about 2.5 GB).
+2. Put it in a folder together with this repo's **`Modelfile`** (use this one, not the Modelfile in
+   the Kaggle output: this one matches the training text exactly).
+3. `ollama create wimb-shop -f Modelfile`, then
+   `ollama run wimb-shop "Product: 16A MCB` + newline + `Shopkeeper: haan hai, 220 ka, delivery nahi"`.
+   Ollama itself has not been run here (this environment cannot reach it); the same file was loaded and
+   answered all 86 test calls through llama.cpp.
+
 ## Files
 | File | What it is |
 |---|---|
