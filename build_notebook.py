@@ -46,8 +46,9 @@ INTRO = f"""
    branch `{BRANCH}`, file path `{NOTEBOOK}` → **OK**.
    Then tell Claude it's done. Claude reads the results from GitHub.
 
-**What it does:** takes a free model (Qwen3 4B), tests it on 30 shop calls, trains it on
-400 examples, tests it again, and saves your model to Google Drive for Ollama.
+**What it does:** takes a free model (Qwen3 4B), tests it on shop calls, trains it on
+400 examples, tests it again, then tests the saved Ollama file too. Two test sets: 30 calls
+and 56 harder ones written in styles the training data does not have. The model goes to Google Drive.
 
 It also runs on Kaggle's free GPU: `run_on_kaggle.py` starts it there with no clicks.
 """
@@ -130,23 +131,17 @@ def ask(product, said):
     return tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True).strip()
 
 
-def run_test(label):
+def run_tests(label):
     FastLanguageModel.for_inference(model)
-    replies = [ask(ex["product"], ex["said"]) for ex in TEST]
-    FastLanguageModel.for_training(model)
-    result = score(replies, TEST)
-    print(f"== {label}: all 4 fields right in {result['all_correct']:.0%} of {result['examples']} calls")
-    for f in ("json_ok",) + FIELDS:
-        print(f"   {f:12s} {result[f]:.0%}")
-    for m in result["mistakes"][:15]:
-        print("\\n   said: ", m["said"])
-        print("   want: ", answer_text(m["want"]))
-        print("   reply:", m["reply"][:200])
-        print("   wrong:", ", ".join(m["wrong"]))
-    return result
+    try:
+        results = evaluate(ask, SETS)
+    finally:
+        FastLanguageModel.for_training(model)
+    show(label, results)
+    return results
 
 
-before = run_test("BEFORE training")
+before = run_tests("BEFORE training")
 """
 
 TRAIN = """
@@ -188,18 +183,15 @@ print(f"Training took {stats.metrics['train_runtime'] / 60:.1f} min, loss {stats
 
 AFTER = """
 #@title 8. Test the model AFTER training
-after = run_test("AFTER training")
-print("\\n== Before vs after")
-for f in ("all_correct", "json_ok") + FIELDS:
-    print(f"   {f:12s} {before[f]:5.0%} -> {after[f]:5.0%}")
-summary = {k: {f: round(r[f], 3) for f in ("all_correct", "json_ok") + FIELDS}
-           for k, r in (("before", before), ("after", after))}
-print("\\nRESULTS_JSON", json.dumps({"model": MODEL_NAME, "epochs": EPOCHS, **summary}))
+after = run_tests("AFTER training")
+payload = results_payload(MODEL_NAME, EPOCHS, before, after)
+print("\\n== Before vs after (all 4 fields right)")
+for name, res in payload["sets"].items():
+    print(f"   {name:5s} {res['before']['all_correct']:4.0%} -> {res['after']['all_correct']:4.0%}  ({res['examples']} calls)")
+print("\\nRESULTS_JSON", json.dumps({k: {n: r[k] for n, r in payload["sets"].items()} for k in ("before", "after")}))
 if ON_KAGGLE:  # run_on_kaggle.py downloads this
     with open("/kaggle/working/results.json", "w", encoding="utf-8") as fh:
-        json.dump({"model": MODEL_NAME, "epochs": EPOCHS, **summary,
-                   "mistakes_after": after["mistakes"], "mistakes_before": before["mistakes"]},
-                  fh, ensure_ascii=False, indent=1)
+        json.dump(payload, fh, ensure_ascii=False, indent=1)
 """
 
 TRY = """
@@ -258,6 +250,65 @@ if SAVE_DIR:
         print(f"   {path}  {size:,.0f} MB" if size else f"   {path}/")
 '''
 
+GGUF_TEST = '''
+#@title 11. Test the exported GGUF file itself (CPU, up to 25 minutes; the answers Ollama would give)
+import socket, subprocess, time, urllib.request
+
+gguf_report = {"error": "not run"}
+server = None
+try:
+    if not MAKE_OLLAMA_FILE:
+        raise RuntimeError("MAKE_OLLAMA_FILE is off, so there is no GGUF file to test")
+    binary = subprocess.run(
+        ["bash", "-c", "find / -xdev -name llama-server -type f -perm -u+x 2>/dev/null | head -1"],
+        capture_output=True, text=True).stdout.strip()
+    if not binary:
+        raise RuntimeError("llama-server was not found (Unsloth builds it while making the GGUF)")
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = subprocess.Popen([binary, "-m", gguf, "--port", str(port), "--host", "127.0.0.1", "-c", "2048",
+                               "-t", str(os.cpu_count() or 2), "--jinja"],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    base = f"http://127.0.0.1:{port}"
+    for _ in range(120):  # up to 6 minutes to load the model
+        if server.poll() is not None:
+            raise RuntimeError(f"llama-server stopped at start-up (exit code {server.returncode})")
+        try:
+            urllib.request.urlopen(base + "/health", timeout=5).read()
+            break
+        except Exception:
+            time.sleep(3)
+    else:
+        raise RuntimeError("llama-server did not become ready")
+
+    def ask_gguf(product, said):
+        body = json.dumps({"messages": [{"role": "system", "content": SYSTEM},
+                                        {"role": "user", "content": user_message(product, said)}],
+                           "temperature": 0, "max_tokens": 96}).encode()
+        req = urllib.request.Request(base + "/v1/chat/completions", body, {"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            return json.load(resp)["choices"][0]["message"]["content"].strip()
+
+    started = time.time()
+    gguf_results = evaluate(ask_gguf, SETS, deadline=started + 25 * 60)
+    show("GGUF Q4_K_M", gguf_results)
+    gguf_report = {"gguf": os.path.basename(gguf), "seconds": round(time.time() - started),
+                   "sets": {n: {"examples": r["examples"], "of": r["of"],
+                                **({k: round(r[k], 3) for k in KEYS} if r["examples"] else {}),
+                                "mistakes": r["mistakes"], "replies": r["replies"]}
+                            for n, r in gguf_results.items()}}
+except Exception as e:  # the main results are already saved; this test must never fail the run
+    print("GGUF test failed:", repr(e))
+    gguf_report = {"error": repr(e)}
+finally:
+    if server is not None:
+        server.terminate()
+if ON_KAGGLE:
+    with open("/kaggle/working/results_gguf.json", "w", encoding="utf-8") as fh:
+        json.dump(gguf_report, fh, ensure_ascii=False, indent=1)
+'''
+
 NEXT = f"""
 ## Done. Next steps
 
@@ -286,8 +337,10 @@ def main() -> None:
         + embedded("train.jsonl")
         + "\n'''.strip().splitlines()]\nTEST = [json.loads(line) for line in r'''\n"
         + embedded("test.jsonl")
-        + "\n'''.strip().splitlines()]\n"
-        + 'print(len(TRAIN_DATA), "training examples,", len(TEST), "test examples")\n'
+        + "\n'''.strip().splitlines()]\nHARD = [json.loads(line) for line in r'''\n"
+        + embedded("hard_test.jsonl")
+        + "\n'''.strip().splitlines()]\nSETS = {'test': TEST, 'hard': HARD}\n"
+        + 'print(len(TRAIN_DATA), "training,", len(TEST), "test and", len(HARD), "hard test examples")\n'
     )
     nb = {
         "nbformat": 4,
@@ -300,7 +353,7 @@ def main() -> None:
         },
         "cells": [
             md(INTRO), code(CHECK_GPU), code(INSTALL), code(SETTINGS), code(data, hidden=True),
-            code(LOAD), code(BEFORE), code(TRAIN), code(AFTER), code(TRY), code(SAVE), md(NEXT),
+            code(LOAD), code(BEFORE), code(TRAIN), code(AFTER), code(TRY), code(SAVE), code(GGUF_TEST), md(NEXT),
         ],
     }
     out = HERE / NOTEBOOK

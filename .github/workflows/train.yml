@@ -4,6 +4,12 @@ name: Train on Kaggle
 
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: "train = start a new training run; fetch = only collect the last run's results"
+        type: choice
+        options: [train, fetch]
+        default: train
 
 permissions:
   contents: read
@@ -27,10 +33,12 @@ jobs:
             echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
             exit 1
           fi
-      - name: Train on Kaggle (about 40 minutes)
+      - name: Train on Kaggle (about 45 minutes) or collect the last run
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-        run: python run_on_kaggle.py
+          ACTION: ${{ inputs.action }}
+        run: |
+          if [ "$ACTION" = "fetch" ]; then python run_on_kaggle.py --wait; else python run_on_kaggle.py; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

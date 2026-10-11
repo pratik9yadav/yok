@@ -8,7 +8,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
 from make_data import WORDS
-from score import FIELDS, SYSTEM, answer_text, parse, score
+from score import FIELDS, KEYS, SYSTEM, answer_text, evaluate, parse, results_payload, score, show
 
 
 def load(name: str) -> list[dict]:
@@ -16,7 +16,7 @@ def load(name: str) -> list[dict]:
 
 
 def test_data_files_are_well_formed() -> None:
-    for name in ("train.jsonl", "test.jsonl"):
+    for name in ("train.jsonl", "test.jsonl", "hard_test.jsonl"):
         for ex in load(name):
             assert set(ex) == {"product", "said", "answer"}
             assert set(ex["answer"]) == set(FIELDS)
@@ -36,9 +36,11 @@ def test_train_price_is_actually_said() -> None:
             assert any(s in ex["said"] for s in said_as), ex
 
 
-def test_test_set_is_not_in_training_data() -> None:
-    train = {ex["said"] for ex in load("train.jsonl")}
-    assert not train & {ex["said"] for ex in load("test.jsonl")}
+def test_test_sets_are_not_in_training_data_or_each_other() -> None:
+    train, test, hard = (load(n) for n in ("train.jsonl", "test.jsonl", "hard_test.jsonl"))
+    train_said, test_said, hard_said = ({ex["said"] for ex in rows} for rows in (train, test, hard))
+    assert not train_said & test_said and not train_said & hard_said and not test_said & hard_said
+    assert len(hard_said) == len(hard) == 56
 
 
 def test_perfect_replies_score_full_marks() -> None:
@@ -71,6 +73,8 @@ def test_notebook_is_built_from_current_files() -> None:
     exec(data_cell, scope)  # noqa: S102 - our own generated cell
     assert scope["TRAIN_DATA"] == load("train.jsonl")
     assert scope["TEST"] == load("test.jsonl")
+    assert scope["HARD"] == load("hard_test.jsonl")
+    assert scope["SETS"] == {"test": scope["TEST"], "hard": scope["HARD"]}
     assert scope["SYSTEM"] == SYSTEM
 
 
@@ -107,7 +111,7 @@ def test_save_cell_keeps_the_small_model_and_a_working_modelfile(tmp_path: Path)
     assert f'SYSTEM """{SYSTEM}"""' in modelfile
 
 
-def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch) -> None:
+def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch, capsys) -> None:
     import enum
     from types import SimpleNamespace
 
@@ -129,9 +133,14 @@ def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch) -> 
                                    failure_message="")
 
         def kernels_output(self, kernel, path, file_pattern=None, force=False):
-            row = {f: 1.0 for f in ("all_correct", "json_ok") + FIELDS}
+            row = {f: 1.0 for f in KEYS}
             (Path(path) / "results.json").write_text(json.dumps(
-                {"before": row, "after": row, "mistakes_after": [], "mistakes_before": []}))
+                {"sets": {"test": {"examples": 30, "before": row, "after": row, "mistakes_after": []}}}))
+            (Path(path) / "results_gguf.json").write_text(json.dumps(
+                {"gguf": "m.gguf", "seconds": 5, "sets": {"test": {"examples": 30, "of": 30, "all_correct": 1.0}}}))
+
+        def kernels_list_files(self, kernel, page_size=20):
+            return SimpleNamespace(files=[SimpleNamespace(name="wimb-shop-model/m.Q4_K_M.gguf", size=2.5e9)])
 
     monkeypatch.setattr(run_on_kaggle, "OUT", tmp_path / "out")
     monkeypatch.setattr(run_on_kaggle.time, "sleep", lambda s: None)
@@ -139,6 +148,193 @@ def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch) -> 
     run_on_kaggle.push(api, "me/wimb-shop-model-training")
     assert run_on_kaggle.wait(api, "me/wimb-shop-model-training") is True
     run_on_kaggle.fetch(api, "me/wimb-shop-model-training")
+    out = capsys.readouterr().out
+    assert "test set: 30 calls" in out and "m.Q4_K_M.gguf  2,500 MB" in out and "GGUF file m.gguf" in out
     assert calls["acc"] == "NvidiaTeslaT4" and calls["has_notebook"]
     assert calls["meta"]["id"] == "me/wimb-shop-model-training" and calls["meta"]["enable_internet"]
     assert (tmp_path / "out" / "results.json").exists()
+
+
+NULL = {"in_stock": None, "price_inr": None, "delivery": None, "alternative": None}
+
+
+def one(reply: str, **want) -> dict:
+    return score([reply], [{"said": "x", "answer": {**NULL, **want}}])
+
+
+def reply(**kw) -> str:
+    return json.dumps({**NULL, **kw})
+
+
+def test_garbage_is_never_correct_even_on_all_null_rows() -> None:
+    for garbage in ("", "{}", "no json", '{"in_stock": true}', reply(note="x")[:-1] + ', "note": "x"}'):
+        res = one(garbage)
+        assert res["all_correct"] == 0 and res["json_ok"] == 0 and res["mistakes"][0]["wrong"] == list(FIELDS)
+
+
+def test_booleans_are_not_numbers() -> None:
+    res = one('{"in_stock": 1, "price_inr": true, "delivery": 0, "alternative": null}',
+              in_stock=True, price_inr=1, delivery=False)
+    assert res["mistakes"][0]["wrong"] == ["in_stock", "price_inr", "delivery"]
+
+
+def test_alternative_must_really_match() -> None:
+    for bad in ('""', '"m"', '"4"', "40", '["40 mm"]', '"padlock"'):
+        assert one(reply(in_stock=False, alternative=json.loads(bad)), in_stock=False, alternative="40 mm")[
+            "all_correct"] == 0, bad
+    for good in ("40mm", "40 mm padlock", "40 MM", "Padlock 40 mm"):
+        assert one(reply(in_stock=False, alternative=good), in_stock=False, alternative="40 mm")["all_correct"] == 1
+
+
+def test_parse_finds_the_answer_among_other_text_and_braces() -> None:
+    assert parse(reply(alternative="M-seal {2 pack}"))["alternative"] == "M-seal {2 pack}"
+    assert parse("<think>shape {a,b}</think>" + reply(price_inr=5))["price_inr"] == 5
+    assert parse(reply(in_stock=False) + " " + reply(in_stock=True))["in_stock"] is True  # the last one counts
+    assert parse(reply() [:-1] + ', "note": "x"}') is None  # extra key
+
+
+def test_evaluate_show_and_results_payload(capsys) -> None:
+    rows = load("test.jsonl")
+    sets = {"test": rows, "hard": load("hard_test.jsonl")}
+    said_to_answer = {ex["said"]: answer_text(ex["answer"]) for rows_ in sets.values() for ex in rows_}
+    before = evaluate(lambda product, said: "{}", sets)
+    after = evaluate(lambda product, said: said_to_answer[said], sets)
+    assert before["test"]["all_correct"] == 0 and after["hard"]["all_correct"] == 1.0
+    assert len(after["hard"]["replies"]) == 56 and after["test"]["of"] == 30
+    payload = results_payload("m", 2, before, after)
+    json.dumps(payload)  # must be JSON-safe
+    assert payload["sets"]["hard"]["examples"] == 56 and payload["sets"]["hard"]["after"]["all_correct"] == 1.0
+    assert len(payload["sets"]["test"]["replies_after"]) == 30
+    show("BEFORE", before)
+    assert "BEFORE [test]: all 4 fields right in 0% of 30 calls" in capsys.readouterr().out
+    # a deadline in the past answers nothing, and that is reported rather than crashing
+    late = evaluate(lambda product, said: "{}", sets, deadline=0)
+    assert late["test"]["examples"] == 0 and late["test"]["of"] == 30
+    show("LATE", late)
+    assert "no calls answered" in capsys.readouterr().out
+
+
+def notebook_cell(title_start: str) -> str:
+    nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
+    return "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith(title_start))["source"])
+
+
+def data_scope() -> dict:
+    scope: dict = {}
+    exec(notebook_cell("#@title 4."), scope)  # noqa: S102 - our own generated cell
+    return scope
+
+
+def test_before_and_after_cells_run_with_a_stand_in_model(tmp_path: Path) -> None:
+    import contextlib
+    from types import SimpleNamespace
+
+    scope = data_scope()
+    answers = {ex["said"]: answer_text(ex["answer"]) for rows in scope["SETS"].values() for ex in rows}
+    seen = {"said": None, "modes": []}
+
+    class Encoded(dict):
+        def to(self, device):
+            return self
+
+    class Tokenizer:
+        reply = staticmethod(lambda said: "{}")
+
+        def apply_chat_template(self, messages, **kwargs):
+            assert messages[0]["role"] == "system" and messages[1]["content"].startswith("Product: ")
+            seen["said"] = messages[1]["content"].split("Shopkeeper: ", 1)[1]
+            return Encoded(input_ids=SimpleNamespace(shape=(1, 7)))
+
+        def decode(self, ids, skip_special_tokens=True):
+            return "  " + self.reply(seen["said"]) + "\n"
+
+    class Model:
+        def generate(self, **inputs):
+            assert inputs["max_new_tokens"] == 96 and inputs["do_sample"] is False
+            return [[0] * 7 + [1, 2]]
+
+    class FastLanguageModel:
+        for_inference = staticmethod(lambda m: seen["modes"].append("inference"))
+        for_training = staticmethod(lambda m: seen["modes"].append("training"))
+
+    tokenizer = Tokenizer()
+    scope.update(tokenizer=tokenizer, model=Model(), FastLanguageModel=FastLanguageModel,
+                 torch=SimpleNamespace(no_grad=contextlib.nullcontext), ON_KAGGLE=True,
+                 MODEL_NAME="m", EPOCHS=2)
+    exec(notebook_cell("#@title 6."), scope)  # noqa: S102
+    assert scope["before"]["test"]["all_correct"] == 0 and scope["before"]["hard"]["of"] == 56
+    assert seen["modes"] == ["inference", "training"]
+
+    tokenizer.reply = staticmethod(lambda said: answers[said])
+    after_cell = notebook_cell("#@title 8.").replace("/kaggle/working/", str(tmp_path) + "/")
+    exec(after_cell, scope)  # noqa: S102
+    written = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
+    assert written["sets"]["test"]["before"]["all_correct"] == 0
+    assert written["sets"]["test"]["after"]["all_correct"] == 1.0 and written["sets"]["hard"]["examples"] == 56
+    assert len(written["sets"]["hard"]["replies_after"]) == 56
+
+
+FAKE_LLAMA_SERVER = """#!/usr/bin/env python3
+import json, os, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+port = int(sys.argv[sys.argv.index("--port") + 1])
+answers = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "answers.json"), encoding="utf-8"))
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def respond(self, payload):
+        data = json.dumps(payload).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        self.respond({"status": "ok"})
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        assert body["temperature"] == 0 and body["messages"][0]["role"] == "system"
+        said = body["messages"][1]["content"].split("Shopkeeper: ", 1)[1]
+        self.respond({"choices": [{"message": {"content": " " + answers[said] + " "}}]})
+
+HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+"""
+
+
+def gguf_cell_scope(tmp_path: Path, binary: str) -> tuple[dict, str]:
+    import os
+    import subprocess
+    import time
+    import urllib.request
+
+    scope = data_scope()
+    answers = {ex["said"]: answer_text(ex["answer"]) for rows in scope["SETS"].values() for ex in rows}
+    (tmp_path / "answers.json").write_text(json.dumps(answers), encoding="utf-8")
+    server = tmp_path / "llama-server"
+    server.write_text(FAKE_LLAMA_SERVER)
+    server.chmod(0o755)
+    cell = notebook_cell("#@title 11.").replace("/kaggle/working/", str(tmp_path) + "/")
+    find = "find / -xdev -name llama-server -type f -perm -u+x 2>/dev/null | head -1"
+    assert find in cell
+    cell = cell.replace(find, f"echo {binary or server}" if binary != "none" else "true")
+    scope.update(os=os, subprocess=subprocess, time=time, urllib=urllib, ON_KAGGLE=True,
+                 MAKE_OLLAMA_FILE=True, gguf=str(tmp_path / "m.Q4_K_M.gguf"))
+    return scope, cell
+
+
+def test_gguf_cell_asks_the_server_and_scores_the_answers(tmp_path: Path) -> None:
+    scope, cell = gguf_cell_scope(tmp_path, "")
+    exec(cell, scope)  # noqa: S102
+    report = json.loads((tmp_path / "results_gguf.json").read_text(encoding="utf-8"))
+    assert "error" not in report and report["gguf"] == "m.Q4_K_M.gguf"
+    assert report["sets"]["test"]["all_correct"] == 1.0 and report["sets"]["hard"]["examples"] == 56
+
+
+def test_gguf_cell_never_fails_the_run_when_there_is_no_server(tmp_path: Path) -> None:
+    scope, cell = gguf_cell_scope(tmp_path, "none")
+    exec(cell, scope)  # noqa: S102 - must not raise
+    assert "llama-server was not found" in json.loads((tmp_path / "results_gguf.json").read_text())["error"]

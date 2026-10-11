@@ -106,22 +106,50 @@ def print_log(path: Path, lines: int = 120) -> None:
         print("   |", line)
 
 
+def table(name: str, before: dict, after: dict, n) -> None:
+    print(f"\n== {name}: {n} calls (before -> after)")
+    for field, value in before.items():
+        print(f"   {field:12s} {value:5.0%} -> {after[field]:5.0%}")
+
+
+def list_output(api, kernel: str) -> None:
+    """The files the run kept, with sizes (shows whether the .gguf model file was saved)."""
+    try:
+        files = api.kernels_list_files(kernel, page_size=100).files or []
+        for f in files:
+            size = getattr(f, "size", None) or 0
+            print(f"   {getattr(f, 'name', f)}  {int(size) / 1e6:,.0f} MB")
+    except Exception as e:  # noqa: BLE001 - diagnostics only
+        print("Could not list the output files:", e)
+
+
 def fetch(api, kernel: str) -> None:
     OUT.mkdir(exist_ok=True)
     # Only the small files: results, the log and the executed notebook (not the 2.5 GB model).
-    api.kernels_output(kernel, str(OUT), file_pattern=r"(results\.json|.*\.log|.*\.ipynb|.*Modelfile)$", force=True)
+    api.kernels_output(kernel, str(OUT), file_pattern=r"(results.*\.json|.*\.log|.*\.ipynb|.*Modelfile)$", force=True)
     results = OUT / "results.json"
     if results.exists():
         data = json.loads(results.read_text(encoding="utf-8"))
-        print("\n== Results")
-        for field, before in data["before"].items():
-            print(f"   {field:12s} {before:5.0%} -> {data['after'][field]:5.0%}")
-        for m in data["mistakes_after"]:
-            print(f"\n   said:  {m['said']}\n   reply: {m['reply'][:200]}\n   wrong: {', '.join(m['wrong'])}")
+        for name, res in data["sets"].items():
+            table(f"{name} set", res["before"], res["after"], res["examples"])
+            for m in res["mistakes_after"][:10]:
+                print(f"\n   said:  {m['said']}\n   want:  {json.dumps(m['want'], ensure_ascii=False)}"
+                      f"\n   reply: {m['reply'][:200]}\n   wrong: {', '.join(m['wrong'])}")
     else:
         print("No results.json: the run stopped early. Kaggle's log:")
         for log in OUT.glob("*.log"):
             print_log(log)
+    gguf = OUT / "results_gguf.json"
+    if gguf.exists():
+        data = json.loads(gguf.read_text(encoding="utf-8"))
+        if "error" in data:
+            print("\nGGUF test did not run:", data["error"])
+        for name, res in data.get("sets", {}).items():
+            if res["examples"]:
+                print(f"\n== GGUF file {data['gguf']}, {name} set: {res['all_correct']:.0%} of "
+                      f"{res['examples']} calls fully right (of {res['of']}), took {data['seconds']} s")
+    print("\nFiles the run kept:")
+    list_output(api, kernel)
     print(f"\nDownloaded to {OUT}: {sorted(p.name for p in OUT.iterdir())}")
     print(f"The model files are in the run's Output tab: https://www.kaggle.com/code/{kernel}/output")
 
