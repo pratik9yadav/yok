@@ -1,0 +1,4 @@
+# Tools for running and checking the training from a terminal (the notebook installs its own).
+kaggle
+pytest
+ruff

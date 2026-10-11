@@ -29,7 +29,7 @@ def answer_text(answer: dict) -> str:
 
 def parse(text: str) -> dict | None:
     """The first JSON object in the model's reply, or None if there is none."""
-    match = re.search(r"\{.*?\}", text, re.S)
+    match = re.search(r"\{.*?\}", text, re.DOTALL)
     if not match:
         return None
     try:

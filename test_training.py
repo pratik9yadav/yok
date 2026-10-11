@@ -7,8 +7,8 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
-from make_data import WORDS  # noqa: E402
-from score import FIELDS, SYSTEM, answer_text, parse, score  # noqa: E402
+from make_data import WORDS
+from score import FIELDS, SYSTEM, answer_text, parse, score
 
 
 def load(name: str) -> list[dict]:
