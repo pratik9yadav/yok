@@ -69,6 +69,17 @@ def wait(api, kernel: str, limit_min: int = 120) -> bool:
     return False
 
 
+def print_log(path: Path, lines: int = 120) -> None:
+    """The end of a Kaggle run log (a JSON list of {stream_name, time, data})."""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        text = "".join(entry.get("data", "") for entry in json.loads(text))
+    except (ValueError, AttributeError):
+        pass
+    for line in text.splitlines()[-lines:]:
+        print("   |", line)
+
+
 def fetch(api, kernel: str) -> None:
     OUT.mkdir(exist_ok=True)
     # Only the small files: results, the log and the executed notebook (not the 2.5 GB model).
@@ -82,7 +93,9 @@ def fetch(api, kernel: str) -> None:
         for m in data["mistakes_after"]:
             print(f"\n   said:  {m['said']}\n   reply: {m['reply'][:200]}\n   wrong: {', '.join(m['wrong'])}")
     else:
-        print("No results.json: the run stopped early. See the log in", OUT)
+        print("No results.json: the run stopped early. Kaggle's log:")
+        for log in OUT.glob("*.log"):
+            print_log(log)
     print(f"\nDownloaded to {OUT}: {sorted(p.name for p in OUT.iterdir())}")
     print(f"The model files are in the run's Output tab: https://www.kaggle.com/code/{kernel}/output")
 
