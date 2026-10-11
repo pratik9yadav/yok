@@ -8,7 +8,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
 from make_data import WORDS
-from score import FIELDS, KEYS, SYSTEM, answer_text, evaluate, parse, results_payload, score, show
+from score import FIELDS, KEYS, SYSTEM, answer_text, evaluate, make_modelfile, parse, results_payload, score, show
 
 
 def load(name: str) -> list[dict]:
@@ -100,15 +100,30 @@ def test_save_cell_keeps_the_small_model_and_a_working_modelfile(tmp_path: Path)
     nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
     save = "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith("#@title 10."))["source"])
     scope = {"model": FakeModel(), "tokenizer": FakeModel(), "shutil": shutil, "os": __import__("os"),
-             "SYSTEM": SYSTEM, "OUTPUT_NAME": "m", "MAKE_OLLAMA_FILE": True,
+             "SYSTEM": SYSTEM, "make_modelfile": make_modelfile, "OUTPUT_NAME": "m", "MAKE_OLLAMA_FILE": True,
              "WORK": str(tmp_path / "work"), "SAVE_DIR": str(tmp_path / "out")}
     exec(save, scope)  # noqa: S102 - our own generated cell
     saved = sorted(p.name for p in (tmp_path / "out").iterdir())
     assert saved == ["Modelfile", "lora", "m.Q4_K_M.gguf"]
     modelfile = (tmp_path / "out" / "Modelfile").read_text()
+    assert modelfile == make_modelfile("m.Q4_K_M.gguf")  # not the template Unsloth wrote ("0.6" in the fake one)
     assert modelfile.startswith("FROM ./m.Q4_K_M.gguf\n") and modelfile.count("FROM ") == 1
     assert "PARAMETER temperature 0\n" in modelfile and "0.6" not in modelfile
     assert f'SYSTEM """{SYSTEM}"""' in modelfile
+
+
+def test_modelfile_template_is_the_training_format() -> None:
+    """Ollama fills the template in; the result must equal the text the model saw in training."""
+    import re
+
+    modelfile = make_modelfile("m.gguf")
+    template = re.search(r'TEMPLATE """(.*?)"""', modelfile, re.DOTALL).group(1)
+    system, prompt, response = "S", "P", '{"a": 1}'
+    # Ollama's Go template, for these three simple blocks: {{ if X }}..{{ end }} and {{ .X }}
+    filled = re.sub(r"\{\{ if \.(System|Prompt) \}\}(.*?)\{\{ end \}\}", lambda m: m.group(2), template, flags=re.DOTALL)
+    filled = filled.replace("{{ .System }}", system).replace("{{ .Prompt }}", prompt).replace("{{ .Response }}", response)
+    assert filled == f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n{response}<|im_end|>\n"
+    assert (HERE / "Modelfile").read_text(encoding="utf-8") == make_modelfile("wimb-shop-model.Q4_K_M.gguf")
 
 
 def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch, capsys) -> None:

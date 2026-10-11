@@ -56,7 +56,7 @@ It also runs on Kaggle's free GPU: `run_on_kaggle.py` starts it there with no cl
 CHECK_GPU = """
 #@title 1. Check the GPU
 import os, shutil, subprocess, sys
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # Kaggle gives two GPUs; training uses one
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Kaggle gives two GPUs; training uses one
 # nvidia-smi is not always installed, so also ask torch (in its own process: nothing is imported here yet).
 cuda = subprocess.run([sys.executable, "-c", "import torch; print(torch.cuda.is_available())"],
                       capture_output=True, text=True).stdout.strip() == "True"
@@ -225,16 +225,7 @@ if MAKE_OLLAMA_FILE:
     gguf = q4[0]
     name = f"{OUTPUT_NAME}.Q4_K_M.gguf"
 
-    found = (result or {}).get("modelfile_location") if isinstance(result, dict) else None
-    modelfile = open(found, encoding="utf-8").read() if found and os.path.exists(found) else (
-        'TEMPLATE """{{ if .System }}<|im_start|>system\\n{{ .System }}<|im_end|>\\n{{ end }}'
-        '{{ if .Prompt }}<|im_start|>user\\n{{ .Prompt }}<|im_end|>\\n{{ end }}'
-        '<|im_start|>assistant\\n{{ .Response }}<|im_end|>\\n"""\\n'
-        'PARAMETER stop "<|im_end|>"\\n'
-    )
-    modelfile = re.sub(r"^FROM .*\\n?", "", modelfile, flags=re.M)
-    modelfile = re.sub(r"^PARAMETER temperature .*\\n?", "", modelfile, flags=re.M)
-    modelfile = f"FROM ./{name}\\n{modelfile.strip()}\\nPARAMETER temperature 0\\nSYSTEM \\"\\"\\"{SYSTEM}\\"\\"\\"\\n"
+    modelfile = make_modelfile(name)
     modelfile_path = os.path.join(os.path.dirname(gguf), "Modelfile.wimb")  # gguf_dir itself may be cleaned up
     with open(modelfile_path, "w", encoding="utf-8") as fh:
         fh.write(modelfile)

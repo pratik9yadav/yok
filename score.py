@@ -153,3 +153,20 @@ def results_payload(model: str, epochs: int, before: dict, after: dict) -> dict:
             "replies_after": a["replies"],
         }
     return {"model": model, "epochs": epochs, "sets": sets}
+
+
+def make_modelfile(gguf_name: str) -> str:
+    """An Ollama Modelfile whose template is exactly the text the model was trained on.
+
+    Unsloth's own Qwen3 template differs a little (a blank line after the system message, and
+    thinking-mode syntax that needs a newer Ollama), so it is not used.
+    """
+    return (
+        f"FROM ./{gguf_name}\n"
+        'TEMPLATE """{{ if .System }}<|im_start|>system\n{{ .System }}<|im_end|>\n{{ end }}'
+        '{{ if .Prompt }}<|im_start|>user\n{{ .Prompt }}<|im_end|>\n{{ end }}'
+        '<|im_start|>assistant\n{{ .Response }}<|im_end|>\n"""\n'
+        'PARAMETER stop "<|im_end|>"\n'
+        "PARAMETER temperature 0\n"
+        f'SYSTEM """{SYSTEM}"""\n'
+    )

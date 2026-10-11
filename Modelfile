@@ -1,0 +1,11 @@
+FROM ./wimb-shop-model.Q4_K_M.gguf
+TEMPLATE """{{ if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}{{ if .Prompt }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{ .Response }}<|im_end|>
+"""
+PARAMETER stop "<|im_end|>"
+PARAMETER temperature 0
+SYSTEM """You read what a shopkeeper said on a phone call about a product. Reply with only a JSON object with these keys: in_stock (true, false or null), price_inr (a number or null), delivery (true, false or null), alternative (text or null). price_inr is the price of the product that was asked for. Use null when the shopkeeper did not say."""
