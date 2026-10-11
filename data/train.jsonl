@@ -1,0 +1,400 @@
+{"product": "Splendor brake shoe", "said": "haan bolo, hai bhai, home delivery hai, dukaan 10 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "haan bolo, haan, stock mein hai, 220 rupaye ka hai, home delivery hai, dukaan 9 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 220, "delivery": true, "alternative": null}}
+{"product": "bike headlight bulb", "said": "Yes, available. It's 80 rupees", "answer": {"in_stock": true, "price_inr": 80, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "ho, milel", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "Yes sir, we have. Home delivery is available", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "bola, mahit nahi, godown madhe baghava lagel", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "वो हम नहीं रखते। उसकी जगह 3.15 mfd capacitor दे सकते हैं। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "3.15 mfd capacitor"}}
+{"product": "silicone sealant", "said": "pata nahi, godown mein dekhna padega", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "हाँ जी, मिल जाएगा। 160 लगेगा। होम डिलीवरी हो जाएगी", "answer": {"in_stock": true, "price_inr": 160, "delivery": true, "alternative": null}}
+{"product": "Activa clutch plate", "said": "aahe na, delivery deto", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "9W LED bulb", "said": "haan bola, aahe na, 10 piece aahet, 80 rupaye honar, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 80, "delivery": false, "alternative": null}}
+{"product": "50 mm padlock", "said": "Not sure, I'll have to check the godown. Come before 10", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "aahe na, 16 piece aahet, vees rupaye, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 20, "delivery": false, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "ji boliye, abhi stock mein nahi hai, home delivery hai", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "bola, ho, milel, pannas rupaye", "answer": {"in_stock": true, "price_inr": 50, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "Hello, who is this?. No, we don't have it. We can deliver", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "khatam ho gaya", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "khatam ho gaya, uski jagah 7W LED bulb de sakte hain", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "7W LED bulb"}}
+{"product": "4 inch door hinge", "said": "स्टॉक में है", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "ho, milel, didshe rupaye", "answer": {"in_stock": true, "price_inr": 150, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "ji haan, rakha hai, 110 lagega", "answer": {"in_stock": true, "price_inr": 110, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "हाँ, है। 160 रुपये का है। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": 160, "delivery": false, "alternative": null}}
+{"product": "4 inch door hinge", "said": "Not today, it comes tomorrow. We don't deliver", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "aahe na, 11 piece aahet, rate 390 aahe, ghari pathavto, 10 chya aat ya", "answer": {"in_stock": true, "price_inr": 390, "delivery": true, "alternative": null}}
+{"product": "50 mm padlock", "said": "Yes, available. That will be Rs 160", "answer": {"in_stock": true, "price_inr": 160, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "हाँ, है। रेट 310 है। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": 310, "delivery": false, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "haan, stock mein hai, 1600 rupaye ka hai, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 1600, "delivery": false, "alternative": null}}
+{"product": "16A MCB", "said": "available hai, rate 310 hai", "answer": {"in_stock": true, "price_inr": 310, "delivery": null, "alternative": null}}
+{"product": "tank float valve", "said": "haan bhai, hai bhai, 15 piece pade hain, rate 360 hai", "answer": {"in_stock": true, "price_inr": 360, "delivery": null, "alternative": null}}
+{"product": "4 socket extension board", "said": "abhi stock mein nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "हां बोला. थांबा, बघून सांगतो", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "हॅलो, कोण?. हो, आहे. 950 ला पडेल. घरपोच देतो", "answer": {"in_stock": true, "price_inr": 950, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "haan ji, mil jayega, rate 380 hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 380, "delivery": false, "alternative": null}}
+{"product": "bike headlight bulb", "said": "हाँ बोलिए। वो हम नहीं रखते। घर पर भेज देंगे", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "nahi hai, ghar pe bhej denge", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "haan, stock mein hai, 5 piece pade hain, ladka bhej deta hun", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "aahe na, dukan 8 vajta paryant ughada aahe", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "bola, malak nahit, nantar phone kara", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "thamba, baghun sangto", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 socket extension board", "said": "ji boliye, nahi hai, dukaan pe aake lena padega", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "bike headlight bulb", "said": "pata nahi, godown mein dekhna padega", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "Yes, tell me. Yes, we have it", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "ji boliye, available hai, 18 hi bache hain, ₹15, dukaan 8 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 15, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "bola, aahe na, 14 piece aahet", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa air filter", "said": "haan bhai, abhi nahi hai, parso aayega, delivery nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "रुकिए, देखकर बताता हूँ। दुकान 8 बजे तक खुली है", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "Yes, we have it. Price is 35. We can deliver", "answer": {"in_stock": true, "price_inr": 35, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "stock madhe aahe, 50 la padel, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 50, "delivery": false, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan bola, mahit nahi, godown madhe baghava lagel", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa air filter", "said": "ji boliye, haan, stock mein hai, 160 lagega, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 160, "delivery": false, "alternative": null}}
+{"product": "4 socket extension board", "said": "aamhi te thevat nahi", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "haan bhai, ruko, dekh ke batata hun", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "tank float valve", "said": "थांबा, बघून सांगतो. दुकान 8 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "Hello, who is this?. Not sure, I'll have to check the godown", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "available hai, dhai sau rupaye final, ladka bhej deta hun", "answer": {"in_stock": true, "price_inr": 250, "delivery": true, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "available hai, 2 piece pade hain, home delivery hai", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "स्टॉक में है। रेट 310 है। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": 310, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "stock madhe aahe", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "हॅलो, कोण?. आहे ना. पन्नास ला पडेल. दुकान 10 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": true, "price_inr": 50, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "ji haan, rakha hai, 20 lagega, delivery ho jayegi, 8 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": 20, "delivery": true, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "thamba, baghun sangto", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "hello, kaun?, hai bhai, 410 rupaye final", "answer": {"in_stock": true, "price_inr": 410, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "Yes, we have it. Price is 1150", "answer": {"in_stock": true, "price_inr": 1150, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "है भाई। 1100 रुपये का है। होम डिलीवरी हो जाएगी", "answer": {"in_stock": true, "price_inr": 1100, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "haan aahe, ghari pathavto", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "मालक नाहीत, नंतर फोन करा. दुकान 7 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "हैलो, कौन?। ख़त्म हो गया। घर पर भेज देंगे। दुकान 8 बजे तक खुली है", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "9W LED bulb", "said": "bola, sadhya nahi, ghari pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "9W LED bulb", "said": "ji haan, rakha hai, 130 rupaye final, dukaan 10 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 130, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "स्टॉकमध्ये आहे. 90 रुपये", "answer": {"in_stock": true, "price_inr": 90, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "haan bola, aahe na, rate 1600 aahe, delivery nahi karat", "answer": {"in_stock": true, "price_inr": 1600, "delivery": false, "alternative": null}}
+{"product": "8 mm drill bit", "said": "hello, kaun?, thodi der baad call karo, dukaan 8 baje tak khuli hai", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 socket extension board", "said": "ho, milel", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "haan bhai, abhi stock mein nahi hai, ghar pe bhej denge", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "aamhi te thevat nahi, tyachya aivaji CPVC elbow deu shakto, delivery nahi, dukanat yeun ghya", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "CPVC elbow"}}
+{"product": "12V 7Ah battery", "said": "आहे ना. 9 पीस आहेत. दुकान 10 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "haan, stock mein hai, 2150 rupaye ka hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 2150, "delivery": false, "alternative": null}}
+{"product": "water pump seal kit", "said": "abhi nahi hai, parso aayega, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "आम्ही ते ठेवत नाही. local putty आहे, चालेल का?. येऊन न्यावं लागेल", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "local putty"}}
+{"product": "Activa air filter", "said": "है भाई। घर पर भेज देंगे", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "haan ji, mil jayega", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "available hai, 15 piece pade hain, 35 ka padega", "answer": {"in_stock": true, "price_inr": 35, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "Yes, tell me. Not today, it comes tomorrow. I can give CPVC elbow instead. We can deliver", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "CPVC elbow"}}
+{"product": "silicone sealant", "said": "ji boliye, haan ji, mil jayega, 180 rupaye final, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 180, "delivery": true, "alternative": null}}
+{"product": "tank float valve", "said": "हैलो, कौन?। रुकिए, देखकर बताता हूँ। दुकान 8 बजे तक खुली है", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "हॅलो, कोण?. नाही आहे. Pulsar 180 spark plug आहे, चालेल का?. घरी पाठवतो", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "Pulsar 180 spark plug"}}
+{"product": "Activa air filter", "said": "nahi hai, ladka bhej deta hun, dukaan 10 baje tak khuli hai", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "haan aahe, 7 piece aahet, 380 rupaye honar", "answer": {"in_stock": true, "price_inr": 380, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "ho, milel, 1750 la padel, ghari pathavto", "answer": {"in_stock": true, "price_inr": 1750, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "pata nahi, godown mein dekhna padega", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "haan bhai, haan hai", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "nahi hai, uski jagah local clutch plate de sakte hain, dukaan pe aake lena padega", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "local clutch plate"}}
+{"product": "10W-30 engine oil 1 L", "said": "Yes, available", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan bhai, haan, stock mein hai, 5 hi bache hain, 60 rupaye ka hai", "answer": {"in_stock": true, "price_inr": 60, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "Hello, who is this?. Owner is not here, call later", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "Out of stock", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "stock madhe aahe", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "ji boliye, available hai, delivery nahi karte, aake le jao", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "water pump seal kit", "said": "haan hai, 6 hi bache hain, ₹140", "answer": {"in_stock": true, "price_inr": 140, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan ji, mil jayega, 60 rupaye ka hai", "answer": {"in_stock": true, "price_inr": 60, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "haan bhai, malik abhi nahi hain, baad mein phone karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "हां बोला. आहे ना. 90 रुपये", "answer": {"in_stock": true, "price_inr": 90, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "haan hai, 830 lagega, delivery nahi karte, aake le jao", "answer": {"in_stock": true, "price_inr": 830, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "aamhi te thevat nahi, ghari pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "water pump seal kit", "said": "ji boliye, pata nahi, godown mein dekhna padega", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "silicone sealant", "said": "थांबा, बघून सांगतो", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "woh hum nahi rakhte, thread seal tape hai, chalega?, delivery nahi karte, aake le jao, dukaan 9 baje tak khuli hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "thread seal tape"}}
+{"product": "50 mm padlock", "said": "ji boliye, haan, stock mein hai, 17 hi bache hain, 150 ka padega, delivery ho jayegi", "answer": {"in_stock": true, "price_inr": 150, "delivery": true, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "नहीं है। होम डिलीवरी हो जाएगी", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "ho aahe, 14 piece aahet, 50 rupaye, delivery nahi karat", "answer": {"in_stock": true, "price_inr": 50, "delivery": false, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "abhi nahi hai, parso aayega", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "abhi nahi hai, parso aayega, 10 baje ke pehle aana", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "haan bolo, hai bhai, 400 rupaye final", "answer": {"in_stock": true, "price_inr": 400, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "available hai", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "हो, आहे. 1450 रुपये", "answer": {"in_stock": true, "price_inr": 1450, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "haan bhai, available hai, 610 lagega", "answer": {"in_stock": true, "price_inr": 610, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "हाँ जी, मिल जाएगा। 5 पीस पड़े हैं। 1600 रुपये का है। घर पर भेज देंगे। दुकान 7 बजे तक खुली है", "answer": {"in_stock": true, "price_inr": 1600, "delivery": true, "alternative": null}}
+{"product": "water pump seal kit", "said": "It's in stock. We have 14 pieces. Price is 180. I'll send it with our boy. Come before 10", "answer": {"in_stock": true, "price_inr": 180, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "abhi stock mein nahi hai, uski jagah CPVC elbow de sakte hain, ladka bhej deta hun, 9 baje ke pehle aana", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "CPVC elbow"}}
+{"product": "Activa air filter", "said": "नहीं है। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "No, we don't have it. I'll send it with our boy", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "है भाई", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "आहे ना. घरी पाठवतो", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "सध्या नाही, उद्या येईल. paint roller आहे, चालेल का?. येऊन न्यावं लागेल", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "paint roller"}}
+{"product": "2 inch paint brush", "said": "abhi nahi hai, parso aayega, paint roller hai, chalega?, delivery nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "paint roller"}}
+{"product": "fan capacitor 2.5 mfd", "said": "nahi milega bhai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "hello, kon?, sampla, delivery nahi karat", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "9W LED bulb", "said": "abhi stock mein nahi hai, 7W LED bulb hai, chalega?, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "7W LED bulb"}}
+{"product": "12V 7Ah battery", "said": "It's in stock. It's 1050 rupees. We are open till 10 pm", "answer": {"in_stock": true, "price_inr": 1050, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "aahe na, shambhar rupaye", "answer": {"in_stock": true, "price_inr": 100, "delivery": null, "alternative": null}}
+{"product": "8 mm drill bit", "said": "We don't keep that", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "ख़त्म हो गया। घर पर भेज देंगे", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "abhi stock mein nahi hai, home delivery hai", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Activa clutch plate", "said": "Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "aahe na, porga pathavto", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "abhi stock mein nahi hai, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "50 mm padlock", "said": "ji boliye, abhi nahi hai, parso aayega, uski jagah 60 mm padlock de sakte hain, home delivery hai", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "60 mm padlock"}}
+{"product": "bike headlight bulb", "said": "Hello?. It's in stock. Home delivery is available", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "nahi milega bhai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "nahi milega bhai, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "9W LED bulb", "said": "ho, milel, 130 rupaye", "answer": {"in_stock": true, "price_inr": 130, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "stock madhe aahe, 410 la padel", "answer": {"in_stock": true, "price_inr": 410, "delivery": null, "alternative": null}}
+{"product": "silicone sealant", "said": "malik abhi nahi hain, baad mein phone karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "silicone sealant", "said": "haan bolo, ji haan, rakha hai, 330 ka padega", "answer": {"in_stock": true, "price_inr": 330, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "haan aahe, 19 piece aahet", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "Yes, we have it. Price is 290. Pickup only", "answer": {"in_stock": true, "price_inr": 290, "delivery": false, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan bolo, haan ji, mil jayega, 120 lagega", "answer": {"in_stock": true, "price_inr": 120, "delivery": null, "alternative": null}}
+{"product": "8 mm drill bit", "said": "thamba, baghun sangto", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "Hello, who is this?. It's in stock. That will be Rs 100. We are open till 10 pm", "answer": {"in_stock": true, "price_inr": 100, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "It's in stock. 70 rupees. I'll send it with our boy. Come before 9", "answer": {"in_stock": true, "price_inr": 70, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "ho, milel, 60 rupaye honar", "answer": {"in_stock": true, "price_inr": 60, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "haan hai, 30 lagega, ghar pe bhej denge, 7 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": 30, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "नहीं है। paint roller है, चलेगा?। घर पर भेज देंगे", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "paint roller"}}
+{"product": "10W-30 engine oil 1 L", "said": "haan ji, mil jayega, rate 380 hai, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 380, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "Yes, we have it. That will be Rs 1800. We don't deliver", "answer": {"in_stock": true, "price_inr": 1800, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "हो, आहे. 8 पीस आहेत", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "haan hai, 210 rupaye ka hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 210, "delivery": false, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "ji haan, rakha hai, rate 1300 hai", "answer": {"in_stock": true, "price_inr": 1300, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "haan bola, thamba, baghun sangto, dukan 10 vajta paryant ughada aahe", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "nahi milega bhai, delivery nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Hello, who is this?. Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "sadhya nahi, ghari pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Activa air filter", "said": "Yes, we have it. That will be Rs 240", "answer": {"in_stock": true, "price_inr": 240, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "aamhi te thevat nahi, tyachya aivaji wall putty 40 kg deu shakto, porga pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "wall putty 40 kg"}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "हाँ बोलिए। स्टॉक में है। डिलीवरी नहीं है", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "ji haan, rakha hai, 75 rupaye ka hai", "answer": {"in_stock": true, "price_inr": 75, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "haan bhai, nahi milega bhai, ghar pe bhej denge", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "16A MCB", "said": "Owner is not here, call later", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "ji boliye, hai bhai, ₹1500", "answer": {"in_stock": true, "price_inr": 1500, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "हॅलो, कोण?. हो, आहे. 13 पीस आहेत. 120 रुपये. घरपोच देतो", "answer": {"in_stock": true, "price_inr": 120, "delivery": true, "alternative": null}}
+{"product": "16A MCB", "said": "haan, stock mein hai, delivery ho jayegi", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "Yes, tell me. Not today, it comes tomorrow. I can give 3/4 inch elbow instead. Pickup only", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "3/4 inch elbow"}}
+{"product": "9W LED bulb", "said": "आहे ना. 3 पीस आहेत. रेट 140 आहे", "answer": {"in_stock": true, "price_inr": 140, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "aahe na, 30 rupaye honar, delivery deto", "answer": {"in_stock": true, "price_inr": 30, "delivery": true, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "haan bola, ho aahe", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "रुकिए, देखकर बताता हूँ", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "मालक नाहीत, नंतर फोन करा", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "haan ji, mil jayega, 80 rupaye final, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 80, "delivery": false, "alternative": null}}
+{"product": "8 mm drill bit", "said": "ji boliye, hai bhai, rate pachaas hai, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 50, "delivery": true, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "नहीं है। उसकी जगह 12V 9Ah battery दे सकते हैं। घर पर भेज देंगे", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "12V 9Ah battery"}}
+{"product": "teflon tape", "said": "ji boliye, haan ji, mil jayega, rate 30 hai, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 30, "delivery": false, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "bola, thamba, baghun sangto, dukan 8 vajta paryant ughada aahe", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "Not today, it comes tomorrow", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "woh hum nahi rakhte, LED headlight bulb hai, chalega?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "LED headlight bulb"}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "अभी नहीं है, परसों आएगा", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan ji, mil jayega, 3 hi bache hain, ₹80, home delivery hai", "answer": {"in_stock": true, "price_inr": 80, "delivery": true, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "abhi stock mein nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "मालिक नहीं हैं, बाद में फ़ोन कीजिए", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "haan bolo, haan ji, mil jayega, rate 50 hai, dukaan 9 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 50, "delivery": null, "alternative": null}}
+{"product": "Activa air filter", "said": "khatam ho gaya, delivery nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "tank float valve", "said": "hai bhai, 14 piece pade hain, delivery ho jayegi, 10 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "It's in stock. That will be Rs 1700", "answer": {"in_stock": true, "price_inr": 1700, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "नाही आहे. त्याच्याऐवजी 3.15 mfd capacitor देऊ शकतो. घरी पाठवतो", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "3.15 mfd capacitor"}}
+{"product": "Fevicol SH 1 kg", "said": "bola, ho aahe, 420 rupaye honar", "answer": {"in_stock": true, "price_inr": 420, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "स्टॉक में है। रेट 2200 है। दुकान 9 बजे तक खुली है", "answer": {"in_stock": true, "price_inr": 2200, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "hai bhai, 7 hi bache hain, ₹120, dukaan 10 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 120, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "pata nahi, godown mein dekhna padega", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "Not today, it comes tomorrow. I'll send it with our boy", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "ho, milel, 9 ch urle aahet, 70 rupaye honar", "answer": {"in_stock": true, "price_inr": 70, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "हॅलो, कोण?. मालक नाहीत, नंतर फोन करा", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "हाँ जी, मिल जाएगा। 1150 लगेगा", "answer": {"in_stock": true, "price_inr": 1150, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "हाँ बोलिए। ख़त्म हो गया। दुकान 9 बजे तक खुली है", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "है भाई। 230 लगेगा। दुकान 10 बजे तक खुली है", "answer": {"in_stock": true, "price_inr": 230, "delivery": null, "alternative": null}}
+{"product": "silicone sealant", "said": "ho, milel, 270 rupaye honar", "answer": {"in_stock": true, "price_inr": 270, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "stock madhe aahe, adichshe rupaye honar, ghari pathavto", "answer": {"in_stock": true, "price_inr": 250, "delivery": true, "alternative": null}}
+{"product": "9W LED bulb", "said": "ho, milel, rate 90 aahe, ghari pathavto, 10 chya aat ya", "answer": {"in_stock": true, "price_inr": 90, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "nahi milega bhai, dukaan pe aake lena padega", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "bike headlight bulb", "said": "ji haan, rakha hai, 5 piece pade hain, 220 lagega", "answer": {"in_stock": true, "price_inr": 220, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "silicone sealant", "said": "हाँ, है। 13 पीस पड़े हैं", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "woh hum nahi rakhte, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "haan bolo, hai bhai, 1450 rupaye ka hai, dukaan 9 baje tak khuli hai", "answer": {"in_stock": true, "price_inr": 1450, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "Yes, we have it. Price is 45. Pickup only", "answer": {"in_stock": true, "price_inr": 45, "delivery": false, "alternative": null}}
+{"product": "50 mm padlock", "said": "मालिक नहीं हैं, बाद में फ़ोन कीजिए", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "haan bolo, nahi hai, uski jagah 60 mm padlock de sakte hain", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "60 mm padlock"}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "khatam ho gaya, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "हैलो, कौन?। हाँ, है। 20 पीस पड़े हैं। घर पर भेज देंगे", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "Hello, who is this?. Owner is not here, call later", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "8 mm drill bit", "said": "Yes sir, we have. We have 4 pieces. That will be Rs 90. Pickup only", "answer": {"in_stock": true, "price_inr": 90, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "aamhi te thevat nahi", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "हॅलो, कोण?. आहे ना. 80 रुपये. घरी पाठवतो. दुकान 8 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": true, "price_inr": 80, "delivery": true, "alternative": null}}
+{"product": "tank float valve", "said": "Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "haan ji, mil jayega, 730 ka padega", "answer": {"in_stock": true, "price_inr": 730, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "सध्या नाही, उद्या येईल. डिलिव्हरी नाही, दुकानात येऊन घ्या", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "50 mm padlock", "said": "ji haan, rakha hai, rate 240 hai, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 240, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "हाँ, है। 120 लगेगा। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": 120, "delivery": false, "alternative": null}}
+{"product": "4 socket extension board", "said": "available hai, 8 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "nahi milega bhai, halogen bulb hai, chalega?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "halogen bulb"}}
+{"product": "1 inch PVC elbow", "said": "हां बोला. स्टॉकमध्ये आहे. तीस रुपये", "answer": {"in_stock": true, "price_inr": 30, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "Yes, available. 65 rupees", "answer": {"in_stock": true, "price_inr": 65, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "It's in stock. No delivery, you'll have to come to the shop", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "ji haan, rakha hai, 100 rupaye final, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 100, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Hello, who is this?. It's in stock. We have 9 pieces. It's 220 rupees. We can deliver", "answer": {"in_stock": true, "price_inr": 220, "delivery": true, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "nahi milega bhai, local brake shoe hai, chalega?, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "local brake shoe"}}
+{"product": "4 socket extension board", "said": "hai bhai, 520 ka padega", "answer": {"in_stock": true, "price_inr": 520, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "हॅलो, कोण?. थांबा, बघून सांगतो", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "ruko, dekh ke batata hun", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "haan aahe, 10 rupaye, yeun nyava lagel, 9 chya aat ya", "answer": {"in_stock": true, "price_inr": 10, "delivery": false, "alternative": null}}
+{"product": "4 inch door hinge", "said": "pata nahi, godown mein dekhna padega, dukaan 9 baje tak khuli hai", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "Hello?. No, we don't have it. We have local seal kit, will that work?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "local seal kit"}}
+{"product": "Activa clutch plate", "said": "malik abhi nahi hain, baad mein phone karo, 9 baje ke pehle aana", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "malak nahit, nantar phone kara, 9 chya aat ya", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "ji haan, rakha hai, 1500 lagega, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 1500, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Yes, tell me. We don't keep that. I can give local brake shoe instead. Home delivery is available. Come before 8", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "local brake shoe"}}
+{"product": "bike headlight bulb", "said": "hai bhai, 7 piece pade hain, home delivery hai", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "Yes, tell me. Yes sir, we have. Price is 350", "answer": {"in_stock": true, "price_inr": 350, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "Sorry, finished. I'll send it with our boy", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "khatam ho gaya, 2.25 mfd capacitor rakha hai, dukaan pe aake lena padega", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "2.25 mfd capacitor"}}
+{"product": "Pulsar 150 spark plug", "said": "आम्ही ते ठेवत नाही. local spark plug आहे, चालेल का?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "local spark plug"}}
+{"product": "9W LED bulb", "said": "Hello?. Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan, stock mein hai, ₹110, delivery nahi hai, 8 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": 110, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "नहीं है", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "bike headlight bulb", "said": "haan bola, haan aahe, 170 rupaye, ghari pathavto, dukan 10 vajta paryant ughada aahe", "answer": {"in_stock": true, "price_inr": 170, "delivery": true, "alternative": null}}
+{"product": "4 socket extension board", "said": "haan hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "No, we don't have it. I'll send it with our boy", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "ho aahe, 120 rupaye, delivery nahi, dukanat yeun ghya", "answer": {"in_stock": true, "price_inr": 120, "delivery": false, "alternative": null}}
+{"product": "tank float valve", "said": "available hai, 17 piece pade hain, rate 400 hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 400, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Hello, who is this?. Sorry, finished. We can deliver", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "haan bola, udya yeil, aaj nahi", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "sampla, 8 chya aat ya", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "hello, kaun?, abhi stock mein nahi hai, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "haan bhai, haan, stock mein hai, 6 piece pade hain, 70 rupaye ka hai, delivery ho jayegi", "answer": {"in_stock": true, "price_inr": 70, "delivery": true, "alternative": null}}
+{"product": "2 inch paint brush", "said": "hello, kaun?, thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "Out of stock", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "abhi nahi hai, parso aayega, uski jagah 2.25 mfd capacitor de sakte hain, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "2.25 mfd capacitor"}}
+{"product": "50 mm padlock", "said": "हाँ बोलिए। स्टॉक में है। 2 पीस पड़े हैं", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "thamba, baghun sangto", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "abhi stock mein nahi hai, local seal kit rakha hai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "local seal kit"}}
+{"product": "Pulsar 150 spark plug", "said": "thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "हॅलो, कोण?. स्टॉकमध्ये आहे. 10 पीस आहेत. तीस रुपये. येऊन न्यावं लागेल", "answer": {"in_stock": true, "price_inr": 30, "delivery": false, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "Hello?. Yes, we have it. Only 6 left. It's 1100 rupees", "answer": {"in_stock": true, "price_inr": 1100, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "haan bhai, thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "हाँ, है। 17 पीस पड़े हैं। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए। दुकान 9 बजे तक खुली है", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Activa air filter", "said": "khatam ho gaya, local air filter hai, chalega?, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "local air filter"}}
+{"product": "Pulsar 150 spark plug", "said": "udya yeil, aaj nahi, Pulsar 180 spark plug aahe, chalel ka?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "Pulsar 180 spark plug"}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "Not today, it comes tomorrow. I'll send it with our boy", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "16A MCB", "said": "ji haan, rakha hai, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "hello, kaun?, woh hum nahi rakhte, delivery nahi hai, dukaan 8 baje tak khuli hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "hello, kon?, sampla, yeun nyava lagel", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "हाँ, है", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "ji haan, rakha hai, 760 rupaye ka hai, delivery ho jayegi", "answer": {"in_stock": true, "price_inr": 760, "delivery": true, "alternative": null}}
+{"product": "8 mm drill bit", "said": "haan bhai, khatam ho gaya", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "हॅलो, कोण?. मालक नाहीत, नंतर फोन करा. दुकान 10 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "है भाई। रेट 90 है। डिलीवरी नहीं है", "answer": {"in_stock": true, "price_inr": 90, "delivery": false, "alternative": null}}
+{"product": "teflon tape", "said": "ख़त्म हो गया। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Activa clutch plate", "said": "stock madhe aahe", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "हां बोला. नाही आहे. त्याच्याऐवजी 2.5 sq mm wire देऊ शकतो", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "2.5 sq mm wire"}}
+{"product": "fan capacitor 2.5 mfd", "said": "haan bhai, haan ji, mil jayega, 70 rupaye final, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 70, "delivery": false, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "ruko, dekh ke batata hun", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "hello, kaun?, nahi hai, 12W LED bulb hai, chalega?, ladka bhej deta hun", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "12W LED bulb"}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "woh hum nahi rakhte, 1 sq mm wire rakha hai", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "1 sq mm wire"}}
+{"product": "8 mm drill bit", "said": "haan bhai, available hai", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "sampla, dukan 7 vajta paryant ughada aahe", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "2 inch paint brush", "said": "haan aahe, 75 rupaye, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 75, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "Yes sir, we have. 930 rupees", "answer": {"in_stock": true, "price_inr": 930, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "woh hum nahi rakhte, delivery nahi hai", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "silicone sealant", "said": "Hello, who is this?. It's in stock. Price is 260", "answer": {"in_stock": true, "price_inr": 260, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "No, we don't have it. I can give Jupiter clutch plate instead. Home delivery is available", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "Jupiter clutch plate"}}
+{"product": "bike headlight bulb", "said": "aamhi te thevat nahi, delivery deto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "bola, sampla, tyachya aivaji 3 inch hinge deu shakto, delivery nahi karat", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "3 inch hinge"}}
+{"product": "wall putty 20 kg", "said": "haan hai, rate 710 hai", "answer": {"in_stock": true, "price_inr": 710, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "haan, stock mein hai, ladka bhej deta hun", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "nahi aahe, porga pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "9W LED bulb", "said": "haan, stock mein hai, 4 hi bache hain, 110 rupaye ka hai, home delivery hai", "answer": {"in_stock": true, "price_inr": 110, "delivery": true, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "bola, udya yeil, aaj nahi, yeun nyava lagel", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "haan, stock mein hai, 370 rupaye final, delivery nahi hai", "answer": {"in_stock": true, "price_inr": 370, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "hello, kaun?, nahi hai, delivery ho jayegi", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "bike headlight bulb", "said": "haan hai, 240 ka padega", "answer": {"in_stock": true, "price_inr": 240, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "हाँ बोलिए। हाँ जी, मिल जाएगा। 230 रुपये का है। होम डिलीवरी हो जाएगी", "answer": {"in_stock": true, "price_inr": 230, "delivery": true, "alternative": null}}
+{"product": "8 mm drill bit", "said": "sampla", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "ji boliye, available hai, rate 1000 hai, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 1000, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "hai bhai, 16 piece pade hain, ₹360", "answer": {"in_stock": true, "price_inr": 360, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "Yes, tell me. Not sure, I'll have to check the godown. We are open till 7 pm", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "हाँ जी, मिल जाएगा। 70 रुपये का है। घर पर भेज देंगे", "answer": {"in_stock": true, "price_inr": 70, "delivery": true, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "aamhi te thevat nahi, tyachya aivaji 12V 5Ah battery deu shakto", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "12V 5Ah battery"}}
+{"product": "4 socket extension board", "said": "haan bhai, hai bhai", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "हैलो, कौन?। हाँ जी, मिल जाएगा। रेट 140 है। घर पर भेज देंगे", "answer": {"in_stock": true, "price_inr": 140, "delivery": true, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "Yes, available. Home delivery is available. Come before 7", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "16A MCB", "said": "ruko, dekh ke batata hun", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "bola, udya yeil, aaj nahi, tyachya aivaji 12W LED bulb deu shakto, delivery deto, 9 chya aat ya", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "12W LED bulb"}}
+{"product": "9W LED bulb", "said": "ho aahe, 70 rupaye honar, delivery nahi, dukanat yeun ghya", "answer": {"in_stock": true, "price_inr": 70, "delivery": false, "alternative": null}}
+{"product": "1.5 sq mm copper wire, 90 m roll", "said": "stock madhe aahe, rate 2100 aahe, delivery nahi karat", "answer": {"in_stock": true, "price_inr": 2100, "delivery": false, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "available hai, 330 ka padega, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 330, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "abhi stock mein nahi hai, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "No, we don't have it. I can give 3 inch brush instead", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "3 inch brush"}}
+{"product": "water pump seal kit", "said": "haan ji, mil jayega, delivery nahi karte, aake le jao", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "हाँ बोलिए। नहीं है। घर पर भेज देंगे। दुकान 9 बजे तक खुली है", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "tank float valve", "said": "ji boliye, nahi milega bhai, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Out of stock. I can give local brake shoe instead. We are open till 10 pm", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "local brake shoe"}}
+{"product": "50 mm padlock", "said": "woh hum nahi rakhte, dukaan pe aake lena padega", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "4 socket extension board", "said": "thodi der baad call karo", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "It's in stock. Price is 400. We don't deliver", "answer": {"in_stock": true, "price_inr": 400, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "नाही आहे", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "हाँ जी, मिल जाएगा। 60 लगेगा", "answer": {"in_stock": true, "price_inr": 60, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "We don't keep that. We can deliver", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "है भाई। 4 पीस पड़े हैं। रेट सौ है। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": 100, "delivery": false, "alternative": null}}
+{"product": "bike headlight bulb", "said": "haan bola, nahi aahe, tyachya aivaji LED headlight bulb deu shakto, yeun nyava lagel", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "LED headlight bulb"}}
+{"product": "Activa air filter", "said": "malak nahit, nantar phone kara", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "संपलं. 40 mm padlock आहे, चालेल का?. दुकान 10 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "40 mm padlock"}}
+{"product": "bike headlight bulb", "said": "Yes, we have it. That will be Rs 220. Pickup only", "answer": {"in_stock": true, "price_inr": 220, "delivery": false, "alternative": null}}
+{"product": "Activa air filter", "said": "ji boliye, hai bhai, ₹270, 10 baje ke pehle aana", "answer": {"in_stock": true, "price_inr": 270, "delivery": null, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "ho aahe, 110 la padel", "answer": {"in_stock": true, "price_inr": 110, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "ji boliye, haan ji, mil jayega, 14 piece pade hain, 80 rupaye final", "answer": {"in_stock": true, "price_inr": 80, "delivery": null, "alternative": null}}
+{"product": "8 mm drill bit", "said": "nahi aahe", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 socket extension board", "said": "आहे ना. 3 पीस आहेत. घरी पाठवतो", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Activa clutch plate", "said": "Not today, it comes tomorrow. I can give Jupiter clutch plate instead", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "Jupiter clutch plate"}}
+{"product": "4 inch door hinge", "said": "available hai, 80 lagega, dukaan pe aake lena padega", "answer": {"in_stock": true, "price_inr": 80, "delivery": false, "alternative": null}}
+{"product": "Activa air filter", "said": "ji haan, rakha hai, 3 hi bache hain, 320 lagega", "answer": {"in_stock": true, "price_inr": 320, "delivery": null, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "stock madhe aahe, rate 330 aahe, porga pathavto", "answer": {"in_stock": true, "price_inr": 330, "delivery": true, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "Out of stock. Come before 7", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "नाही आहे. येऊन न्यावं लागेल", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "haan bola, haan aahe, 80 la padel, yeun nyava lagel, dukan 8 vajta paryant ughada aahe", "answer": {"in_stock": true, "price_inr": 80, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "Yes, available. We have 18 pieces. It's 780 rupees", "answer": {"in_stock": true, "price_inr": 780, "delivery": null, "alternative": null}}
+{"product": "teflon tape", "said": "Yes sir, we have. 10 rupees", "answer": {"in_stock": true, "price_inr": 10, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "nahi hai, local spark plug hai, chalega?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "local spark plug"}}
+{"product": "10W-30 engine oil 1 L", "said": "woh hum nahi rakhte, 10W-30 engine oil 900 ml rakha hai, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "10W-30 engine oil 900 ml"}}
+{"product": "4 inch door hinge", "said": "ho, milel, 60 la padel, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 60, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "हाँ बोलिए। नहीं है। होम डिलीवरी हो जाएगी", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "Yes sir, we have", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "fan capacitor 2.5 mfd", "said": "हॅलो, कोण?. संपलं", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "Yes, tell me. Yes, available. It's 1450 rupees. I'll send it with our boy", "answer": {"in_stock": true, "price_inr": 1450, "delivery": true, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "अभी नहीं है, परसों आएगा", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "Yes sir, we have. Only 19 left. 170 rupees", "answer": {"in_stock": true, "price_inr": 170, "delivery": null, "alternative": null}}
+{"product": "Activa clutch plate", "said": "nahi hai, ghar pe bhej denge", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "4 inch door hinge", "said": "hello, kon?, ho, milel, porga pathavto", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "haan bola, ho, milel, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "8 mm drill bit", "said": "हाँ बोलिए। है भाई। 16 पीस पड़े हैं। डिलीवरी नहीं करते, दुकान पर आकर ले जाइए", "answer": {"in_stock": true, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "2 inch paint brush", "said": "malik abhi nahi hain, baad mein phone karo, dukaan 9 baje tak khuli hai", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "aahe na, 35 rupaye honar", "answer": {"in_stock": true, "price_inr": 35, "delivery": null, "alternative": null}}
+{"product": "4 inch door hinge", "said": "Yes, available. Price is 100. Home delivery is available. We are open till 8 pm", "answer": {"in_stock": true, "price_inr": 100, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "abhi nahi hai, parso aayega", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "हां बोला. आम्ही ते ठेवत नाही. 12V 9Ah battery आहे, चालेल का?", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": "12V 9Ah battery"}}
+{"product": "16A MCB", "said": "आहे ना. 180 रुपये. येऊन न्यावं लागेल. दुकान 7 वाजेपर्यंत उघडं आहे", "answer": {"in_stock": true, "price_inr": 180, "delivery": false, "alternative": null}}
+{"product": "10 mm nut bolt (pack of 10)", "said": "woh hum nahi rakhte", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "4 socket extension board", "said": "ho, milel, 600 la padel, yeun nyava lagel", "answer": {"in_stock": true, "price_inr": 600, "delivery": false, "alternative": null}}
+{"product": "water pump seal kit", "said": "Yes, we have it. 280 rupees. We are open till 7 pm", "answer": {"in_stock": true, "price_inr": 280, "delivery": null, "alternative": null}}
+{"product": "16A MCB", "said": "haan ji, mil jayega, dhai sau ka padega, delivery ho jayegi", "answer": {"in_stock": true, "price_inr": 250, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "Not sure, I'll have to check the godown", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Splendor brake shoe", "said": "Hold on, let me check", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "tank float valve", "said": "हॅलो, कोण?. आहे ना. 5 पीस आहेत. रेट 200 आहे. येऊन न्यावं लागेल", "answer": {"in_stock": true, "price_inr": 200, "delivery": false, "alternative": null}}
+{"product": "8 mm drill bit", "said": "woh hum nahi rakhte", "answer": {"in_stock": false, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "9W LED bulb", "said": "रुकिए, देखकर बताता हूँ। दुकान 10 बजे तक खुली है", "answer": {"in_stock": null, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "Pulsar 150 spark plug", "said": "Yes, tell me. Yes, available. That will be Rs 170", "answer": {"in_stock": true, "price_inr": 170, "delivery": null, "alternative": null}}
+{"product": "10W-30 engine oil 1 L", "said": "हैलो, कौन?। हाँ, है। 330 रुपये का है", "answer": {"in_stock": true, "price_inr": 330, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "hai bhai, 340 ka padega", "answer": {"in_stock": true, "price_inr": 340, "delivery": null, "alternative": null}}
+{"product": "water pump seal kit", "said": "Not today, it comes tomorrow. I can give mechanical seal instead. We don't deliver. Come before 7", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": "mechanical seal"}}
+{"product": "1 inch PVC elbow", "said": "woh hum nahi rakhte, delivery nahi karte, aake le jao", "answer": {"in_stock": false, "price_inr": null, "delivery": false, "alternative": null}}
+{"product": "wall putty 20 kg", "said": "available hai", "answer": {"in_stock": true, "price_inr": null, "delivery": null, "alternative": null}}
+{"product": "12V 7Ah battery", "said": "haan ji, mil jayega, 13 piece pade hain, ₹1100, ghar pe bhej denge", "answer": {"in_stock": true, "price_inr": 1100, "delivery": true, "alternative": null}}
+{"product": "silicone sealant", "said": "Hello?. Yes, available. We can deliver", "answer": {"in_stock": true, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "Fevicol SH 1 kg", "said": "hello, kaun?, hai bhai, rate 340 hai", "answer": {"in_stock": true, "price_inr": 340, "delivery": null, "alternative": null}}
+{"product": "50 mm padlock", "said": "sampla, 60 mm padlock aahe, chalel ka?, ghari pathavto", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "60 mm padlock"}}
+{"product": "9W LED bulb", "said": "नहीं है। उसकी जगह 7W LED bulb दे सकते हैं। होम डिलीवरी हो जाएगी", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": "7W LED bulb"}}
+{"product": "2 inch paint brush", "said": "haan bolo, nahi milega bhai, home delivery hai, dukaan 7 baje tak khuli hai", "answer": {"in_stock": false, "price_inr": null, "delivery": true, "alternative": null}}
+{"product": "tank float valve", "said": "haan, stock mein hai, 17 piece pade hain, ₹330", "answer": {"in_stock": true, "price_inr": 330, "delivery": null, "alternative": null}}
+{"product": "1 inch PVC elbow", "said": "हाँ, है। चालीस लगेगा। होम डिलीवरी हो जाएगी", "answer": {"in_stock": true, "price_inr": 40, "delivery": true, "alternative": null}}
