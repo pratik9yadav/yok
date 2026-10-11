@@ -68,6 +68,14 @@ def push(api, kernel: str) -> None:
     if error:
         sys.exit(f"Kaggle refused the run: {error}")
     print("Started:", getattr(resp, "url", None) or f"https://www.kaggle.com/code/{kernel}", flush=True)
+    try:  # what Kaggle saved for this run: shows whether the GPU request arrived
+        saved = Path(tempfile.mkdtemp())
+        api.kernels_pull(kernel, str(saved), metadata=True)
+        server = json.loads((saved / "kernel-metadata.json").read_text())
+        print("Kaggle saved:", {k: server.get(k) for k in ("enable_gpu", "machine_shape", "enable_internet")},
+              flush=True)
+    except Exception as e:  # noqa: BLE001 - diagnostics only
+        print("Could not read back the run settings:", e, flush=True)
 
 
 def wait(api, kernel: str, limit_min: int = 120) -> bool:
