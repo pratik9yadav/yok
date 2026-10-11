@@ -72,3 +72,73 @@ def test_notebook_is_built_from_current_files() -> None:
     assert scope["TRAIN_DATA"] == load("train.jsonl")
     assert scope["TEST"] == load("test.jsonl")
     assert scope["SYSTEM"] == SYSTEM
+
+
+class FakeModel:
+    """Stands in for the trained model: writes the files Unsloth would write."""
+
+    def save_pretrained(self, path: str) -> None:
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+    def save_pretrained_gguf(self, path: str, tokenizer, quantization_method: str) -> dict:
+        out = Path(path + "_gguf")
+        out.mkdir(parents=True)
+        (out / "model.BF16.gguf").write_text("x" * 100)
+        (out / "model.Q4_K_M.gguf").write_text("x" * 30)
+        (out / "Modelfile").write_text('FROM model.BF16.gguf\nTEMPLATE """{{ .Prompt }}"""\nPARAMETER temperature 0.6\n')
+        return {"gguf_files": [str(out / "model.BF16.gguf"), str(out / "model.Q4_K_M.gguf")],
+                "modelfile_location": str(out / "Modelfile")}
+
+
+def test_save_cell_keeps_the_small_model_and_a_working_modelfile(tmp_path: Path) -> None:
+    import shutil
+
+    nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
+    save = "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith("#@title 10."))["source"])
+    scope = {"model": FakeModel(), "tokenizer": FakeModel(), "shutil": shutil, "os": __import__("os"),
+             "SYSTEM": SYSTEM, "OUTPUT_NAME": "m", "MAKE_OLLAMA_FILE": True,
+             "WORK": str(tmp_path / "work"), "SAVE_DIR": str(tmp_path / "out")}
+    exec(save, scope)  # noqa: S102 - our own generated cell
+    saved = sorted(p.name for p in (tmp_path / "out").iterdir())
+    assert saved == ["Modelfile", "lora", "m.Q4_K_M.gguf"]
+    modelfile = (tmp_path / "out" / "Modelfile").read_text()
+    assert modelfile.startswith("FROM ./m.Q4_K_M.gguf\n") and modelfile.count("FROM ") == 1
+    assert "PARAMETER temperature 0\n" in modelfile and "0.6" not in modelfile
+    assert f'SYSTEM """{SYSTEM}"""' in modelfile
+
+
+def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch) -> None:
+    import enum
+    from types import SimpleNamespace
+
+    import run_on_kaggle
+
+    Status = enum.Enum("Status", "RUNNING COMPLETE")
+    calls: dict = {}
+
+    class FakeApi:
+        def kernels_push(self, folder, acc=None):
+            calls["meta"] = json.loads((Path(folder) / "kernel-metadata.json").read_text())
+            calls["acc"] = acc
+            calls["has_notebook"] = (Path(folder) / "train_colab.ipynb").exists()
+            return SimpleNamespace(error=None, url="https://kaggle/x")
+
+        def kernels_status(self, kernel):
+            calls["polls"] = calls.get("polls", 0) + 1
+            return SimpleNamespace(status=Status.COMPLETE if calls["polls"] > 1 else Status.RUNNING,
+                                   failure_message="")
+
+        def kernels_output(self, kernel, path, file_pattern=None, force=False):
+            row = {f: 1.0 for f in ("all_correct", "json_ok") + FIELDS}
+            (Path(path) / "results.json").write_text(json.dumps(
+                {"before": row, "after": row, "mistakes_after": [], "mistakes_before": []}))
+
+    monkeypatch.setattr(run_on_kaggle, "OUT", tmp_path / "out")
+    monkeypatch.setattr(run_on_kaggle.time, "sleep", lambda s: None)
+    api = FakeApi()
+    run_on_kaggle.push(api, "me/wimb-shop-model-training")
+    assert run_on_kaggle.wait(api, "me/wimb-shop-model-training") is True
+    run_on_kaggle.fetch(api, "me/wimb-shop-model-training")
+    assert calls["acc"] == "NvidiaTeslaT4" and calls["has_notebook"]
+    assert calls["meta"]["id"] == "me/wimb-shop-model-training" and calls["meta"]["enable_internet"]
+    assert (tmp_path / "out" / "results.json").exists()

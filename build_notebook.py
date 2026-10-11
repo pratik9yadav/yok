@@ -48,11 +48,14 @@ INTRO = f"""
 
 **What it does:** takes a free model (Qwen3 4B), tests it on 30 shop calls, trains it on
 400 examples, tests it again, and saves your model to Google Drive for Ollama.
+
+It also runs on Kaggle's free GPU: `run_on_kaggle.py` starts it there with no clicks.
 """
 
 CHECK_GPU = """
 #@title 1. Check the GPU
-import shutil, subprocess
+import os, shutil, subprocess
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # Kaggle gives two GPUs; training uses one
 if not shutil.which("nvidia-smi"):
     raise RuntimeError("No GPU. Click Runtime > Change runtime type > T4 GPU > Save, then Runtime > Run all.")
 print(subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
@@ -73,9 +76,16 @@ SAVE_TO_DRIVE = True  #@param {type:"boolean"}
 MAKE_OLLAMA_FILE = True  #@param {type:"boolean"}
 # This notebook is set up for Qwen3 instruct models (their chat format is used below).
 
-if SAVE_TO_DRIVE:
+ON_KAGGLE = os.path.exists("/kaggle/working")
+WORK = "/tmp" if ON_KAGGLE else "/content"  # big temporary files (Kaggle saves all of /kaggle/working)
+if ON_KAGGLE:
+    SAVE_DIR = f"/kaggle/working/{OUTPUT_NAME}"  # shown in the notebook's Output tab
+elif SAVE_TO_DRIVE:
+    SAVE_DIR = f"/content/drive/MyDrive/{OUTPUT_NAME}"
     from google.colab import drive
     drive.mount("/content/drive")
+else:
+    SAVE_DIR = None
 """
 
 LOAD = """
@@ -177,6 +187,11 @@ for f in ("all_correct", "json_ok") + FIELDS:
 summary = {k: {f: round(r[f], 3) for f in ("all_correct", "json_ok") + FIELDS}
            for k, r in (("before", before), ("after", after))}
 print("\\nRESULTS_JSON", json.dumps({"model": MODEL_NAME, "epochs": EPOCHS, **summary}))
+if ON_KAGGLE:  # run_on_kaggle.py downloads this
+    with open("/kaggle/working/results.json", "w", encoding="utf-8") as fh:
+        json.dump({"model": MODEL_NAME, "epochs": EPOCHS, **summary,
+                   "mistakes_after": after["mistakes"], "mistakes_before": before["mistakes"]},
+                  fh, ensure_ascii=False, indent=1)
 """
 
 TRY = """
@@ -188,20 +203,19 @@ print(ask(product, said))
 """
 
 SAVE = '''
-#@title 10. Save your model to Google Drive (the Ollama file takes about 10–15 minutes)
-import glob, os, re
+#@title 10. Save your model: Google Drive on Colab, the Output tab on Kaggle (the Ollama file takes 10–15 minutes)
+import glob, re
 
-lora_dir = f"/content/{OUTPUT_NAME}-lora"
+lora_dir = f"{WORK}/{OUTPUT_NAME}-lora"
 model.save_pretrained(lora_dir)
 tokenizer.save_pretrained(lora_dir)
-drive_dir = f"/content/drive/MyDrive/{OUTPUT_NAME}"
-if SAVE_TO_DRIVE:
-    os.makedirs(drive_dir, exist_ok=True)
-    shutil.copytree(lora_dir, f"{drive_dir}/lora", dirs_exist_ok=True)
-    print("Saved the LoRA add-on to Google Drive:", f"{drive_dir}/lora")
+if SAVE_DIR:
+    os.makedirs(SAVE_DIR, exist_ok=True)
+    shutil.copytree(lora_dir, f"{SAVE_DIR}/lora", dirs_exist_ok=True)
+    print("Saved the LoRA add-on to", f"{SAVE_DIR}/lora")
 
 if MAKE_OLLAMA_FILE:
-    gguf_dir = f"/content/{OUTPUT_NAME}"
+    gguf_dir = f"{WORK}/{OUTPUT_NAME}"
     result = model.save_pretrained_gguf(gguf_dir, tokenizer, quantization_method="q4_k_m")
     files = (result or {}).get("gguf_files") if isinstance(result, dict) else None
     files = files or glob.glob(f"{gguf_dir}*/**/*.gguf", recursive=True)
@@ -221,16 +235,17 @@ if MAKE_OLLAMA_FILE:
     modelfile = re.sub(r"^FROM .*\\n?", "", modelfile, flags=re.M)
     modelfile = re.sub(r"^PARAMETER temperature .*\\n?", "", modelfile, flags=re.M)
     modelfile = f"FROM ./{name}\\n{modelfile.strip()}\\nPARAMETER temperature 0\\nSYSTEM \\"\\"\\"{SYSTEM}\\"\\"\\"\\n"
-    with open(f"{gguf_dir}/Modelfile.wimb", "w", encoding="utf-8") as fh:
+    modelfile_path = os.path.join(os.path.dirname(gguf), "Modelfile.wimb")  # gguf_dir itself may be cleaned up
+    with open(modelfile_path, "w", encoding="utf-8") as fh:
         fh.write(modelfile)
     print(modelfile)
 
-    if SAVE_TO_DRIVE:
-        shutil.copy(gguf, f"{drive_dir}/{name}")
-        shutil.copy(f"{gguf_dir}/Modelfile.wimb", f"{drive_dir}/Modelfile")
+    if SAVE_DIR:
+        shutil.copy(gguf, f"{SAVE_DIR}/{name}")
+        shutil.copy(modelfile_path, f"{SAVE_DIR}/Modelfile")
 
-if SAVE_TO_DRIVE:
-    for path in sorted(glob.glob(f"{drive_dir}/*")):
+if SAVE_DIR:
+    for path in sorted(glob.glob(f"{SAVE_DIR}/*")):
         size = os.path.getsize(path) / 1e6 if os.path.isfile(path) else 0
         print(f"   {path}  {size:,.0f} MB" if size else f"   {path}/")
 '''
