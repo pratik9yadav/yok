@@ -54,17 +54,20 @@ It also runs on Kaggle's free GPU: `run_on_kaggle.py` starts it there with no cl
 
 CHECK_GPU = """
 #@title 1. Check the GPU
-import os, shutil, subprocess
+import os, shutil, subprocess, sys
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # Kaggle gives two GPUs; training uses one
-if not shutil.which("nvidia-smi"):
+# nvidia-smi is not always installed, so also ask torch (in its own process: nothing is imported here yet).
+cuda = subprocess.run([sys.executable, "-c", "import torch; print(torch.cuda.is_available())"],
+                      capture_output=True, text=True).stdout.strip() == "True"
+if not (cuda or shutil.which("nvidia-smi")):
     # What the machine has, to see why there is no GPU (no secret values printed).
     print("nvidia devices:", [d for d in os.listdir("/dev") if d.startswith("nvidia")])
     print("Kaggle settings:", {k: v for k, v in os.environ.items()
                                if k.startswith("KAGGLE") and any(w in k for w in ("ACCELERATOR", "GPU", "MACHINE", "RUN_TYPE"))})
     raise RuntimeError("No GPU. Colab: Runtime > Change runtime type > T4 GPU > Save, then Run all. "
-                       "Kaggle: verify your phone number at kaggle.com/settings, then run again.")
-print(subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-                     capture_output=True, text=True).stdout)
+                       "Kaggle: verify your phone, then turn on GPU T4 once in the notebook editor (Settings > Accelerator).")
+print(subprocess.run([sys.executable, "-c", "import torch; print(torch.cuda.get_device_name(0))"],
+                     capture_output=True, text=True).stdout or "GPU found")
 """
 
 INSTALL = """
