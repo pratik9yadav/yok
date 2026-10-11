@@ -31,6 +31,11 @@ wait for it, read the results and fix errors on its own. One-time setup:
 
 The model files end up in the run's **Output** tab on kaggle.com.
 
+### Or from GitHub (easiest on a phone)
+1. Save the token once as a repository secret named `KAGGLE_API_TOKEN`:
+   https://github.com/pratik9yadav/yok/settings/secrets/actions/new
+2. Ask Claude to "train the model", or tap **Actions → Train on Kaggle → Run workflow**.
+
 ## Files
 | File | What it is |
 |---|---|

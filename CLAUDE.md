@@ -13,6 +13,13 @@ up; `data/test.jsonl` holds 30 hand-written test calls that are never trained on
 `python build_notebook.py` and `python -m pytest`. Never edit the notebook by hand.
 
 ## "Train the model" / "run it"
+Preferred: GitHub Actions. The workflow `.github/workflows/train.yml` ("Train on Kaggle") reads
+the repository secret `KAGGLE_API_TOKEN` and runs `run_on_kaggle.py` on a GitHub runner. Start
+it with the GitHub tools (workflow_dispatch on `main`), wait for it to finish, then read the job
+log: it prints the before → after scores and the mistakes. If the secret is missing, the
+owner adds it at https://github.com/pratik9yadav/yok/settings/secrets/actions/new.
+
+From this container instead (needs kaggle.com allowed and the token in the environment):
 1. Check `KAGGLE_API_TOKEN` is set and kaggle.com is reachable. If not, tell the owner the
    one-time setup in README.md ("Or let Claude run it for you"); don't ask for the token in chat.
 2. `pip install -r requirements-dev.txt`, then run `python run_on_kaggle.py` in the

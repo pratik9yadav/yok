@@ -1,0 +1,39 @@
+# Start the training on Kaggle's free GPU from GitHub (Actions → Train on Kaggle → Run workflow).
+# Needs the repository secret KAGGLE_API_TOKEN (Kaggle → Settings → API → Generate New Token).
+name: Train on Kaggle
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Check the Kaggle token
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: Train on Kaggle (about 40 minutes)
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: python run_on_kaggle.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output
+          path: kaggle_output/
+          if-no-files-found: ignore
