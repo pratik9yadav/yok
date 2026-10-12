@@ -1,0 +1,11 @@
+{
+ "products_flipkart.jsonl": {
+  "skipped": "licence not open: []"
+ },
+ "products_amazon_in.jsonl": {
+  "skipped": "licence not open: []"
+ },
+ "indicvoices_shop_talk.jsonl": {
+  "skipped": "no HF_TOKEN secret"
+ }
+}
