@@ -71,10 +71,19 @@ def test_notebook_is_built_from_current_files() -> None:
     data_cell = "".join(next(c for c in nb["cells"] if "TRAIN_DATA = " in "".join(c["source"]))["source"])
     scope: dict = {}
     exec(data_cell, scope)  # noqa: S102 - our own generated cell
-    assert scope["TRAIN_DATA"] == load("train.jsonl")
+    real = [{k: r[k] for k in ("product", "said", "answer")} for r in load("real/xpqa_hi_examples.jsonl")]
+    assert scope["TRAIN_SET"] == "v2"
+    assert scope["TRAIN_DATA"] == load("train.jsonl") + real
+    assert scope["TRAIN_V1"] == load("train_v1.jsonl")
     assert scope["TEST"] == load("test.jsonl")
     assert scope["HARD"] == load("hard_test.jsonl")
-    assert scope["SETS"] == {"test": scope["TEST"], "hard": scope["HARD"]}
+    fresh = load("fresh_test.jsonl") if (HERE / "data" / "fresh_test.jsonl").exists() else []
+    assert scope["FRESH"] == fresh
+    assert scope["SETS"] == {"test": scope["TEST"], "hard": scope["HARD"], **({"fresh": fresh} if fresh else {})}
+    # v1 is the comparison run: only the first 400 made-up examples
+    v1: dict = {"TRAIN_SET": "v1"}
+    exec(data_cell, v1)  # noqa: S102
+    assert v1["TRAIN_DATA"] == load("train_v1.jsonl")
     assert scope["SYSTEM"] == SYSTEM
 
 
@@ -353,3 +362,17 @@ def test_gguf_cell_never_fails_the_run_when_there_is_no_server(tmp_path: Path) -
     scope, cell = gguf_cell_scope(tmp_path, "none")
     exec(cell, scope)  # noqa: S102 - must not raise
     assert "llama-server was not found" in json.loads((tmp_path / "results_gguf.json").read_text())["error"]
+
+
+def test_runner_sets_the_training_set_and_export_choice() -> None:
+    import run_on_kaggle
+
+    assert run_on_kaggle.slug_for("v2") == "wimb-shop-model-training"
+    assert run_on_kaggle.slug_for("v1") == "wimb-shop-model-training-v1"
+    nb = run_on_kaggle.notebook_for("v1", gguf=False)
+    settings = "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
+    assert 'TRAIN_SET = "v1"' in settings and "MAKE_OLLAMA_FILE = False" in settings
+    assert 'TRAIN_SET = "v2"' not in settings and "MAKE_OLLAMA_FILE = True" not in settings
+    default = run_on_kaggle.notebook_for("v2", gguf=True)
+    settings = "".join(next(c for c in default["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
+    assert 'TRAIN_SET = "v2"' in settings and "MAKE_OLLAMA_FILE = True" in settings

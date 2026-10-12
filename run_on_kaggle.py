@@ -11,7 +11,7 @@ Needs, once:
 
 import argparse
 import json
-import shutil
+import re
 import sys
 import tempfile
 import time
@@ -23,7 +23,12 @@ OUT = HERE / "kaggle_output"
 DONE = {"COMPLETE": True, "ERROR": False, "CANCEL_REQUESTED": False, "CANCEL_ACKNOWLEDGED": False}
 
 
-def connect():
+def slug_for(train_set: str) -> str:
+    """v2 keeps the main notebook (its Output tab holds the model); other sets get their own."""
+    return SLUG if train_set == "v2" else f"{SLUG}-{train_set}"
+
+
+def connect(slug: str = SLUG):
     from kaggle.api.kaggle_api_extended import KaggleApi
 
     api = KaggleApi()
@@ -31,7 +36,7 @@ def connect():
     user = api.get_config_value("username")
     if not user:
         sys.exit("Kaggle login failed: set KAGGLE_API_TOKEN (Kaggle → Settings → API → Generate New Token).")
-    return api, f"{user}/{SLUG}"
+    return api, f"{user}/{slug}"
 
 
 def check_gpu(api) -> None:
@@ -52,11 +57,24 @@ def check_gpu(api) -> None:
         sys.exit("Less than 1 hour of Kaggle GPU time left this week. It resets weekly.")
 
 
-def push(api, kernel: str) -> None:
+def notebook_for(train_set: str, gguf: bool) -> dict:
+    """The notebook with its settings cell set to this training set and export choice."""
+    nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
+    for cell in nb["cells"]:
+        source = "".join(cell["source"])
+        if source.startswith("#@title 3."):
+            source = re.sub(r'^TRAIN_SET = "\w+"', f'TRAIN_SET = "{train_set}"', source, flags=re.MULTILINE)
+            source = re.sub(r"^MAKE_OLLAMA_FILE = \w+", f"MAKE_OLLAMA_FILE = {gguf}", source, flags=re.MULTILINE)
+            cell["source"] = source.splitlines(keepends=True)
+    return nb
+
+
+def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
     folder = Path(tempfile.mkdtemp())
-    shutil.copy(HERE / "train_colab.ipynb", folder / "train_colab.ipynb")
+    (folder / "train_colab.ipynb").write_text(json.dumps(notebook_for(train_set, gguf), ensure_ascii=False),
+                                              encoding="utf-8")
     meta = {
-        "id": kernel, "title": SLUG, "code_file": "train_colab.ipynb",
+        "id": kernel, "title": kernel.split("/", 1)[1], "code_file": "train_colab.ipynb",
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
         "dataset_sources": [], "competition_sources": [], "kernel_sources": [], "model_sources": [],
@@ -150,6 +168,8 @@ def fetch(api, kernel: str) -> None:
                       f"{res['examples']} calls fully right (of {res['of']}), took {data['seconds']} s")
     print("\nFiles the run kept:")
     list_output(api, kernel)
+    if results.exists():
+        print(f"\nTraining set: {data.get('train_set', '?')} ({data.get('train_rows', '?')} rows)")
     print(f"\nDownloaded to {OUT}: {sorted(p.name for p in OUT.iterdir())}")
     print(f"The model files are in the run's Output tab: https://www.kaggle.com/code/{kernel}/output")
 
@@ -157,11 +177,13 @@ def fetch(api, kernel: str) -> None:
 def main() -> None:
     args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
+    args.add_argument("--train-set", choices=["v2", "v1"], default="v2", help="training data to use (default v2)")
+    args.add_argument("--no-gguf", action="store_true", help="skip exporting and testing the Ollama file")
     opts = args.parse_args()
-    api, kernel = connect()
+    api, kernel = connect(slug_for(opts.train_set))
     if not opts.wait:
         check_gpu(api)
-        push(api, kernel)
+        push(api, kernel, opts.train_set, gguf=not opts.no_gguf)
         time.sleep(30)
     ok = wait(api, kernel)
     fetch(api, kernel)

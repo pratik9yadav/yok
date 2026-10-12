@@ -80,6 +80,9 @@ SETTINGS = """
 #@title 3. Settings (and connect Google Drive now, so nothing waits for you later)
 MODEL_NAME = "unsloth/Qwen3-4B-Instruct-2507"  #@param {type:"string"}
 EPOCHS = 2  #@param {type:"integer"}
+# v2: training data built from real products, prices and spellings, plus 151 real Hindi answers.
+# v1: the first 400 made-up examples (kept to compare against).
+TRAIN_SET = "v2"  #@param ["v2", "v1"]
 OUTPUT_NAME = "wimb-shop-model"  #@param {type:"string"}
 SAVE_TO_DRIVE = True  #@param {type:"boolean"}
 MAKE_OLLAMA_FILE = True  #@param {type:"boolean"}
@@ -185,6 +188,7 @@ AFTER = """
 #@title 8. Test the model AFTER training
 after = run_tests("AFTER training")
 payload = results_payload(MODEL_NAME, EPOCHS, before, after)
+payload.update(train_set=TRAIN_SET, train_rows=len(TRAIN_DATA))
 print("\\n== Before vs after (all 4 fields right)")
 for name, res in payload["sets"].items():
     print(f"   {name:5s} {res['before']['all_correct']:4.0%} -> {res['after']['all_correct']:4.0%}  ({res['examples']} calls)")
@@ -319,19 +323,37 @@ Shopkeeper: haan hai, 220 ka, delivery nahi"
 """
 
 
+def real_rows(path: Path) -> str:
+    """A data/real/*.jsonl file in the training-row format (only product, said, answer)."""
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    text = "\n".join(json.dumps({k: r[k] for k in ("product", "said", "answer")}, ensure_ascii=False) for r in rows)
+    if "'''" in text or text.endswith("\\"):
+        raise ValueError(f"{path} can't be embedded in a raw string")
+    return text
+
+
+def block(name: str, text: str) -> str:
+    return f"{name} = [json.loads(line) for line in r'''\n{text}\n'''.strip().splitlines()]\n"
+
+
 def main() -> None:
     score_src = (HERE / "score.py").read_text(encoding="utf-8")
+    fresh = (HERE / "data" / "fresh_test.jsonl").exists()
     data = (
         "#@title 4. Training data and scoring (hidden; built from data/ and score.py)\n"
         + score_src
-        + "\n\nTRAIN_DATA = [json.loads(line) for line in r'''\n"
-        + embedded("train.jsonl")
-        + "\n'''.strip().splitlines()]\nTEST = [json.loads(line) for line in r'''\n"
-        + embedded("test.jsonl")
-        + "\n'''.strip().splitlines()]\nHARD = [json.loads(line) for line in r'''\n"
-        + embedded("hard_test.jsonl")
-        + "\n'''.strip().splitlines()]\nSETS = {'test': TEST, 'hard': HARD}\n"
-        + 'print(len(TRAIN_DATA), "training,", len(TEST), "test and", len(HARD), "hard test examples")\n'
+        + "\n\n"
+        + block("TRAIN_V2", embedded("train.jsonl"))
+        + "# Real Hindi answers from Amazon xPQA (CDLA-Sharing-1.0; see data/real/NOTICE-xpqa.md)\n"
+        + block("REAL_XPQA", real_rows(HERE / "data" / "real" / "xpqa_hi_examples.jsonl"))
+        + block("TRAIN_V1", embedded("train_v1.jsonl"))
+        + 'TRAIN_SET = globals().get("TRAIN_SET", "v2")\n'
+        + 'TRAIN_DATA = TRAIN_V2 + REAL_XPQA if TRAIN_SET == "v2" else TRAIN_V1\n'
+        + block("TEST", embedded("test.jsonl"))
+        + block("HARD", embedded("hard_test.jsonl"))
+        + (block("FRESH", embedded("fresh_test.jsonl")) if fresh else "FRESH = []\n")
+        + "SETS = {'test': TEST, 'hard': HARD, **({'fresh': FRESH} if FRESH else {})}\n"
+        + 'print(TRAIN_SET, len(TRAIN_DATA), "training rows;", {k: len(v) for k, v in SETS.items()}, "test calls")\n'
     )
     nb = {
         "nbformat": 4,

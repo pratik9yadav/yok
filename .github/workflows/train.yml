@@ -10,6 +10,16 @@ on:
         type: choice
         options: [train, fetch]
         default: train
+      train_set:
+        description: "v2 = real-data training set (main model); v1 = the first 400 made-up examples (comparison)"
+        type: choice
+        options: [v2, v1]
+        default: v2
+      export_gguf:
+        description: "Export and test the Ollama file (not needed for a comparison run)"
+        type: choice
+        options: ["yes", "no"]
+        default: "yes"
 
 permissions:
   contents: read
@@ -37,8 +47,13 @@ jobs:
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           ACTION: ${{ inputs.action }}
+          TRAIN_SET: ${{ inputs.train_set }}
+          EXPORT_GGUF: ${{ inputs.export_gguf }}
         run: |
-          if [ "$ACTION" = "fetch" ]; then python run_on_kaggle.py --wait; else python run_on_kaggle.py; fi
+          ARGS="--train-set $TRAIN_SET"
+          if [ "$EXPORT_GGUF" = "no" ]; then ARGS="$ARGS --no-gguf"; fi
+          if [ "$ACTION" = "fetch" ]; then ARGS="$ARGS --wait"; fi
+          python run_on_kaggle.py $ARGS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
