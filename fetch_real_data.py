@@ -29,7 +29,11 @@ OPEN_LICENCES = ("cc0", "cc-by-4.0", "cc-by-sa-4.0", "odc-by", "odbl", "pddl", "
 CLOSED_MARKERS = ("nc", "nd", "noncommercial", "noderivatives", "other", "unknown")
 
 FLIPKART_TOP = {"Automotive", "Tools & Hardware", "Home Improvement"}
-# Whole words only: "car" must not match "skin care".
+# Amazon India's category names are in Hindi (seen in the 2023 dataset): car and motorbike, industrial
+# (tools, fasteners), indoor lighting, helmets, fans and heaters, garden.
+AMAZON_HINDI_CATEGORIES = {"कार और मोटरबाइक", "औद्योगिक और वैज्ञानिक", "इनडोर लाइटिंग", "हेलमेट",
+                           "हीटिंग, कूलिंग और एयर क्वालिटी", "गार्डन और आउटडोर"}
+# English names too, whole words only: "car" must not match "skin care".
 AMAZON_CATEGORY = re.compile(
     r"\b(cars?|motorbikes?|motorcycles?|bikes?|automotive|tools?|hardware|electricals?|lighting|lights?|wiring|"
     r"switch(es)?|plumbing|pipes?|adhesives?|sealants?|paints?|painting|industrial|fasteners?|locks?|"
@@ -80,11 +84,11 @@ def flipkart_products(rows) -> list[dict]:
     return out
 
 
-def amazon_products(rows, limit: int = 6000) -> list[dict]:
+def amazon_products(rows, per_category: int = 1200) -> list[dict]:
     keep = []
     for r in rows:
         category = (r.get("categoryName") or "").strip()
-        if not AMAZON_CATEGORY.search(category.lower()):
+        if category not in AMAZON_HINDI_CATEGORIES and not AMAZON_CATEGORY.search(category.lower()):
             continue
         price = to_int(r.get("price"))
         if not price:
@@ -92,7 +96,13 @@ def amazon_products(rows, limit: int = 6000) -> list[dict]:
         keep.append({"name": short_name(r.get("title", "")), "mrp": to_int(r.get("listPrice")), "price": price,
                      "category": category, "_reviews": to_int(r.get("reviews")) or 0})
     keep.sort(key=lambda p: -p["_reviews"])  # the most-bought items are the ones shops really stock
-    return [{k: v for k, v in p.items() if k != "_reviews"} for p in keep[:limit]]
+    taken: Counter = Counter()
+    out = []
+    for p in keep:  # at most `per_category` per category, so no one category swamps the rest
+        if taken[p["category"]] < per_category:
+            taken[p["category"]] += 1
+            out.append({k: v for k, v in p.items() if k != "_reviews"})
+    return out
 
 
 def shop_talk_score(text: str) -> int:

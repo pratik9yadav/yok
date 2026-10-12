@@ -49,6 +49,15 @@ def test_amazon_keeps_shop_categories_most_bought_first() -> None:
     assert got[0]["mrp"] is None and got[0]["price"] == 1499 and got[1]["mrp"] == 250
 
 
+def test_amazon_hindi_categories_and_per_category_cap() -> None:
+    rows = [{"categoryName": "कार और मोटरबाइक", "title": f"Bike part {i}", "price": "100", "listPrice": "120",
+             "reviews": str(i)} for i in range(5)]
+    rows += [{"categoryName": "इनडोर लाइटिंग", "title": "LED bulb 9W", "price": "99", "listPrice": "150", "reviews": "1"},
+             {"categoryName": "त्वचा की देखभाल", "title": "Face wash", "price": "99", "listPrice": "0", "reviews": "99"}]
+    got = amazon_products(rows, per_category=3)
+    assert [p["name"] for p in got] == ["Bike part 4", "Bike part 3", "Bike part 2", "LED bulb 9W"]
+
+
 def test_shop_talk_miner_and_safety_filter() -> None:
     assert shop_talk_score("हाँ है, डेढ़ सौ रुपये का पड़ेगा, घर पे भेज देंगे") > 0
     assert shop_talk_score("दुकानात या, किलोचा भाव शंभर रुपये आहे") > 0
