@@ -117,10 +117,27 @@ def kaggle(*args: str) -> None:
     subprocess.run(["kaggle", *args], check=True)
 
 
+def find_licences(meta) -> list[str]:
+    """Licence names anywhere in Kaggle's metadata JSON (kaggle 2.x nests them under "info")."""
+    if isinstance(meta, dict):
+        if isinstance(meta.get("licenses"), list):
+            return [lic.get("name", "") if isinstance(lic, dict) else str(lic) for lic in meta["licenses"]]
+        meta = list(meta.values())
+    if isinstance(meta, list):
+        for value in meta:
+            found = find_licences(value)
+            if found:
+                return found
+    return []
+
+
 def kaggle_licences(ref: str, folder: Path) -> list[str]:
     kaggle("datasets", "metadata", ref, "-p", str(folder))
     meta = json.loads((folder / "dataset-metadata.json").read_text(encoding="utf-8"))
-    return [lic.get("name", "") for lic in meta.get("licenses", [])]
+    licences = find_licences(meta)
+    if not licences:
+        print(f"{ref}: no licence found in metadata; top-level keys: {list(meta)[:20]}", flush=True)
+    return licences
 
 
 def fetch_products(report: dict) -> None:

@@ -5,7 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fetch_real_data import amazon_products, flipkart_products, licence_ok, safe_text, shop_talk_score, short_name
+from fetch_real_data import (amazon_products, find_licences, flipkart_products, licence_ok, safe_text,
+                              shop_talk_score, short_name)
 
 
 def test_licence_guard_keeps_only_open_licences() -> None:
@@ -51,3 +52,9 @@ def test_shop_talk_miner_and_safety_filter() -> None:
 def test_short_name() -> None:
     assert short_name("  Havells   Lifeline  1.5 sq mm   wire  ") == "Havells Lifeline 1.5 sq mm wire"
     assert len(short_name("word " * 40)) <= 80
+
+
+def test_licences_are_found_where_kaggle_puts_them() -> None:
+    assert find_licences({"licenses": [{"name": "CC0-1.0"}]}) == ["CC0-1.0"]
+    assert find_licences({"info": {"title": "x", "licenses": [{"name": "CC-BY-SA-4.0"}]}}) == ["CC-BY-SA-4.0"]
+    assert find_licences({"info": {"title": "x"}}) == []
