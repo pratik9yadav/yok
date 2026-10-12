@@ -5,8 +5,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from fetch_real_data import (amazon_products, find_licences, flipkart_products, licence_ok, safe_text,
-                              shop_talk_score, short_name)
+from fetch_real_data import (
+    amazon_products,
+    find_licences,
+    flipkart_products,
+    licence_ok,
+    safe_text,
+    shop_talk_score,
+    short_name,
+)
 
 
 def test_licence_guard_keeps_only_open_licences() -> None:
