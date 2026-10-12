@@ -76,3 +76,21 @@ def test_licences_are_found_where_kaggle_puts_them() -> None:
     assert find_licences({"licenses": [{"name": "CC0-1.0"}]}) == ["CC0-1.0"]
     assert find_licences({"info": {"title": "x", "licenses": [{"name": "CC-BY-SA-4.0"}]}}) == ["CC-BY-SA-4.0"]
     assert find_licences({"info": {"title": "x"}}) == []
+
+
+def test_real_examples_are_well_formed_and_never_in_the_test_sets() -> None:
+    import json
+    import re
+
+    here = Path(__file__).parent / "data"
+    rows = [json.loads(line) for line in (here / "real" / "xpqa_hi_examples.jsonl").read_text(encoding="utf-8").splitlines()]
+    held_out = {json.loads(line)["said"] for name in ("test.jsonl", "hard_test.jsonl")
+                for line in (here / name).read_text(encoding="utf-8").splitlines()}
+    assert len(rows) == 151 and len({r["id"] for r in rows}) == len(rows)
+    for r in rows:
+        a = r["answer"]
+        assert set(a) == {"in_stock", "price_inr", "delivery", "alternative"}
+        assert a["in_stock"] in (True, False, None) and a["delivery"] in (True, False, None)
+        assert a["price_inr"] is None or (isinstance(a["price_inr"], int) and a["in_stock"] is True)
+        assert r["said"] not in held_out
+        assert not re.search(r"[0-9०-९]{6,}|@|https?://", r["said"])
