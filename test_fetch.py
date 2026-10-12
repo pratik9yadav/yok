@@ -41,6 +41,8 @@ def test_amazon_keeps_shop_categories_most_bought_first() -> None:
         {"categoryName": "Car Parts", "title": "Bosch spark plug", "price": "199.0", "listPrice": "250", "reviews": "10"},
         {"categoryName": "Power & Hand Tools", "title": "Drill", "price": "1,499", "listPrice": "0", "reviews": "900"},
         {"categoryName": "Sarees", "title": "Silk saree", "price": "999", "listPrice": "1999", "reviews": "5000"},
+        {"categoryName": "Skin care", "title": "Face cream", "price": "299", "listPrice": "399", "reviews": "9000"},
+        {"categoryName": "SnS_Baby_Bath&SkinCare", "title": "Baby soap", "price": "99", "listPrice": "0", "reviews": "50"},
     ]
     got = amazon_products(rows)
     assert [p["name"] for p in got] == ["Drill", "Bosch spark plug"]

@@ -29,9 +29,11 @@ OPEN_LICENCES = ("cc0", "cc-by-4.0", "cc-by-sa-4.0", "odc-by", "odbl", "pddl", "
 CLOSED_MARKERS = ("nc", "nd", "noncommercial", "noderivatives", "other", "unknown")
 
 FLIPKART_TOP = {"Automotive", "Tools & Hardware", "Home Improvement"}
-AMAZON_WORDS = ("car", "motorbike", "bike", "automotive", "tool", "hardware", "electrical", "lighting", "wiring",
-                "switch", "plumbing", "pipe", "adhesive", "sealant", "paint", "industrial", "fastener", "lock",
-                "batter", "bulb", "fan", "cable", "garden", "home improvement")
+# Whole words only: "car" must not match "skin care".
+AMAZON_CATEGORY = re.compile(
+    r"\b(cars?|motorbikes?|motorcycles?|bikes?|automotive|tools?|hardware|electricals?|lighting|lights?|wiring|"
+    r"switch(es)?|plumbing|pipes?|adhesives?|sealants?|paints?|painting|industrial|fasteners?|locks?|"
+    r"batter(y|ies)|bulbs?|fans?|cables?|home improvement)\b")
 
 # IndicVoices: Devanagari shop-talk cues (Hindi and Marathi).
 PRICE = re.compile(r"रुपय|रुपए|रुपये|रूपये|रुपया|रेट|भाव|दाम|कीमत|क़ीमत|किंमत|प्राइस|प्राईस|सौ|हजार|हज़ार|शे\b|डिस्काउंट|सस्ता|महाग|महंगा")
@@ -82,7 +84,7 @@ def amazon_products(rows, limit: int = 6000) -> list[dict]:
     keep = []
     for r in rows:
         category = (r.get("categoryName") or "").strip()
-        if not any(w in category.lower() for w in AMAZON_WORDS):
+        if not AMAZON_CATEGORY.search(category.lower()):
             continue
         price = to_int(r.get("price"))
         if not price:
@@ -157,7 +159,11 @@ def fetch_products(report: dict) -> None:
             kaggle("datasets", "download", "-d", ref, "-p", str(folder), "--unzip")
             csv.field_size_limit(sys.maxsize)
             with open(folder / fname, encoding="utf-8", errors="replace", newline="") as fh:
-                rows = convert(csv.DictReader(fh))
+                source_rows = list(csv.DictReader(fh))
+            all_categories = Counter((r.get("categoryName") or r.get("product_category_tree", "").split(">>")[0])
+                                     .strip(' ["') for r in source_rows)
+            print(f"{ref}: {len(source_rows)} rows; categories: {all_categories.most_common(400)}", flush=True)
+            rows = convert(source_rows)
             write_jsonl(out, rows)
             report[out] = {"source": f"https://www.kaggle.com/datasets/{ref}", "licence": licences,
                            "rows": len(rows), "categories": Counter(r["category"] for r in rows).most_common(25)}
