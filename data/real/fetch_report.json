@@ -1,0 +1,140 @@
+{
+ "products_flipkart.jsonl": {
+  "source": "https://www.kaggle.com/datasets/PromptCloudHQ/flipkart-products",
+  "licence": [
+   "CC-BY-SA-4.0"
+  ],
+  "rows": 1476,
+  "categories": [
+   [
+    "Automotive > Accessories & Spare parts > Car Interior & Exterior",
+    655
+   ],
+   [
+    "Tools & Hardware > Tools > Gardening Tools",
+    339
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Spares & Performance Parts",
+    111
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Car Electronics & Accessories",
+    53
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Car & Bike Care",
+    30
+   ],
+   [
+    "Home Improvement > Electricals > Switches & Accessories",
+    28
+   ],
+   [
+    "Tools & Hardware > Tools > Tool Accessories",
+    25
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Car & Bike Lighting",
+    22
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Car Interior & Exterior",
+    20
+   ],
+   [
+    "Home Improvement > Lawn & Gardening > Plants",
+    19
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Automotive Combo",
+    17
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Car & Bike Lighting",
+    16
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Bike Essentials",
+    16
+   ],
+   [
+    "Tools & Hardware > Tools > Hardware & Electricals",
+    15
+   ],
+   [
+    "Home Improvement > Hardware > Bathroom & Kitchen Fixtures",
+    13
+   ],
+   [
+    "Automotive > Car Accessories > Car Interior",
+    13
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Car & Bike Care",
+    11
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Car & Bike Styling",
+    9
+   ],
+   [
+    "Home Improvement > Tools > Hand Tools",
+    9
+   ],
+   [
+    "Automotive > Accessories & Spare parts > Helmets & Riding Gear",
+    9
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Automotive Combo",
+    8
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Helmets & Riding Gear",
+    5
+   ],
+   [
+    "Tools & Hardware > Tools > Hand Tools",
+    4
+   ],
+   [
+    "Tools & Hardware > Tools > Alternate Energy",
+    2
+   ],
+   [
+    "Automotive > Car & Bike Accessories > Bike Essentials",
+    2
+   ]
+  ]
+ },
+ "products_amazon_in.jsonl": {
+  "source": "https://www.kaggle.com/datasets/asaniczka/amazon-india-products-2023-1-5m-products",
+  "licence": [
+   "ODC Attribution License (ODC-By)"
+  ],
+  "rows": 707,
+  "categories": [
+   [
+    "Skin care",
+    285
+   ],
+   [
+    "SnS_Baby_Bath&SkinCare",
+    233
+   ],
+   [
+    "SnS_SkinCare",
+    65
+   ],
+   [
+    "SnS_HairCare",
+    62
+   ],
+   [
+    "Diabetes care",
+    62
+   ]
+  ]
+ }
+}
