@@ -1,0 +1,13 @@
+# Real data: sources, licences, attribution
+
+Files in this folder come from open datasets. They are kept separate from `data/train.jsonl`
+until they have been checked, and they are never mixed into `data/test.jsonl` or
+`data/hard_test.jsonl`.
+
+| File | Source | Licence | What was changed |
+|---|---|---|---|
+| `products_flipkart.jsonl` | [Flipkart Products](https://www.kaggle.com/datasets/PromptCloudHQ/flipkart-products) by PromptCloud | CC BY-SA 4.0 | Only Automotive, Tools & Hardware and Home Improvement; name shortened; MRP, price, brand, category kept. This file is CC BY-SA 4.0. |
+| `products_amazon_in.jsonl` | [Amazon India Products 2023](https://www.kaggle.com/datasets/asaniczka/amazon-india-products-2023-1-5m-products) by asaniczka | as reported by Kaggle at download time (kept only if open; see `fetch_report.json`) | Only car/bike, tools, electrical, lighting and similar categories; name shortened; price and list price kept. |
+| `indicvoices_shop_talk.jsonl` | [IndicVoices](https://huggingface.co/datasets/ai4bharat/IndicVoices) by AI4Bharat (Javed et al., 2024) | CC BY 4.0 | Hindi and Marathi "Conversation" transcripts only; lines that look like shop talk; lines with phone numbers or e-mail removed; no speaker information kept. |
+
+Download script: `fetch_real_data.py`, run by `.github/workflows/fetch_data.yml`.

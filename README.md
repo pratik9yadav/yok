@@ -64,6 +64,20 @@ made up from templates; real call transcripts are the next big improvement.
    Ollama itself has not been run here (this environment cannot reach it); the same file was loaded and
    answered all 86 test calls through llama.cpp.
 
+## Real data
+The 400 training examples are made up. `fetch_real_data.py` downloads real material from open
+datasets (licences checked; details and attribution in `data/real/NOTICE.md`):
+- real Indian product names with MRP and selling price (Flipkart, Amazon India; Kaggle),
+- real Hindi and Marathi role-play phone conversations (AI4Bharat IndicVoices, CC BY 4.0).
+
+Run it from **Actions → Fetch real data → Run workflow**. Results land on a `real-data/run-…` branch
+for review, never straight on `main`.
+
+IndicVoices needs a one-time click: log in to Hugging Face, open
+https://huggingface.co/datasets/ai4bharat/IndicVoices and accept the terms, then create a **Read**
+token (Settings → Access Tokens) and save it as the repository secret `HF_TOKEN`:
+https://github.com/pratik9yadav/yok/settings/secrets/actions/new
+
 ## Files
 | File | What it is |
 |---|---|
