@@ -1,13 +1,14 @@
 """Checks the data files and the scoring.  Run:  python -m pytest"""
 
 import json
+import re
 import sys
+import unicodedata
 from pathlib import Path
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
-from make_data import WORDS
 from score import FIELDS, KEYS, SYSTEM, answer_text, evaluate, make_modelfile, parse, results_payload, score, show
 
 
@@ -16,7 +17,7 @@ def load(name: str) -> list[dict]:
 
 
 def test_data_files_are_well_formed() -> None:
-    for name in ("train.jsonl", "test.jsonl", "hard_test.jsonl"):
+    for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
         for ex in load(name):
             assert set(ex) == {"product", "said", "answer"}
             assert set(ex["answer"]) == set(FIELDS)
@@ -28,12 +29,50 @@ def test_data_files_are_well_formed() -> None:
                 assert a["price_inr"] is None
 
 
+def nfc_lower(text: str) -> str:
+    return unicodedata.normalize("NFC", text).lower()
+
+
+def price_words() -> dict[int, set[str]]:
+    """Every way data/real/price_words.json says a price: Hindi and Marathi, Devanagari and Latin letters.
+
+    Plus the hundreds style for 2100-4550 that make_data.py builds by the json's own rule (it has it only for
+    1100-1999): N सौ / Nशे, then the rest, from the formal words for N and the rest
+    (2550: पच्चीस सौ पचास, pachis sau pachas, पंचवीसशे पन्नास, panchvisshe pannas).
+    """
+    data = json.loads((HERE / "data" / "real" / "price_words.json").read_text(encoding="utf-8"))
+    out: dict[int, set[str]] = {}
+    formal: dict[tuple[int, str, str], set[str]] = {}  # (price, lang, "dev" or "roman") -> formal spellings
+    for entry in data["prices"]:
+        forms = out.setdefault(entry["price"], set())
+        for lang in ("hi", "mr"):
+            for kind in ("formal", "hundreds_style", "colloquial"):
+                for f in entry[lang].get(kind, []):
+                    forms.update(nfc_lower(t) for t in [f["text"], *f.get("spacing_variants", []), f["roman"],
+                                                        *f.get("roman_variants", [])])
+                    if kind == "formal":
+                        formal.setdefault((entry["price"], lang, "dev"), set()).add(nfc_lower(f["text"]))
+                        formal.setdefault((entry["price"], lang, "roman"), set()).update(
+                            [f["roman"], *f.get("roman_variants", [])])
+    joins = {("hi", "dev"): " सौ", ("hi", "roman"): " sau", ("mr", "dev"): "शे", ("mr", "roman"): "she"}
+    for h in range(21, 46):
+        for rest in (0, 50):
+            for (lang, script), join in joins.items():
+                heads = {w + join for w in formal[(h, lang, script)]}
+                tails = formal[(rest, lang, script)] if rest else {""}
+                out[h * 100 + rest].update((head + " " + tail).strip() for head in heads for tail in tails)
+    return out
+
+
 def test_train_price_is_actually_said() -> None:
+    """The price is in the reply: as digits (also Devanagari digits, or 1,250) or as words from price_words.json."""
+    words = price_words()
+    devanagari_digits = str.maketrans("0123456789", "०१२३४५६७८९")
     for ex in load("train.jsonl"):
         p = ex["answer"]["price_inr"]
         if p is not None:
-            said_as = {str(p)} | {words[p] for words in WORDS.values() if p in words}
-            assert any(s in ex["said"] for s in said_as), ex
+            said_as = {str(p), str(p).translate(devanagari_digits), f"{p:,}"} | words.get(p, set())
+            assert any(s in nfc_lower(ex["said"]) for s in said_as), ex
 
 
 def test_test_sets_are_not_in_training_data_or_each_other() -> None:
@@ -41,6 +80,18 @@ def test_test_sets_are_not_in_training_data_or_each_other() -> None:
     train_said, test_said, hard_said = ({ex["said"] for ex in rows} for rows in (train, test, hard))
     assert not train_said & test_said and not train_said & hard_said and not test_said & hard_said
     assert len(hard_said) == len(hard) == 56
+
+
+def test_train_shares_no_long_word_run_with_test_sets() -> None:
+    """No run of 8 words in a row is the same in a training reply and a test reply."""
+    def runs(text: str) -> set[tuple[str, ...]]:
+        w = re.findall(r"[\w\u0900-\u097F]+", nfc_lower(text))
+        return {tuple(w[i:i + 8]) for i in range(len(w) - 7)}
+
+    train = set().union(*(runs(ex["said"]) for ex in load("train.jsonl")))
+    for name in ("test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
+        shared = [ex["said"] for ex in load(name) if runs(ex["said"]) & train]
+        assert not shared, (name, shared[:3])
 
 
 def test_perfect_replies_score_full_marks() -> None:
@@ -376,3 +427,12 @@ def test_runner_sets_the_training_set_and_export_choice() -> None:
     default = run_on_kaggle.notebook_for("v2", gguf=True)
     settings = "".join(next(c for c in default["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
     assert 'TRAIN_SET = "v2"' in settings and "MAKE_OLLAMA_FILE = True" in settings
+
+
+def test_fresh_test_set_is_held_out_from_everything() -> None:
+    fresh = {ex["said"] for ex in load("fresh_test.jsonl")}
+    assert len(fresh) == len(load("fresh_test.jsonl")) == 60
+    others = set()
+    for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "real/xpqa_hi_examples.jsonl"):
+        others |= {ex["said"] for ex in load(name)}
+    assert not fresh & others
