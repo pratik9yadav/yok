@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+# One run at a time: two runs of the same Kaggle notebook would mix up their results.
+concurrency:
+  group: kaggle-train
+  cancel-in-progress: false
+
 jobs:
   train:
     runs-on: ubuntu-latest

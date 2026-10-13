@@ -1,0 +1,66 @@
+# Ask the trained model on Kaggle's free GPU (Actions → Ask the model on Kaggle → Run workflow).
+# Runs try_model.ipynb: Ollama with the repo's Modelfile, the example calls, the speed, and your questions.
+# Needs the repository secret KAGGLE_API_TOKEN and one finished training run (Train on Kaggle).
+name: Ask the model on Kaggle
+
+on:
+  workflow_dispatch:
+    inputs:
+      product:
+        description: "The product asked about, e.g. 16A MCB"
+        type: string
+        default: ""
+      said:
+        description: "What the shopkeeper said, e.g. haan hai, 220 ka, delivery nahi (empty: only the example calls)"
+        type: string
+        default: ""
+      questions_json:
+        description: 'For Claude: many questions as a JSON list, [{"product": "...", "said": "..."}] (up to 30)'
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# One run at a time: every run uses the same Kaggle notebook, so a second one waits for the first.
+concurrency:
+  group: kaggle-ask
+  cancel-in-progress: false
+
+jobs:
+  ask:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Check the Kaggle token
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: Ask the model on Kaggle (about 10 minutes)
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          # Inputs reach the script only as environment variables (never pasted into it).
+          PRODUCT: ${{ inputs.product }}
+          SAID: ${{ inputs.said }}
+          QUESTIONS_JSON: ${{ inputs.questions_json }}
+        run: |
+          ARGS=()
+          if [ -n "$SAID" ]; then ARGS+=(--ask "$PRODUCT" "$SAID"); fi
+          if [ -n "$QUESTIONS_JSON" ]; then ARGS+=(--questions-json "$QUESTIONS_JSON"); fi
+          python try_on_kaggle.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output-try
+          path: kaggle_output_try/
+          if-no-files-found: ignore

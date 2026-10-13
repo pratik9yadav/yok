@@ -39,7 +39,7 @@ def connect(slug: str = SLUG):
     return api, f"{user}/{slug}"
 
 
-def check_gpu(api) -> None:
+def check_gpu(api, need_hours: float = 1) -> None:
     """Stop before starting a run that would get no GPU (Kaggle gives none until the phone is verified)."""
     try:
         quota = api.quota_view().gpu_quota
@@ -53,8 +53,8 @@ def check_gpu(api) -> None:
     if hours(allowed) == 0:
         sys.exit("This Kaggle account gets no GPU. Verify your phone number at "
                  "https://www.kaggle.com/settings (Phone verification), then run again.")
-    if left < 1:
-        sys.exit("Less than 1 hour of Kaggle GPU time left this week. It resets weekly.")
+    if left < need_hours:
+        sys.exit(f"Less than {need_hours:g} hour of Kaggle GPU time left this week. It resets weekly.")
 
 
 def notebook_for(train_set: str, gguf: bool) -> dict:
@@ -70,14 +70,21 @@ def notebook_for(train_set: str, gguf: bool) -> dict:
 
 
 def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
+    push_notebook(api, kernel, notebook_for(train_set, gguf), "train_colab.ipynb")
+
+
+def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None) -> None:
+    """Start a run of this notebook on Kaggle: private, T4 GPU, internet on.
+
+    kernel_sources: other notebooks whose output is attached as input (under /kaggle/input).
+    """
     folder = Path(tempfile.mkdtemp())
-    (folder / "train_colab.ipynb").write_text(json.dumps(notebook_for(train_set, gguf), ensure_ascii=False),
-                                              encoding="utf-8")
+    (folder / code_file).write_text(json.dumps(nb, ensure_ascii=False), encoding="utf-8")
     meta = {
-        "id": kernel, "title": kernel.split("/", 1)[1], "code_file": "train_colab.ipynb",
+        "id": kernel, "title": kernel.split("/", 1)[1], "code_file": code_file,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
-        "dataset_sources": [], "competition_sources": [], "kernel_sources": [], "model_sources": [],
+        "dataset_sources": [], "competition_sources": [], "kernel_sources": kernel_sources or [], "model_sources": [],
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     # T4: the older P100 is too old for the training library.
@@ -85,13 +92,17 @@ def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
     error = getattr(resp, "error", None)
     if error:
         sys.exit(f"Kaggle refused the run: {error}")
+    bad = getattr(resp, "invalid_kernel_sources", None)
+    if bad:  # Kaggle still starts the run, without that input
+        sys.exit(f"Kaggle could not attach {bad} as input (no such notebook, or no access). "
+                 "Run the training first (Actions → Train on Kaggle).")
     print("Started:", getattr(resp, "url", None) or f"https://www.kaggle.com/code/{kernel}", flush=True)
     try:  # what Kaggle saved for this run: shows whether the GPU request arrived
         saved = Path(tempfile.mkdtemp())
         api.kernels_pull(kernel, str(saved), metadata=True)
         server = json.loads((saved / "kernel-metadata.json").read_text())
-        print("Kaggle saved:", {k: server.get(k) for k in ("enable_gpu", "machine_shape", "enable_internet")},
-              flush=True)
+        keys = ("enable_gpu", "machine_shape", "enable_internet") + (("kernel_sources",) if kernel_sources else ())
+        print("Kaggle saved:", {k: server.get(k) for k in keys}, flush=True)
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print("Could not read back the run settings:", e, flush=True)
 

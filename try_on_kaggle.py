@@ -1,0 +1,251 @@
+"""Try the trained model on Kaggle's free GPU: Ollama with the repo's Modelfile, as on a PC. No clicks.
+
+Starts try_model.ipynb on Kaggle with the training notebook's output (the model file) attached, waits
+(about 10 minutes) and prints: right or wrong on the example calls, the speed on GPU and on CPU only,
+and the answers to your own questions.
+
+    python try_on_kaggle.py                                       the example calls only
+    python try_on_kaggle.py --ask "16A MCB" "haan hai, 220 ka"    also your own question (repeat --ask for more)
+    python try_on_kaggle.py --questions-json '[{"product": "16A MCB", "said": "haan hai, 220 ka"}]'
+    python try_on_kaggle.py --wait                                wait for the run already going, then print it
+
+Needs what run_on_kaggle.py needs (KAGGLE_API_TOKEN, pip install kaggle) and one finished training run.
+"""
+
+import argparse
+import json
+import re
+import sys
+import time
+from pathlib import Path
+
+import run_on_kaggle
+from run_on_kaggle import check_gpu, connect, print_log, wait
+
+HERE = Path(__file__).parent
+SLUG = "wimb-shop-model-try"
+NOTEBOOK = "try_model.ipynb"
+ASK_CELL = "#@title 1. Ask your own"
+OUT = HERE / "kaggle_output_try"
+MAX_QUESTIONS = 30
+MAX_CHARS = 500
+QUESTIONS_LINE = re.compile(r"^QUESTIONS = json\.loads\(.*\)$", re.MULTILINE)
+
+
+def in_words(answer):
+    """An answer in plain words, e.g. "in stock: yes; price: ₹220; delivery: no; other product offered: none"."""
+    if not isinstance(answer, dict):
+        return "no answer (the reply was not the 4-field JSON)"
+
+    def yes_no(value):
+        if value is None:
+            return "not said"
+        return ("yes" if value else "no") if isinstance(value, bool) else repr(value)
+
+    price = answer.get("price_inr")
+    if price is None:
+        price = "not said"
+    elif isinstance(price, (int, float)) and not isinstance(price, bool):
+        price = f"₹{int(price)}" if float(price).is_integer() else f"₹{price}"
+    else:
+        price = repr(price)
+    alternative = answer.get("alternative")
+    return (f"in stock: {yes_no(answer.get('in_stock'))}; price: {price}; delivery: {yes_no(answer.get('delivery'))}; "
+            f"other product offered: {'none' if alternative is None else alternative}")
+
+
+def problem(q) -> str | None:
+    """What is wrong with one question, or None."""
+    if not isinstance(q, dict):
+        return 'it is not an object like {"product": ..., "said": ...}'
+    product, said = q.get("product", ""), q.get("said")
+    if not isinstance(product, str):
+        return "product must be text"
+    if not isinstance(said, str) or not said.strip():
+        return "said (what the shopkeeper said) must be non-empty text"
+    if len(said) > MAX_CHARS or len(product) > MAX_CHARS:
+        return f"at most {MAX_CHARS} characters each"
+    try:
+        (product + said).encode("utf-8")
+    except UnicodeEncodeError:  # e.g. a lone "\ud800": the notebook could neither print nor save it
+        return "product and said must be normal text (a broken character was found)"
+    return None
+
+
+def questions_from(asks: list[list[str]], questions_json: str | None) -> list[dict]:
+    """The --ask pairs and the --questions-json list as [{"product", "said"}] (ValueError or TypeError if bad)."""
+    try:
+        extra = json.loads(questions_json) if questions_json else []
+    except json.JSONDecodeError as e:
+        raise ValueError(f"--questions-json is not valid JSON: {e}") from None
+    if not isinstance(extra, list):
+        raise TypeError('--questions-json must be a JSON list like [{"product": "16A MCB", "said": "haan hai, 220 ka"}]')
+    items = [{"product": product, "said": said} for product, said in asks] + extra
+    if len(items) > MAX_QUESTIONS:
+        raise ValueError(f"at most {MAX_QUESTIONS} questions in one run (got {len(items)})")
+    for i, q in enumerate(items, 1):
+        if problem(q):
+            raise ValueError(f"question {i}: {problem(q)}")
+    return [{"product": q.get("product", "").strip(), "said": q["said"].strip()} for q in items]
+
+
+def notebook_with(questions: list[dict]) -> dict:
+    """try_model.ipynb with these questions in its QUESTIONS line (one line, any characters)."""
+    nb = json.loads((HERE / NOTEBOOK).read_text(encoding="utf-8"))
+    line = f"QUESTIONS = json.loads({json.dumps(questions, ensure_ascii=False)!r})"
+    for cell in nb["cells"]:
+        source = "".join(cell["source"])
+        if source.startswith(ASK_CELL):
+            source, n = QUESTIONS_LINE.subn(lambda _: line, source)
+            if n != 1:
+                raise RuntimeError(f"{NOTEBOOK}: the QUESTIONS line is missing; run build_notebook.py")
+            cell["source"] = source.splitlines(keepends=True)
+            return nb
+    raise RuntimeError(f"{NOTEBOOK}: the '{ASK_CELL}' cell is missing; run build_notebook.py")
+
+
+def push(api, kernel: str, questions: list[dict]) -> None:
+    """Start the notebook with the training notebook's output (the model file) attached."""
+    owner = kernel.split("/", 1)[0]
+    training = f"{owner}/{run_on_kaggle.SLUG}"
+    try:  # only a hint: the model comes from the training notebook's latest run
+        status = api.kernels_status(training).status
+        print(f"Training notebook {training}: last run {getattr(status, 'name', status)}", flush=True)
+    except Exception as e:  # noqa: BLE001 - diagnostics only
+        print(f"Could not read the training notebook {training}:", e, flush=True)
+    print(f"Your questions: {len(questions)}", flush=True)
+    run_on_kaggle.push_notebook(api, kernel, notebook_with(questions), NOTEBOOK, kernel_sources=[training])
+
+
+def short(text: str, width: int) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= width else text[: width - 1] + "…"
+
+
+def seconds(value) -> str:
+    return "?" if value is None else f"{value:g} s"
+
+
+TEMPLATES = {"go_template": "the Modelfile's TEMPLATE",
+             "gguf_chat_template": "the chat template inside the .gguf (Ollama chose it over the Modelfile's TEMPLATE)"}
+
+
+def ran_on(processor: str | None) -> str:
+    """Where Ollama ran the model, from `ollama ps` ("GPU: Tesla T4" only says the card is there)."""
+    if processor == "100% GPU":
+        return "the GPU"
+    if processor == "100% CPU":
+        return "the CPU only (Ollama did not use the GPU)"
+    return f"GPU and CPU ({processor})" if processor else "GPU or CPU (not known)"
+
+
+def report(r: dict) -> None:
+    """Print try_results.json for a person: the setup, the example calls, the speed, the questions."""
+    print(f"\nOllama {r.get('ollama_version') or '?'}; GPU: {r.get('gpu') or 'none found'}")
+    if r.get("model_file"):
+        print(f"Model file: {Path(r['model_file']).name} ({r.get('model_mb') or 0:,} MB)")
+    print(f"ollama create took {seconds(r.get('create_seconds'))}; loading the model took {seconds(r.get('load_seconds'))}")
+    template = r.get("template")
+    print("Prompt template:", TEMPLATES.get(template, template) if template else "not in Ollama's log")
+
+    demo = r.get("demo") or []
+    where = ran_on(r.get("processor"))
+    if demo:
+        print(f"\n== Example calls ({len(demo)}, on {where})")
+        for i, d in enumerate(demo, 1):
+            mark = "✓" if not d["wrong"] else "wrong: " + ", ".join(d["wrong"])
+            print(f"{i:3d}. {short(d['said'], 42):42s}  {short(d['reply'], 90)}  {mark}  ({seconds(d.get('seconds'))})")
+        print(f"\n{r.get('demo_right', 0)} of {r.get('demo_total', len(demo))} fully right")
+    print(f"Speed on {where}: {seconds(r.get('gpu_avg_seconds'))} per answer on average, "
+          f"{r.get('gpu_tokens_per_s') or '?'} tokens/s")
+    if r.get("cpu"):
+        print(f"CPU only: {seconds(r.get('cpu_avg_seconds'))} per answer on average "
+              "(not counting loading the model; about what a laptop CPU would take)")
+    if r.get("gpu_memory"):
+        print("GPU memory used, total:", r["gpu_memory"])
+    for key, label in (("ollama_ps", "ollama ps (example calls)"), ("cpu_ollama_ps", "ollama ps (CPU only check)")):
+        if r.get(key):
+            print(label + ":")
+            for line in r[key].splitlines():
+                print("   ", line)
+
+    questions = r.get("questions") or []
+    if questions:
+        print(f"\n== Your questions ({len(questions)}, on {ran_on(r.get('questions_processor'))})")
+        for i, q in enumerate(questions, 1):
+            print(f"{i}. Product: {q['product']}\n   Shopkeeper: {q['said']}\n   Answer: {in_words(q.get('parsed'))}"
+                  f"\n   (reply: {short(q['reply'], 200)})")
+    if r.get("errors"):
+        print("\nErrors:")
+        for error in r["errors"]:
+            print("   ", short(error, 500))
+
+
+def gaps(r: dict, pushed: list[dict] | None = None) -> list[str]:
+    """What the run did not answer (empty when it answered everything it was asked).
+
+    pushed: the questions this run was started with (None: not known, e.g. with --wait).
+    """
+    found = []
+    asked = r.get("questions_asked")
+    if pushed is not None and asked is not None and asked != pushed:
+        found.append("these answers are for other questions (was another run of this notebook started?)")
+    if not r.get("demo_total") and not r.get("questions"):
+        found.append("the model answered nothing")
+    elif r.get("demo_total", 0) < r.get("demo_asked", 0):
+        found.append(f"{r['demo_asked'] - r['demo_total']} of {r['demo_asked']} example calls got no answer")
+    if asked is not None and len(r.get("questions") or []) < len(asked):
+        found.append(f"{len(asked) - len(r.get('questions') or [])} of your {len(asked)} questions got no answer")
+    return found
+
+
+def fetch(api, kernel: str, ok: bool = True) -> dict | None:
+    """Download the results and print them, and the end of Kaggle's log when the run did not finish (ok False).
+
+    The results, or None when the run left no try_results.json.
+    """
+    OUT.mkdir(exist_ok=True)
+    results = OUT / "try_results.json"
+    results.unlink(missing_ok=True)  # never report an older run's answers
+    api.kernels_output(kernel, str(OUT), file_pattern=r"(try_results\.json|.*\.log|.*\.ipynb)$", force=True)
+    r = json.loads(results.read_text(encoding="utf-8")) if results.exists() else None
+    if r is not None:
+        report(r)
+    if r is None or not ok:
+        print("\nNo try_results.json: the run stopped early." if r is None else "\nThe run did not finish.",
+              "Kaggle's log:")
+        for log in OUT.glob("*.log"):
+            print_log(log)
+    if r is not None:
+        print(f"\nDownloaded to {OUT}: {sorted(p.name for p in OUT.iterdir())}")
+        print(f"The run on Kaggle: https://www.kaggle.com/code/{kernel}")
+    return r
+
+
+def main() -> None:
+    args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    args.add_argument("--ask", nargs=2, action="append", default=[], metavar=("PRODUCT", "SAID"),
+                      help="a question of your own: the product, and what the shopkeeper said (repeatable)")
+    args.add_argument("--questions-json", metavar="TEXT",
+                      help='questions as a JSON list: [{"product": ..., "said": ...}] (up to 30)')
+    args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
+    opts = args.parse_args()
+    try:
+        questions = questions_from(opts.ask, opts.questions_json)
+    except (TypeError, ValueError) as e:
+        args.error(str(e))
+    api, kernel = connect(SLUG)
+    if not opts.wait:
+        check_gpu(api, need_hours=0.5)
+        push(api, kernel, questions)
+        time.sleep(30)
+    ok = wait(api, kernel, limit_min=60)
+    r = fetch(api, kernel, ok)
+    missing = gaps(r, None if opts.wait else questions) if r is not None else []
+    for why in missing:
+        print("Not answered in full:", why)
+    sys.exit(0 if ok and r is not None and not missing else 1)
+
+
+if __name__ == "__main__":
+    main()

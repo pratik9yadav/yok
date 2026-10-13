@@ -1,15 +1,20 @@
-"""Build train_colab.ipynb from score.py and the data files, so the notebook needs no repo access.
+"""Build train_colab.ipynb and try_model.ipynb from score.py and the data files (no repo access needed).
 
-Run after changing the data or score.py:  python build_notebook.py
+Run after changing the data, score.py or Modelfile:  python build_notebook.py
 """
 
+import inspect
 import json
 from pathlib import Path
+
+import try_on_kaggle
 
 HERE = Path(__file__).parent
 REPO = "pratik9yadav/yok"
 BRANCH = "main"
 NOTEBOOK = "train_colab.ipynb"
+TRY_NOTEBOOK = try_on_kaggle.NOTEBOOK
+DEMO_FILE = "demo_questions.jsonl"
 
 
 def md(text: str) -> dict:
@@ -323,6 +328,383 @@ Shopkeeper: haan hai, 220 ka, delivery nahi"
 """
 
 
+TRY_INTRO = """
+# WIMB: try the trained shop model (Ollama on Kaggle's free GPU)
+
+**What it does:** takes the model made by the notebook `wimb-shop-model-training`, loads it into
+Ollama exactly as you would on a PC (with the repo's `Modelfile`), answers some example shop calls,
+shows how fast it is on the GPU and on CPU only, and then answers your own questions.
+It takes about 5–10 minutes.
+
+**Ask your own question here, by hand**
+1. Open this notebook on kaggle.com → **Edit**.
+2. The trained model must be attached: right side → **Add Input** → **Notebooks** → **Your Work** →
+   `wimb-shop-model-training` → **+**. (If it is already under **Input**, skip this.)
+3. Settings (right side): Accelerator **GPU T4**, Internet **on**.
+4. In cell **1. Ask your own**, type the product in `PRODUCT` and what the shopkeeper said in `SAID`.
+5. **Run all**. Your answer is in cell **8. Your questions**.
+
+**Or with no clicks:** ask Claude ("ask the model: 16A MCB / haan hai, 220 ka, delivery nahi"),
+or on GitHub: **Actions → Ask the model on Kaggle → Run workflow**.
+"""
+
+TRY_ASK = """
+#@title 1. Ask your own: type the product and what the shopkeeper said, then Run all
+import json, os, re, shutil, subprocess, time, urllib.request
+
+# For example:  PRODUCT = "16A MCB"  and  SAID = "haan hai, 220 ka, delivery nahi"
+PRODUCT = ""
+SAID = ""
+# Many questions at once: a JSON list of {"product": ..., "said": ...} (Claude and GitHub Actions fill this line).
+QUESTIONS = json.loads('[]')
+CPU_CHECK = 3  # how many example calls to also time on CPU only (no GPU, like a laptop)
+WORKING_DIR = "/kaggle/working"  # try_results.json is saved here (the notebook's Output tab)
+"""
+
+TRY_HELPERS = '''
+RESULTS = {"ollama_version": None, "gpu": None, "model_file": None, "model_mb": None, "create_seconds": None,
+           "load_seconds": None, "demo": [], "demo_asked": 0, "demo_right": 0, "demo_total": 0, "processor": None,
+           "template": None, "gpu_avg_seconds": None, "gpu_tokens_per_s": None, "gpu_memory": None, "cpu": [],
+           "cpu_avg_seconds": None, "ollama_ps": None, "cpu_ollama_ps": None, "questions_asked": None,
+           "questions": [], "questions_processor": None, "errors": []}
+OLLAMA_LOG = "/tmp/ollama.log"  # what `ollama serve` prints (cell 4)
+
+
+def save_results():
+    """Write RESULTS to try_results.json. Done after every stage, so a stop part-way loses nothing."""
+    if os.path.isdir(WORKING_DIR):
+        with open(os.path.join(WORKING_DIR, "try_results.json"), "w", encoding="utf-8") as fh:
+            json.dump(RESULTS, fh, ensure_ascii=False, indent=1)
+
+
+def failed(stage, error):
+    """Record a failed stage and go on (Kaggle's Run all stops at the first error that is not caught)."""
+    message = f"{stage}: {error!r}" if isinstance(error, Exception) else f"{stage}: {error}"
+    print("FAILED", message)
+    RESULTS["errors"].append(message)
+    save_results()
+
+
+def sh(command, timeout=120):
+    """What a shell command printed, or "" when the command is missing or fails."""
+    try:
+        return subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout).stdout.strip()
+    except Exception:
+        return ""
+
+
+def average(values):
+    values = [v for v in values if v is not None]
+    return round(sum(values) / len(values), 2) if values else None
+
+
+print(len(DEMO), "example calls")
+'''
+
+TRY_FIND = """
+#@title 3. Find the trained model (the training notebook's output, attached as input)
+import glob
+
+
+def rank(path):
+    name = os.path.basename(path).lower()
+    return ("wimb-shop-model" not in name or "q4_k_m" not in name, "q4_k_m" not in name, path)
+
+
+found = sorted(glob.glob("/kaggle/input/**/*.gguf", recursive=True), key=rank)
+if not found:
+    print("No .gguf file under /kaggle/input. What is attached:")
+    for root, dirs, files in os.walk("/kaggle/input"):
+        depth = root[len("/kaggle/input"):].count(os.sep)
+        print("   " * depth + (os.path.basename(root) or root) + "/")
+        for name in sorted(files)[:20]:
+            print("   " * (depth + 1) + name)
+        if depth >= 3:
+            dirs[:] = []
+    failed("find the model", "no .gguf file under /kaggle/input")
+    raise RuntimeError("No model file. Attach the training notebook's output: Add Input → Notebooks → Your Work → "
+                       "wimb-shop-model-training, then Run all again.")
+MODEL_FILE = found[0]
+RESULTS["model_file"] = MODEL_FILE
+RESULTS["model_mb"] = round(os.path.getsize(MODEL_FILE) / 1e6)
+print(f"Model file: {MODEL_FILE}  ({RESULTS['model_mb']:,} MB)")
+save_results()
+"""
+
+TRY_OLLAMA = """
+#@title 4. Install Ollama and start it (about 1–2 minutes)
+OLLAMA_URL = "http://127.0.0.1:11434"
+
+
+def ollama_version():
+    try:
+        with urllib.request.urlopen(OLLAMA_URL + "/api/version", timeout=5) as resp:
+            return json.load(resp).get("version")
+    except Exception:
+        return None
+
+
+if not ollama_version():
+    if not shutil.which("ollama"):
+        # zstd unpacks Ollama's download (.tar.zst). The download already holds the CUDA libraries; lspci is
+        # left out on purpose: with it (and no nvidia-smi) install.sh would try to install NVIDIA drivers.
+        if not shutil.which("zstd"):
+            sh("apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq zstd", timeout=600)
+        install = subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True,
+                                 capture_output=True, text=True, timeout=1200)
+        print("\\n".join((install.stdout + install.stderr).replace("\\r", "\\n").splitlines()[-15:]))
+        if not shutil.which("ollama"):
+            failed("install Ollama", (install.stdout + install.stderr)[-1500:])
+            raise RuntimeError("Ollama did not install (see above)")
+    print(sh("ollama --version 2>&1"))
+    log = open(OLLAMA_LOG, "w")  # stays open: the server writes to it
+    server = subprocess.Popen(["ollama", "serve"], env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434"},
+                              stdout=log, stderr=subprocess.STDOUT)
+    for _ in range(60):
+        if ollama_version() or server.poll() is not None:
+            break
+        time.sleep(1)
+if not ollama_version():
+    tail = sh(f"tail -n 40 {OLLAMA_LOG}")
+    print(tail)
+    failed("start Ollama", tail[-1500:])
+    raise RuntimeError("Ollama did not start (its log is above)")
+RESULTS["ollama_version"] = ollama_version()
+RESULTS["gpu"] = (sh("nvidia-smi --query-gpu=name --format=csv,noheader").splitlines() or [None])[0]
+print("Ollama", RESULTS["ollama_version"], "is running. GPU:", RESULTS["gpu"])
+save_results()
+"""
+
+TRY_CREATE = """
+#@title 5. Make the Ollama model from the file, exactly as on a PC (ollama create, about 1 minute)
+os.makedirs("/tmp/wimb", exist_ok=True)
+link = "/tmp/wimb/wimb-shop-model.Q4_K_M.gguf"
+if os.path.lexists(link):
+    os.remove(link)
+os.symlink(MODEL_FILE, link)
+modelfile = make_modelfile("wimb-shop-model.Q4_K_M.gguf")
+if modelfile != MODELFILE_REPO:
+    failed("Modelfile", "the Modelfile made here differs from the repo's Modelfile")
+    raise RuntimeError("The Modelfile made here differs from the repo's Modelfile: run build_notebook.py again")
+with open("/tmp/wimb/Modelfile", "w", encoding="utf-8") as fh:
+    fh.write(modelfile)
+print(modelfile)
+
+
+def create():
+    started = time.time()
+    done = subprocess.run(["ollama", "create", "wimb-shop", "-f", "/tmp/wimb/Modelfile"],
+                          capture_output=True, text=True, timeout=1800)
+    output = re.sub(r"\\x1b\\[[0-9;?]*[A-Za-z]", "", done.stdout + done.stderr).replace("\\r", "\\n")  # no progress codes
+    print("\\n".join(line for line in output.splitlines()[-8:] if line.strip()))
+    return done.returncode, output, round(time.time() - started, 1)
+
+
+exit_code, output, RESULTS["create_seconds"] = create()
+if exit_code != 0:  # some versions do not follow the link: try once with a real copy
+    print("ollama create failed with the linked file; trying again with a copy")
+    os.remove(link)
+    shutil.copy(MODEL_FILE, link)
+    exit_code, output, RESULTS["create_seconds"] = create()
+if exit_code != 0:
+    failed("ollama create", output[-1500:])
+    raise RuntimeError("ollama create failed (see above)")
+print(f"ollama create took {RESULTS['create_seconds']} s")
+save_results()
+"""
+
+TRY_API = """
+#@title 6. ask(): one question to the model through Ollama's API, as an app would
+def ask(product, said, cpu=False):
+    \"\"\"The model's reply and how long it took. No system message is sent: the Modelfile's SYSTEM is used,
+    exactly as with `ollama run`. cpu=True runs it on the CPU only (num_gpu 0).\"\"\"
+    options = {"temperature": 0, "num_predict": 96, **({"num_gpu": 0} if cpu else {})}
+    started = time.time()
+    data = generate({"model": "wimb-shop", "prompt": user_message(product, said), "stream": False, "options": options})
+    seconds = round(time.time() - started, 2)
+    speed = load = None
+    if data.get("eval_count") and data.get("eval_duration"):
+        speed = round(data["eval_count"] / (data["eval_duration"] / 1e9), 1)
+    if data.get("load_duration") is not None:
+        load = round(data["load_duration"] / 1e9, 2)
+    return {"reply": data.get("response", "").strip(), "seconds": seconds, "tokens_per_s": speed, "load_seconds": load}
+
+
+def generate(body):
+    request = urllib.request.Request(OLLAMA_URL + "/api/generate", json.dumps(body).encode(),
+                                     {"Content-Type": "application/json"})
+    with urllib.request.urlopen(request, timeout=600) as resp:
+        return json.load(resp)
+
+
+def in_memory():
+    \"\"\"The model as Ollama holds it now (from /api/ps: size, size_vram, ...), or None when it is not loaded.\"\"\"
+    with urllib.request.urlopen(OLLAMA_URL + "/api/ps", timeout=10) as resp:
+        models = json.load(resp).get("models") or []
+    return next((m for m in models if m.get("name", "").split(":")[0] == "wimb-shop"), None)
+
+
+def processor():
+    \"\"\"Where the model runs now, as `ollama ps` says it: "100% GPU", "100% CPU", "25%/75% CPU/GPU", or None.\"\"\"
+    try:
+        m = in_memory()
+    except Exception:
+        return None
+    if not m or not m.get("size"):
+        return None
+    cpu = round(100 * (m["size"] - (m.get("size_vram") or 0)) / m["size"])
+    return "100% GPU" if cpu <= 0 else "100% CPU" if cpu >= 100 else f"{cpu}%/{100 - cpu}% CPU/GPU"
+
+
+def back_to_gpu():
+    \"\"\"Unload the model and load it again with the normal settings (the GPU). Needed after the CPU check:
+    a request without num_gpu never makes Ollama reload, so it would go on using the CPU copy.\"\"\"
+    generate({"model": "wimb-shop", "keep_alive": 0})  # no prompt and keep_alive 0: unload
+    for _ in range(60):
+        if in_memory() is None:
+            break
+        time.sleep(1)
+    generate({"model": "wimb-shop"})  # no prompt: only load
+
+
+def template_used():
+    \"\"\"Which prompt template Ollama chose when it loaded the model, from its log: "go_template" (the Modelfile's
+    TEMPLATE) or "gguf_chat_template" (the one inside the .gguf), or None (not logged).\"\"\"
+    try:
+        with open(OLLAMA_LOG, encoding="utf-8", errors="replace") as fh:
+            found = re.findall(r"template selection.*?\\bselected=(\\w+)", fh.read())
+    except OSError:
+        return None
+    return found[-1] if found else None
+
+
+def wrong_fields(reply, want):
+    got = parse(reply)
+    return list(FIELDS) if got is None else [f for f in FIELDS if not same(f, got[f], want[f])]
+
+
+print('Ready. For example: ask("16A MCB", "haan hai, 220 ka, delivery nahi")')
+"""
+
+TRY_DEMO = """
+#@title 7. The example calls: right or wrong, and how fast (GPU, then CPU only)
+RESULTS.update(demo=[], cpu=[], demo_asked=len(DEMO))
+try:  # the first answer also loads the model into the GPU
+    warm = ask(DEMO[0]["product"], DEMO[0]["said"]) if DEMO else ask("16A MCB", "haan hai")
+    RESULTS["load_seconds"] = warm["load_seconds"]
+    print(f"Model loaded in {warm['load_seconds']} s (the first answer took {warm['seconds']} s in all)")
+except Exception as e:
+    failed("warm-up", e)
+
+for i, ex in enumerate(DEMO, 1):
+    try:
+        res = ask(ex["product"], ex["said"])
+    except Exception as e:
+        failed(f"example {i}", e)
+        continue
+    wrong = wrong_fields(res["reply"], ex["answer"])
+    RESULTS["demo"].append({"product": ex["product"], "said": ex["said"], "want": ex["answer"], "reply": res["reply"],
+                            "wrong": wrong, "seconds": res["seconds"], "tokens_per_s": res["tokens_per_s"]})
+    print(f"\\n{i}. Product:    {ex['product']}\\n   Shopkeeper: {ex['said']}\\n   Model:      {res['reply']}")
+    print("   " + ("all 4 right" if not wrong else "wrong: " + ", ".join(wrong)) + f"  ({res['seconds']} s)")
+
+try:
+    demo = RESULTS["demo"]
+    RESULTS["demo_right"] = sum(not d["wrong"] for d in demo)
+    RESULTS["demo_total"] = len(demo)
+    RESULTS["gpu_avg_seconds"] = average([d["seconds"] for d in demo])
+    RESULTS["gpu_tokens_per_s"] = average([d["tokens_per_s"] for d in demo])
+    RESULTS["ollama_ps"] = sh("ollama ps") or None
+    RESULTS["processor"] = processor()  # the PROCESSOR column of `ollama ps`
+    RESULTS["template"] = template_used()
+    RESULTS["gpu_memory"] = sh("nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader") or None
+    print(f"\\n== {RESULTS['demo_right']} of {RESULTS['demo_total']} example calls fully right"
+          + (f" ({len(DEMO)} asked)" if len(demo) < len(DEMO) else ""))
+    print(f"Ran on {RESULTS['processor'] or '? (unknown)'}: {RESULTS['gpu_avg_seconds']} s per answer on average, "
+          f"{RESULTS['gpu_tokens_per_s']} tokens/s")
+    print("ollama ps (PROCESSOR shows the GPU/CPU split):\\n" + (RESULTS["ollama_ps"] or "   (not available)"))
+    print("GPU memory used, total:", RESULTS["gpu_memory"] or "(not available)")
+    print("Prompt template Ollama chose:", RESULTS["template"] or "(not in its log)")
+    if demo and RESULTS["processor"] != "100% GPU":
+        failed("GPU", f"Ollama did not run the model fully on the GPU (ollama ps: {RESULTS['processor']})")
+except Exception as e:
+    failed("summary", e)
+save_results()
+
+for ex in DEMO[:CPU_CHECK]:  # the first of these also loads the model again, into normal memory
+    try:
+        res = ask(ex["product"], ex["said"], cpu=True)
+    except Exception as e:
+        failed("CPU check", e)
+        continue
+    RESULTS["cpu"].append({"said": ex["said"], "reply": res["reply"], "wrong": wrong_fields(res["reply"], ex["answer"]),
+                           "seconds": res["seconds"], "load_seconds": res["load_seconds"],
+                           "tokens_per_s": res["tokens_per_s"]})
+RESULTS["cpu_ollama_ps"] = sh("ollama ps") or None  # should say 100% CPU
+# Not counting the time to load the model into memory (that happens once).
+RESULTS["cpu_avg_seconds"] = average([max(c["seconds"] - (c["load_seconds"] or 0), 0) for c in RESULTS["cpu"]])
+if RESULTS["cpu"]:
+    print(f"\\nCPU only: about {RESULTS['cpu_avg_seconds']} s per answer "
+          f"({average([c['tokens_per_s'] for c in RESULTS['cpu']])} tokens/s), about what a laptop CPU would take")
+if DEMO[:CPU_CHECK]:
+    try:  # else your questions would run on the CPU copy too
+        back_to_gpu()
+        print("Model loaded again for your questions:", processor() or "?")
+    except Exception as e:
+        failed("back to the GPU", e)
+save_results()
+"""
+
+TRY_YOURS = """
+#@title 8. Your questions: the model's answers
+RESULTS["questions"] = []
+asked = QUESTIONS + ([{"product": PRODUCT, "said": SAID}] if SAID.strip() else [])
+RESULTS["questions_asked"] = asked
+for q in asked:
+    product, said = q.get("product", ""), q["said"]
+    try:
+        res = ask(product, said)
+    except Exception as e:
+        failed("your question", e)
+        continue
+    parsed = parse(res["reply"])
+    RESULTS["questions"].append({"product": product, "said": said, "reply": res["reply"], "parsed": parsed,
+                                 "seconds": res["seconds"]})
+    print(f"\\nProduct:    {product}\\nShopkeeper: {said}\\nModel:      {res['reply']}\\nIn words:   {in_words(parsed)}")
+if RESULTS["questions"]:
+    RESULTS["questions_processor"] = processor()
+    print("\\nYour questions ran on:", RESULTS["questions_processor"] or "?")
+if not asked:
+    print('No question of your own. Type it in cell 1, for example PRODUCT = "16A MCB" and '
+          'SAID = "haan hai, 220 ka, delivery nahi", then Run all (or run cells 1 and 8 again).')
+save_results()
+"""
+
+TRY_SAVE = """
+#@title 9. Save the results (try_results.json, in the Output tab)
+save_results()
+print("Errors:", RESULTS["errors"] or "none")
+if os.path.isdir(WORKING_DIR):
+    print("Saved", os.path.join(WORKING_DIR, "try_results.json"))
+"""
+
+TRY_NEXT = """
+## Run it on your PC
+
+1. Install Ollama from ollama.com.
+2. Download `wimb-shop-model/wimb-shop-model.Q4_K_M.gguf` from the Output tab of `wimb-shop-model-training`,
+   and the `Modelfile` from the GitHub repo (the same one used above). Put both in one folder.
+3. Open a terminal in that folder and run:
+```
+ollama create wimb-shop -f Modelfile
+ollama run wimb-shop "Product: 16A MCB
+Shopkeeper: haan hai, 220 ka, delivery nahi"
+```
+From an app: `POST http://localhost:11434/api/generate` with
+`{"model": "wimb-shop", "prompt": "Product: ...\\nShopkeeper: ...", "stream": false}`.
+"""
+
+
 def real_rows(path: Path) -> str:
     """A data/real/*.jsonl file in the training-row format (only product, said, answer)."""
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -336,7 +718,15 @@ def block(name: str, text: str) -> str:
     return f"{name} = [json.loads(line) for line in r'''\n{text}\n'''.strip().splitlines()]\n"
 
 
-def main() -> None:
+METADATA = {
+    "colab": {"provenance": [], "gpuType": "T4"},
+    "accelerator": "GPU",
+    "kernelspec": {"name": "python3", "display_name": "Python 3"},
+    "language_info": {"name": "python"},
+}
+
+
+def train_notebook() -> dict:
     score_src = (HERE / "score.py").read_text(encoding="utf-8")
     fresh = (HERE / "data" / "fresh_test.jsonl").exists()
     data = (
@@ -355,23 +745,53 @@ def main() -> None:
         + "SETS = {'test': TEST, 'hard': HARD, **({'fresh': FRESH} if FRESH else {})}\n"
         + 'print(TRAIN_SET, len(TRAIN_DATA), "training rows;", {k: len(v) for k, v in SETS.items()}, "test calls")\n'
     )
-    nb = {
+    return {
         "nbformat": 4,
         "nbformat_minor": 0,
-        "metadata": {
-            "colab": {"provenance": [], "gpuType": "T4"},
-            "accelerator": "GPU",
-            "kernelspec": {"name": "python3", "display_name": "Python 3"},
-            "language_info": {"name": "python"},
-        },
+        "metadata": METADATA,
         "cells": [
             md(INTRO), code(CHECK_GPU), code(INSTALL), code(SETTINGS), code(data, hidden=True),
             code(LOAD), code(BEFORE), code(TRAIN), code(AFTER), code(TRY), code(SAVE), code(GGUF_TEST), md(NEXT),
         ],
     }
-    out = HERE / NOTEBOOK
-    out.write_text(json.dumps(nb, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"wrote {out}")
+
+
+def try_notebook() -> dict:
+    """The notebook that runs the trained model in Ollama on Kaggle and answers questions."""
+    demo = embedded(DEMO_FILE) if (HERE / "data" / DEMO_FILE).exists() else ""
+    data = (
+        "#@title 2. Example calls, scoring and helpers (hidden; built from data/, score.py and Modelfile)\n"
+        + (HERE / "score.py").read_text(encoding="utf-8")
+        + "\n\n"
+        + inspect.getsource(try_on_kaggle.in_words)
+        + "\n\n"
+        + f"# The example calls: {DEMO_FILE} (a demo, not a test set)\n"
+        + block("DEMO", demo)
+        + "# The repo's Modelfile, to check the one made here is the same\n"
+        + f"MODELFILE_REPO = {(HERE / 'Modelfile').read_text(encoding='utf-8')!r}\n"
+        + TRY_HELPERS
+    )
+    return {
+        "nbformat": 4,
+        "nbformat_minor": 0,
+        "metadata": METADATA,
+        "cells": [
+            md(TRY_INTRO), code(TRY_ASK), code(data, hidden=True), code(TRY_FIND), code(TRY_OLLAMA),
+            code(TRY_CREATE), code(TRY_API), code(TRY_DEMO), code(TRY_YOURS), code(TRY_SAVE), md(TRY_NEXT),
+        ],
+    }
+
+
+def text(nb: dict) -> str:
+    """The notebook file's exact text."""
+    return json.dumps(nb, ensure_ascii=False, indent=1) + "\n"
+
+
+def main() -> None:
+    for name, nb in ((NOTEBOOK, train_notebook()), (TRY_NOTEBOOK, try_notebook())):
+        out = HERE / name
+        out.write_text(text(nb), encoding="utf-8")
+        print(f"wrote {out}")
 
 
 if __name__ == "__main__":

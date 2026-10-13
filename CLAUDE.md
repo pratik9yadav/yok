@@ -12,8 +12,8 @@ time; `data/train_v1.jsonl` is the first 400 made-up rows (for comparison). Held
 trained on: `data/test.jsonl` (30), `data/hard_test.jsonl` (56), `data/fresh_test.jsonl` (60, blind).
 Never use held-out rows for ideas or phrasing when changing `make_data.py`; tests check for leakage.
 
-`train_colab.ipynb` is generated: edit `build_notebook.py`, `score.py` or `data/`, then run
-`python build_notebook.py` and `python -m pytest`. Never edit the notebook by hand.
+`train_colab.ipynb` and `try_model.ipynb` are generated: edit `build_notebook.py`, `score.py` or `data/`,
+then run `python build_notebook.py` and `python -m pytest`. Never edit the notebooks by hand.
 
 ## "Train the model" / "run it"
 Preferred: GitHub Actions. The workflow `.github/workflows/train.yml` ("Train on Kaggle") reads
@@ -35,6 +35,14 @@ From this container instead (needs kaggle.com allowed and the token in the envir
 Colab instead: the owner opens
 https://colab.research.google.com/github/pratik9yadav/yok/blob/main/train_colab.ipynb,
 runs it, and saves it back with File → Save a copy in GitHub; then read its outputs from git.
+
+## "Ask the model" / "try it"
+Run the workflow `.github/workflows/ask.yml` ("Ask the model on Kaggle") on `main` with `questions_json` =
+a JSON list of `{"product", "said"}` (up to 30); wait (about 10 minutes), read the job log, and report each
+answer in plain words, plus the speed (GPU and CPU only; the report says if Ollama did not use the GPU). The
+job fails when an answer is missing. It runs `try_on_kaggle.py` (Ollama on the T4 with the repo's `Modelfile`;
+needs a finished training run). From this container: `python try_on_kaggle.py --ask
+PRODUCT SAID`. The example calls are `data/demo_questions.jsonl` (a demo, not a benchmark).
 
 ## Using real data
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:

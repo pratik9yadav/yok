@@ -16,17 +16,21 @@ def load(name: str) -> list[dict]:
     return [json.loads(line) for line in (HERE / "data" / name).read_text(encoding="utf-8").splitlines()]
 
 
+def assert_well_formed(ex: dict) -> None:
+    assert set(ex) == {"product", "said", "answer"}
+    assert set(ex["answer"]) == set(FIELDS)
+    a = ex["answer"]
+    assert a["in_stock"] in (True, False, None)
+    assert a["delivery"] in (True, False, None)
+    assert a["price_inr"] is None or isinstance(a["price_inr"], int)
+    if a["in_stock"] is not True:
+        assert a["price_inr"] is None
+
+
 def test_data_files_are_well_formed() -> None:
     for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
         for ex in load(name):
-            assert set(ex) == {"product", "said", "answer"}
-            assert set(ex["answer"]) == set(FIELDS)
-            a = ex["answer"]
-            assert a["in_stock"] in (True, False, None)
-            assert a["delivery"] in (True, False, None)
-            assert a["price_inr"] is None or isinstance(a["price_inr"], int)
-            if a["in_stock"] is not True:
-                assert a["price_inr"] is None
+            assert_well_formed(ex)
 
 
 def nfc_lower(text: str) -> str:
@@ -82,12 +86,14 @@ def test_test_sets_are_not_in_training_data_or_each_other() -> None:
     assert len(hard_said) == len(hard) == 56
 
 
+def runs(text: str, n: int = 8) -> set[tuple[str, ...]]:
+    """Every run of n words in a row (lower case, Devanagari kept)."""
+    w = re.findall(r"[\w\u0900-\u097F]+", nfc_lower(text))
+    return {tuple(w[i:i + n]) for i in range(len(w) - n + 1)}
+
+
 def test_train_shares_no_long_word_run_with_test_sets() -> None:
     """No run of 8 words in a row is the same in a training reply and a test reply."""
-    def runs(text: str) -> set[tuple[str, ...]]:
-        w = re.findall(r"[\w\u0900-\u097F]+", nfc_lower(text))
-        return {tuple(w[i:i + 8]) for i in range(len(w) - 7)}
-
     train = set().union(*(runs(ex["said"]) for ex in load("train.jsonl")))
     for name in ("test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
         shared = [ex["said"] for ex in load(name) if runs(ex["said"]) & train]
