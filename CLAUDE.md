@@ -12,8 +12,8 @@ time; `data/train_v1.jsonl` is the first 400 made-up rows (for comparison). Held
 trained on: `data/test.jsonl` (30), `data/hard_test.jsonl` (56), `data/fresh_test.jsonl` (60, blind).
 Never use held-out rows for ideas or phrasing when changing `make_data.py`; tests check for leakage.
 
-`train_colab.ipynb` and `try_model.ipynb` are generated: edit `build_notebook.py`, `score.py` or `data/`,
-then run `python build_notebook.py` and `python -m pytest`. Never edit the notebooks by hand.
+`train_colab.ipynb`, `try_model.ipynb` and `ask_model.ipynb` are generated: edit `build_notebook.py`, `score.py`
+or `data/`, then run `python build_notebook.py` and `python -m pytest`. Never edit the notebooks by hand.
 
 ## "Train the model" / "run it"
 Preferred: GitHub Actions. The workflow `.github/workflows/train.yml` ("Train on Kaggle") reads
@@ -43,6 +43,10 @@ answer in plain words, plus the speed (GPU and CPU only; the report says if Olla
 job fails when an answer is missing. It runs `try_on_kaggle.py` (Ollama on the T4 with the repo's `Modelfile`;
 needs a finished training run). From this container: `python try_on_kaggle.py --ask
 PRODUCT SAID`. The example calls are `data/demo_questions.jsonl` (a demo, not a benchmark).
+To make or refresh the owner's own notebook for asking many questions (`ask_model.ipynb`: run once, then an ask
+box), run `ask.yml` with `run` = notebook (about 5 minutes; from here: `python try_on_kaggle.py --make-ask-notebook`),
+then give the link `https://www.kaggle.com/code/<Kaggle user>/wimb-shop-model-ask` (the job log prints it).
+After each new training run, run `ask.yml` with `run` = notebook again, so the notebook uses the new model.
 
 ## Using real data
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:

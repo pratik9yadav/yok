@@ -1,4 +1,4 @@
-"""Build train_colab.ipynb and try_model.ipynb from score.py and the data files (no repo access needed).
+"""Build train_colab.ipynb, try_model.ipynb and ask_model.ipynb from score.py, the data files and Modelfile.
 
 Run after changing the data, score.py or Modelfile:  python build_notebook.py
 """
@@ -14,6 +14,7 @@ REPO = "pratik9yadav/yok"
 BRANCH = "main"
 NOTEBOOK = "train_colab.ipynb"
 TRY_NOTEBOOK = try_on_kaggle.NOTEBOOK
+ASK_NOTEBOOK = try_on_kaggle.ASK_NOTEBOOK
 DEMO_FILE = "demo_questions.jsonl"
 
 
@@ -21,14 +22,23 @@ def md(text: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": text.strip("\n").splitlines(keepends=True)}
 
 
-def code(text: str, hidden: bool = False) -> dict:
+# Folds a cell's code on Kaggle (its own key) and in Jupyter too; Colab's "cellView: form" only works in Colab.
+FOLDED = {"_kg_hide-input": True, "jupyter": {"source_hidden": True}}
+
+
+def code(text: str, hidden: bool = False, folded: bool = False) -> dict:
     return {
         "cell_type": "code",
-        "metadata": {"cellView": "form"} if hidden else {},
+        "metadata": {**({"cellView": "form"} if hidden else {}), **(FOLDED if folded else {})},
         "execution_count": None,
         "outputs": [],
         "source": text.strip("\n").splitlines(keepends=True),
     }
+
+
+def titled(title: str, body: str) -> str:
+    """A code cell's text: its #@title line, then the body."""
+    return f"#@title {title}\n{body.strip(chr(10))}"
 
 
 def embedded(name: str) -> str:
@@ -361,25 +371,21 @@ CPU_CHECK = 3  # how many example calls to also time on CPU only (no GPU, like a
 WORKING_DIR = "/kaggle/working"  # try_results.json is saved here (the notebook's Output tab)
 """
 
-TRY_HELPERS = '''
-RESULTS = {"ollama_version": None, "gpu": None, "model_file": None, "model_mb": None, "create_seconds": None,
-           "load_seconds": None, "demo": [], "demo_asked": 0, "demo_right": 0, "demo_total": 0, "processor": None,
-           "template": None, "gpu_avg_seconds": None, "gpu_tokens_per_s": None, "gpu_memory": None, "cpu": [],
-           "cpu_avg_seconds": None, "ollama_ps": None, "cpu_ollama_ps": None, "questions_asked": None,
-           "questions": [], "questions_processor": None, "errors": []}
-OLLAMA_LOG = "/tmp/ollama.log"  # what `ollama serve` prints (cell 4)
+def run_helpers(results_file: str, ollama_cell: int) -> str:
+    """save_results(), failed() and sh(): shared by the try and ask notebooks (each fills its own RESULTS)."""
+    return f'''OLLAMA_LOG = "/tmp/ollama.log"  # what `ollama serve` prints (cell {ollama_cell})
 
 
 def save_results():
-    """Write RESULTS to try_results.json. Done after every stage, so a stop part-way loses nothing."""
+    """Write RESULTS to {results_file}. Done after every stage, so a stop part-way loses nothing."""
     if os.path.isdir(WORKING_DIR):
-        with open(os.path.join(WORKING_DIR, "try_results.json"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(WORKING_DIR, "{results_file}"), "w", encoding="utf-8") as fh:
             json.dump(RESULTS, fh, ensure_ascii=False, indent=1)
 
 
 def failed(stage, error):
     """Record a failed stage and go on (Kaggle's Run all stops at the first error that is not caught)."""
-    message = f"{stage}: {error!r}" if isinstance(error, Exception) else f"{stage}: {error}"
+    message = f"{{stage}}: {{error!r}}" if isinstance(error, Exception) else f"{{stage}}: {{error}}"
     print("FAILED", message)
     RESULTS["errors"].append(message)
     save_results()
@@ -391,7 +397,16 @@ def sh(command, timeout=120):
         return subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout).stdout.strip()
     except Exception:
         return ""
+'''
 
+
+TRY_HELPERS = '''
+RESULTS = {"ollama_version": None, "gpu": None, "model_file": None, "model_mb": None, "create_seconds": None,
+           "load_seconds": None, "demo": [], "demo_asked": 0, "demo_right": 0, "demo_total": 0, "processor": None,
+           "template": None, "gpu_avg_seconds": None, "gpu_tokens_per_s": None, "gpu_memory": None, "cpu": [],
+           "cpu_avg_seconds": None, "ollama_ps": None, "cpu_ollama_ps": None, "questions_asked": None,
+           "questions": [], "questions_processor": None, "errors": []}
+''' + run_helpers("try_results.json", 4) + '''
 
 def average(values):
     values = [v for v in values if v is not None]
@@ -401,8 +416,9 @@ def average(values):
 print(len(DEMO), "example calls")
 '''
 
-TRY_FIND = """
-#@title 3. Find the trained model (the training notebook's output, attached as input)
+# Shared by try_model.ipynb and ask_model.ipynb: find the model file, start Ollama, make the model (ollama create).
+FIND_TITLE = "Find the trained model (the training notebook's output, attached as input)"
+FIND_MODEL = """
 import glob
 
 
@@ -431,8 +447,8 @@ print(f"Model file: {MODEL_FILE}  ({RESULTS['model_mb']:,} MB)")
 save_results()
 """
 
-TRY_OLLAMA = """
-#@title 4. Install Ollama and start it (about 1–2 minutes)
+OLLAMA_TITLE = "Install Ollama and start it (about 1–2 minutes)"
+START_OLLAMA = """
 OLLAMA_URL = "http://127.0.0.1:11434"
 
 
@@ -475,8 +491,8 @@ print("Ollama", RESULTS["ollama_version"], "is running. GPU:", RESULTS["gpu"])
 save_results()
 """
 
-TRY_CREATE = """
-#@title 5. Make the Ollama model from the file, exactly as on a PC (ollama create, about 1 minute)
+CREATE_TITLE = "Make the Ollama model from the file, exactly as on a PC (ollama create, about 1 minute)"
+CREATE_MODEL = """
 os.makedirs("/tmp/wimb", exist_ok=True)
 link = "/tmp/wimb/wimb-shop-model.Q4_K_M.gguf"
 if os.path.lexists(link):
@@ -512,24 +528,11 @@ if exit_code != 0:
 print(f"ollama create took {RESULTS['create_seconds']} s")
 save_results()
 """
+TRY_FIND = titled(f"3. {FIND_TITLE}", FIND_MODEL)
+TRY_OLLAMA = titled(f"4. {OLLAMA_TITLE}", START_OLLAMA)
+TRY_CREATE = titled(f"5. {CREATE_TITLE}", CREATE_MODEL)
 
-TRY_API = """
-#@title 6. ask(): one question to the model through Ollama's API, as an app would
-def ask(product, said, cpu=False):
-    \"\"\"The model's reply and how long it took. No system message is sent: the Modelfile's SYSTEM is used,
-    exactly as with `ollama run`. cpu=True runs it on the CPU only (num_gpu 0).\"\"\"
-    options = {"temperature": 0, "num_predict": 96, **({"num_gpu": 0} if cpu else {})}
-    started = time.time()
-    data = generate({"model": "wimb-shop", "prompt": user_message(product, said), "stream": False, "options": options})
-    seconds = round(time.time() - started, 2)
-    speed = load = None
-    if data.get("eval_count") and data.get("eval_duration"):
-        speed = round(data["eval_count"] / (data["eval_duration"] / 1e9), 1)
-    if data.get("load_duration") is not None:
-        load = round(data["load_duration"] / 1e9, 2)
-    return {"reply": data.get("response", "").strip(), "seconds": seconds, "tokens_per_s": speed, "load_seconds": load}
-
-
+OLLAMA_API = """
 def generate(body):
     request = urllib.request.Request(OLLAMA_URL + "/api/generate", json.dumps(body).encode(),
                                      {"Content-Type": "application/json"})
@@ -554,7 +557,28 @@ def processor():
         return None
     cpu = round(100 * (m["size"] - (m.get("size_vram") or 0)) / m["size"])
     return "100% GPU" if cpu <= 0 else "100% CPU" if cpu >= 100 else f"{cpu}%/{100 - cpu}% CPU/GPU"
+"""
 
+# Ollama's generate options, sent with every question by both notebooks (so their answers match).
+OPTIONS = '"temperature": 0, "num_predict": 96'
+
+TRY_API = """
+#@title 6. ask(): one question to the model through Ollama's API, as an app would
+def ask(product, said, cpu=False):
+    \"\"\"The model's reply and how long it took. No system message is sent: the Modelfile's SYSTEM is used,
+    exactly as with `ollama run`. cpu=True runs it on the CPU only (num_gpu 0).\"\"\"
+    options = {""" + OPTIONS + """, **({"num_gpu": 0} if cpu else {})}
+    started = time.time()
+    data = generate({"model": "wimb-shop", "prompt": user_message(product, said), "stream": False, "options": options})
+    seconds = round(time.time() - started, 2)
+    speed = load = None
+    if data.get("eval_count") and data.get("eval_duration"):
+        speed = round(data["eval_count"] / (data["eval_duration"] / 1e9), 1)
+    if data.get("load_duration") is not None:
+        load = round(data["load_duration"] / 1e9, 2)
+    return {"reply": data.get("response", "").strip(), "seconds": seconds, "tokens_per_s": speed, "load_seconds": load}
+
+""" + OLLAMA_API + """
 
 def back_to_gpu():
     \"\"\"Unload the model and load it again with the normal settings (the GPU). Needed after the CPU check:
@@ -705,6 +729,224 @@ From an app: `POST http://localhost:11434/api/generate` with
 """
 
 
+NO_BOX = try_on_kaggle.ASK_NO_BOX  # what to do when the editor does not draw the ask box
+# Cells 6 and 7 say this when Kaggle stopped or restarted the session (nothing above has run in the new one).
+RESTARTED = "The session restarted: tap Run all again (about 3–4 minutes)"
+
+ASK_INTRO = f"""
+# Ask the shop model
+
+Type what a shopkeeper said on a call. The model tells you: **in stock**, **price**, **delivery** and
+**other product offered**. The text can be Hindi, Marathi or Hinglish. It is not a chatbot.
+
+**How to use it**
+1. Open this notebook on kaggle.com → **Edit**.
+2. Right panel:
+   - **Input** shows `wimb-shop-model-training`. If not: **Add Input → Notebooks → Your Work →
+     wimb-shop-model-training**.
+   - **Accelerator: GPU T4**, **Internet: on**.
+3. **Run all**. About 3–4 minutes each time you start it.
+4. At the bottom: type the product and what the shopkeeper said, tap **Ask**. The answer comes in about
+   half a second. Ask as many as you like. {NO_BOX}
+5. When done, stop the session (**Run → Stop session**, or the power icon), so your free GPU hours are not
+   used up.
+
+Tip: Accelerator **None** also works (about 10 s per answer) and uses no GPU hours.
+"""
+
+ASK_STATE = """
+WORKING_DIR = "/kaggle/working"  # ask_check.json is saved here (the notebook's Output tab)
+RESULTS = {"ollama_version": None, "gpu": None, "model_file": None, "model_mb": None, "create_seconds": None,
+           "load_seconds": None, "processor": None, "self_check": None, "ask_box": None, "errors": []}
+"""
+
+ASK_HELPERS = """
+NOT_RUNNING = "The model is not running (the session may have restarted): tap Run all again"
+SAVED_RUN = "This is the saved check, where nobody can type. To ask questions: tap Edit, then Run all."
+NO_BOX = """ + json.dumps(NO_BOX) + """
+
+
+def saved_run():
+    \"\"\"True in Kaggle's saved run (Save Version, or try_on_kaggle.py --make-ask-notebook): no one can type there.\"\"\"
+    return os.environ.get("KAGGLE_KERNEL_RUN_TYPE") == "Batch"  # "Interactive" in the editor
+
+
+def ask(product, said):
+    \"\"\"The model's reply and the seconds it took, through Ollama's API as an app would. No system message is
+    sent (the Modelfile has it); keep_alive keeps the model loaded for 60 minutes after each question.\"\"\"
+    body = {"model": "wimb-shop", "prompt": user_message(product, said), "stream": False, "keep_alive": "60m",
+            "options": {""" + OPTIONS + """}}
+    started = time.time()
+    try:
+        data = generate(body)
+    except urllib.error.HTTPError as e:  # Ollama runs but refused, e.g. the model was not made
+        raise RuntimeError(f"Ollama said: {e.read().decode(errors='replace')[:300]} (tap Run all again)") from e
+    except (urllib.error.URLError, ConnectionError) as e:  # nothing answers: Ollama is not running
+        raise RuntimeError(NOT_RUNNING) from e
+    return data.get("response", "").strip(), round(time.time() - started, 2)
+
+
+def where_it_runs(ps, gpu):
+    \"\"\"Where the model runs, in words. ps: what processor() gave; gpu: the GPU's name (None: no GPU).\"\"\"
+    if ps == "100% GPU":
+        return "running on the GPU: about half a second per answer"
+    if ps == "100% CPU":
+        return "running on CPU only: about 10 s per answer" + (" (Ollama did not use the GPU)" if gpu else "")
+    return f"running on GPU and CPU ({ps})" if ps else "running on GPU or CPU (not known)"
+
+
+def answer_lines(product, said, reply, seconds):
+    \"\"\"One question and its answer as lines for a person: the answer in plain words, the model's JSON, the time.\"\"\"
+    return [f"Product: {product}", f"Shopkeeper: {said}", f"Answer: {in_words(parse(reply))}",
+            f"Model's reply: {reply}", f"Took {seconds} s"]
+
+
+def show_answer(product, said):
+    \"\"\"Ask, then print the answer (or why it could not ask).\"\"\"
+    try:
+        reply, seconds = ask(product, said)
+    except Exception as e:
+        print("Could not ask:", str(e) or repr(e))
+        return
+    print("\\n".join(answer_lines(product, said, reply, seconds)))
+
+
+def make_ask_box(ask_fn):
+    \"\"\"The ask box: Product, Shopkeeper said, an Ask button, and the answers so far (newest first).
+
+    ask_fn(product, said) gives (reply, seconds). Its errors are shown in the box (ipywidgets would hide them).
+    \"\"\"
+    import html
+    import ipywidgets as widgets
+
+    product = widgets.Text(placeholder="e.g. 16A MCB", layout=widgets.Layout(width="100%"))
+    said = widgets.Textarea(placeholder="e.g. haan hai, 220 ka, delivery nahi\\nor: nahi hai, 32A wala le lo",
+                            rows=3, layout=widgets.Layout(width="100%"))
+    button = widgets.Button(description="Ask", button_style="primary")
+    status = widgets.Label()
+    history = widgets.HTML()
+    shown = []  # the answers so far, newest first
+
+    def on_click(_):
+        question = (product.value.strip(), said.value.strip())
+        if not question[1]:
+            status.value = "Type what the shopkeeper said, then tap Ask."
+            return
+        button.disabled, status.value = True, "Asking…"
+        try:
+            reply, seconds = ask_fn(*question)
+            lines = answer_lines(*question, reply, seconds)
+            said.value = ""  # ready for the next question; the product stays
+        except Exception as e:
+            lines = [f"Product: {question[0]}", f"Shopkeeper: {question[1]}", f"Could not ask: {str(e) or repr(e)}"]
+        finally:
+            button.disabled, status.value = False, ""
+        shown.insert(0, "\\n".join(lines))
+        history.value = "".join(f"<pre style='white-space: pre-wrap'>{html.escape(t)}</pre>" for t in shown)
+
+    button.on_click(on_click)
+    return widgets.VBox([widgets.Label("Product"), product, widgets.Label("Shopkeeper said"), said, button, status,
+                         history])
+
+
+def show_ask_box():
+    \"\"\"Show the ask box (under the cell that calls this). Without ipywidgets, say to use the next cell.
+
+    In Kaggle's saved run the box is only built (to check that it can be), not shown: no one can type there.
+    \"\"\"
+    try:
+        import ipywidgets
+        from IPython.display import display
+    except ImportError:
+        RESULTS["ask_box"] = "no ipywidgets"
+        print("The ask box needs ipywidgets, which is missing here: use the next cell instead.")
+    else:
+        try:
+            box = make_ask_box(ask)
+            if saved_run():
+                RESULTS["ask_box"] = f"built, not shown (Kaggle's saved run; ipywidgets {ipywidgets.__version__})"
+                print(SAVED_RUN)
+            else:
+                print(NO_BOX)  # the box itself is drawn by the editor: this check can't see it
+                display(box)
+                RESULTS["ask_box"] = f"shown (ipywidgets {ipywidgets.__version__})"
+        except Exception as e:
+            RESULTS["ask_box"] = "failed"
+            failed("ask box", e)
+            print("Use the next cell instead.")
+    save_results()
+"""
+
+# The owner runs this notebook by hand, where Internet may be off: a failed install says what to check.
+INSTALL_FAILED = 'raise RuntimeError("Ollama did not install (see above)")'
+NO_INTERNET = ('raise RuntimeError("Ollama did not install: check Internet is on (right panel → Session options), '
+               'then Run all again")')
+if INSTALL_FAILED not in START_OLLAMA:
+    raise ValueError("START_OLLAMA changed: update INSTALL_FAILED")
+# ollama serve reads OLLAMA_KEEP_ALIVE: how long the model stays loaded after a question (default 5 minutes).
+ASK_OLLAMA = titled(f"3. {OLLAMA_TITLE}", 'os.environ["OLLAMA_KEEP_ALIVE"] = "60m"  # keep the model loaded between '
+                    "questions\n" + START_OLLAMA.replace(INSTALL_FAILED, NO_INTERNET))
+
+ASK_SELF_CHECK = """
+#@title 5. Load the model and check that it answers (about 1 minute the first time)
+CHECK = {"product": "16A MCB", "said": "haan hai, 220 ka, delivery nahi"}
+try:
+    started = time.time()
+    generate({"model": "wimb-shop", "keep_alive": "60m"})  # no prompt: only load it
+    RESULTS["load_seconds"] = round(time.time() - started, 1)
+    print(f"Model loaded in {RESULTS['load_seconds']} s")
+except Exception as e:
+    failed("load the model", e)
+RESULTS["self_check"] = None
+try:
+    reply, seconds = ask(CHECK["product"], CHECK["said"])
+    RESULTS["self_check"] = {**CHECK, "reply": reply, "parsed": parse(reply), "seconds": seconds}
+    print("\\n".join(answer_lines(CHECK["product"], CHECK["said"], reply, seconds)))
+except Exception as e:
+    failed("self-check", e)
+RESULTS["processor"] = processor()
+if RESULTS["self_check"] is None:
+    print("\\nThe model is NOT running (see FAILED above): check the right panel (Input, Accelerator, Internet) "
+          "and tap Run all again")
+else:
+    print("\\nThe model is", where_it_runs(RESULTS["processor"], RESULTS["gpu"]))
+if RESULTS["processor"] == "100% CPU" and RESULTS["gpu"]:
+    failed("GPU", f"there is a GPU ({RESULTS['gpu']}) but Ollama runs the model on the CPU")
+if RESULTS["self_check"] and RESULTS["self_check"]["parsed"]:
+    print(SAVED_RUN if saved_run() else "Ready: ask your questions in the box below.")
+save_results()
+"""
+
+# Cells 6 and 7 first check that the cells above have run in this session (else a NameError, not the hint).
+ASK_BOX = f"""
+#@title 6. Ask here: type the product and what the shopkeeper said, then tap Ask
+if "OLLAMA_URL" in globals() and "show_ask_box" in globals():
+    show_ask_box()
+else:  # a new session (Kaggle stopped or restarted it): nothing above has run in it
+    print("{RESTARTED}")
+"""
+
+ASK_TYPE = f"""
+#@title 7. Or type here: change the two lines, then run this cell again (Shift+Enter, or the ▶ button)
+PRODUCT = "16A MCB"
+SAID = "haan hai, 220 ka, delivery nahi"
+if "OLLAMA_URL" in globals() and "show_answer" in globals():
+    show_answer(PRODUCT, SAID)
+else:  # a new session (Kaggle stopped or restarted it): nothing above has run in it
+    print("{RESTARTED}")
+"""
+
+ASK_TIPS = f"""
+## Tips
+- {NO_BOX}
+- One product per question.
+- Write what the shopkeeper said as text, the way they said it (Hindi, Marathi or Hinglish).
+- It answers four things only: in stock, price, delivery, other product offered. It is not a chatbot.
+- If it says the model is not running, or the session has stopped: **Run all** again.
+- When done, stop the session (**Run → Stop session**), so your free GPU hours are not used up.
+"""
+
+
 def real_rows(path: Path) -> str:
     """A data/real/*.jsonl file in the training-row format (only product, said, answer)."""
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
@@ -756,19 +998,26 @@ def train_notebook() -> dict:
     }
 
 
+def scoring() -> str:
+    """score.py and in_words(), as notebook code (the same in the try and ask notebooks)."""
+    return (HERE / "score.py").read_text(encoding="utf-8") + "\n\n" + inspect.getsource(try_on_kaggle.in_words) + "\n\n"
+
+
+def modelfile_repo() -> str:
+    """MODELFILE_REPO: the repo's Modelfile, which the create cell checks its own Modelfile against."""
+    return ("# The repo's Modelfile, to check the one made here is the same\n"
+            f"MODELFILE_REPO = {(HERE / 'Modelfile').read_text(encoding='utf-8')!r}\n")
+
+
 def try_notebook() -> dict:
     """The notebook that runs the trained model in Ollama on Kaggle and answers questions."""
     demo = embedded(DEMO_FILE) if (HERE / "data" / DEMO_FILE).exists() else ""
     data = (
         "#@title 2. Example calls, scoring and helpers (hidden; built from data/, score.py and Modelfile)\n"
-        + (HERE / "score.py").read_text(encoding="utf-8")
-        + "\n\n"
-        + inspect.getsource(try_on_kaggle.in_words)
-        + "\n\n"
+        + scoring()
         + f"# The example calls: {DEMO_FILE} (a demo, not a test set)\n"
         + block("DEMO", demo)
-        + "# The repo's Modelfile, to check the one made here is the same\n"
-        + f"MODELFILE_REPO = {(HERE / 'Modelfile').read_text(encoding='utf-8')!r}\n"
+        + modelfile_repo()
         + TRY_HELPERS
     )
     return {
@@ -782,13 +1031,44 @@ def try_notebook() -> dict:
     }
 
 
+def ask_notebook() -> dict:
+    """The notebook where the owner runs the model once, then asks it many questions (an ask box, from a phone)."""
+    helpers = (
+        "#@title 1. Helpers (no need to read; built from score.py, try_on_kaggle.py and Modelfile)\n"
+        "import os, shutil, subprocess, urllib.error, urllib.request  # json, re and time: score.py below\n\n"
+        + scoring()
+        + modelfile_repo()
+        + ASK_STATE
+        + run_helpers(try_on_kaggle.ASK_CHECK_FILE, 3)
+        + "\n\n"
+        + OLLAMA_API.strip("\n")
+        + "\n\n"
+        + ASK_HELPERS
+    )
+    return {
+        "nbformat": 4,
+        "nbformat_minor": 0,
+        "metadata": METADATA,
+        "cells": [
+            md(ASK_INTRO), code(helpers, hidden=True, folded=True), code(titled(f"2. {FIND_TITLE}", FIND_MODEL)), code(ASK_OLLAMA),
+            code(titled(f"4. {CREATE_TITLE}", CREATE_MODEL)), code(ASK_SELF_CHECK), code(ASK_BOX), code(ASK_TYPE),
+            md(ASK_TIPS),
+        ],
+    }
+
+
+def notebooks() -> dict[str, dict]:
+    """Every generated notebook, by file name."""
+    return {NOTEBOOK: train_notebook(), TRY_NOTEBOOK: try_notebook(), ASK_NOTEBOOK: ask_notebook()}
+
+
 def text(nb: dict) -> str:
     """The notebook file's exact text."""
     return json.dumps(nb, ensure_ascii=False, indent=1) + "\n"
 
 
 def main() -> None:
-    for name, nb in ((NOTEBOOK, train_notebook()), (TRY_NOTEBOOK, try_notebook())):
+    for name, nb in notebooks().items():
         out = HERE / name
         out.write_text(text(nb), encoding="utf-8")
         print(f"wrote {out}")

@@ -8,6 +8,10 @@ and the answers to your own questions.
     python try_on_kaggle.py --ask "16A MCB" "haan hai, 220 ka"    also your own question (repeat --ask for more)
     python try_on_kaggle.py --questions-json '[{"product": "16A MCB", "said": "haan hai, 220 ka"}]'
     python try_on_kaggle.py --wait                                wait for the run already going, then print it
+    python try_on_kaggle.py --make-ask-notebook                   make or refresh your "Ask the shop model" notebook
+
+--make-ask-notebook puts ask_model.ipynb on Kaggle as your notebook wimb-shop-model-ask (run the model once, then
+ask it many questions from a phone), runs it once as a check (about 5 minutes) and prints its link.
 
 Needs what run_on_kaggle.py needs (KAGGLE_API_TOKEN, pip install kaggle) and one finished training run.
 """
@@ -21,12 +25,18 @@ from pathlib import Path
 
 import run_on_kaggle
 from run_on_kaggle import check_gpu, connect, print_log, wait
+from score import parse
 
 HERE = Path(__file__).parent
 SLUG = "wimb-shop-model-try"
 NOTEBOOK = "try_model.ipynb"
 ASK_CELL = "#@title 1. Ask your own"
 OUT = HERE / "kaggle_output_try"
+ASK_SLUG = "wimb-shop-model-ask"  # the "Ask the shop model" notebook: run once, then ask many questions
+ASK_NOTEBOOK = "ask_model.ipynb"
+ASK_CHECK_FILE = "ask_check.json"  # what its self-check cell saves
+ASK_NO_BOX = "No box, only text like VBox(...)? Use cell 7, under it."  # the editor did not draw the ask box
+ASK_OUT = HERE / "kaggle_output_ask"
 MAX_QUESTIONS = 30
 MAX_CHARS = 500
 QUESTIONS_LINE = re.compile(r"^QUESTIONS = json\.loads\(.*\)$", re.MULTILINE)
@@ -104,8 +114,8 @@ def notebook_with(questions: list[dict]) -> dict:
     raise RuntimeError(f"{NOTEBOOK}: the '{ASK_CELL}' cell is missing; run build_notebook.py")
 
 
-def push(api, kernel: str, questions: list[dict]) -> None:
-    """Start the notebook with the training notebook's output (the model file) attached."""
+def training_input(api, kernel: str) -> str:
+    """The training notebook (same owner) whose output, the model file, is attached. Prints how its last run went."""
     owner = kernel.split("/", 1)[0]
     training = f"{owner}/{run_on_kaggle.SLUG}"
     try:  # only a hint: the model comes from the training notebook's latest run
@@ -113,8 +123,20 @@ def push(api, kernel: str, questions: list[dict]) -> None:
         print(f"Training notebook {training}: last run {getattr(status, 'name', status)}", flush=True)
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print(f"Could not read the training notebook {training}:", e, flush=True)
+    return training
+
+
+def push(api, kernel: str, questions: list[dict]) -> None:
+    """Start the notebook with the training notebook's output (the model file) attached."""
+    training = training_input(api, kernel)
     print(f"Your questions: {len(questions)}", flush=True)
     run_on_kaggle.push_notebook(api, kernel, notebook_with(questions), NOTEBOOK, kernel_sources=[training])
+
+
+def push_ask(api, kernel: str) -> None:
+    """Make or refresh the "Ask the shop model" notebook on Kaggle, with the model attached. Kaggle runs it once."""
+    nb = json.loads((HERE / ASK_NOTEBOOK).read_text(encoding="utf-8"))
+    run_on_kaggle.push_notebook(api, kernel, nb, ASK_NOTEBOOK, kernel_sources=[training_input(api, kernel)])
 
 
 def short(text: str, width: int) -> str:
@@ -222,6 +244,71 @@ def fetch(api, kernel: str, ok: bool = True) -> dict | None:
     return r
 
 
+ASK_STEPS = f"""
+1. Open it → Edit. (The page that opens first is the saved check: no one can type in it.)
+2. Right side: Input shows wimb-shop-model-training, Accelerator GPU T4, Internet on.
+3. Run all (about 3–4 minutes each time you start it).
+4. At the bottom, type the product and what the shopkeeper said in the Ask box, tap Ask. Ask as many as you like.
+   {ASK_NO_BOX}
+When done: Run → Stop session, so your free GPU hours are not used up."""
+
+
+def answered(check: dict | None) -> bool:
+    """True when the ask notebook's self-check got the 4-field JSON from the model."""
+    reply = ((check or {}).get("self_check") or {}).get("reply")
+    return isinstance(reply, str) and parse(reply) is not None
+
+
+def report_ask(check: dict) -> None:
+    """Print ask_check.json for a person: did the model answer, how fast, on what."""
+    print(f"\nOllama {check.get('ollama_version') or '?'}; GPU: {check.get('gpu') or 'none found'}")
+    print(f"ollama create took {seconds(check.get('create_seconds'))}; "
+          f"loading the model took {seconds(check.get('load_seconds'))}")
+    sc = check.get("self_check") or {}
+    if sc:
+        print(f"\nSelf-check: {sc.get('product')} / {sc.get('said')}")
+        print(f"   Answer: {in_words(parse(sc.get('reply') or ''))}")
+        print(f"   (reply: {short(sc.get('reply', ''), 200)}; {seconds(sc.get('seconds'))} on "
+              f"{ran_on(check.get('processor'))})")
+    print("Self-check: " + ("the model answered." if answered(check) else "NO ANSWER from the model."))
+    print("Ask box:", check.get("ask_box") or "not shown (the run stopped before it)")
+    if (check.get("ask_box") or "").startswith(("built", "shown")):
+        print("   (this check can only build the box; whether the editor draws it is seen only there, after Run all)")
+    if check.get("errors"):
+        print("Errors:")
+        for error in check["errors"]:
+            print("   ", short(error, 500))
+
+
+def fetch_ask(api, kernel: str, ok: bool = True) -> dict | None:
+    """Download the ask notebook's ask_check.json (and Kaggle's log) and print it. None when the run left none."""
+    ASK_OUT.mkdir(exist_ok=True)
+    path = ASK_OUT / ASK_CHECK_FILE
+    path.unlink(missing_ok=True)  # never report an older run's check
+    api.kernels_output(kernel, str(ASK_OUT), file_pattern=r"(ask_check\.json|.*\.log)$", force=True)
+    check = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    if check is not None:
+        report_ask(check)
+    if check is None or not ok:
+        print(f"\nNo {ASK_CHECK_FILE}: the run stopped early." if check is None else "\nThe run did not finish.",
+              "Kaggle's log:")
+        for log in ASK_OUT.glob("*.log"):
+            print_log(log)
+    return check
+
+
+def make_ask_notebook(api, kernel: str) -> bool:
+    """Push the ask notebook, wait for its check run, print the result and the link. True when it works."""
+    push_ask(api, kernel)
+    time.sleep(30)
+    ok = wait(api, kernel, limit_min=30)
+    check = fetch_ask(api, kernel, ok)
+    works = ok and answered(check) and check.get("ask_box") != "failed"
+    print(f"\nYour notebook: https://www.kaggle.com/code/{kernel}")
+    print(ASK_STEPS if works else "It is not ready yet: the check above failed (send Claude this log).")
+    return works
+
+
 def main() -> None:
     args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("--ask", nargs=2, action="append", default=[], metavar=("PRODUCT", "SAID"),
@@ -229,7 +316,15 @@ def main() -> None:
     args.add_argument("--questions-json", metavar="TEXT",
                       help='questions as a JSON list: [{"product": ..., "said": ...}] (up to 30)')
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
+    args.add_argument("--make-ask-notebook", action="store_true",
+                      help='make or refresh your "Ask the shop model" notebook on Kaggle, and check it once')
     opts = args.parse_args()
+    if opts.make_ask_notebook:
+        if opts.ask or opts.questions_json is not None or opts.wait:
+            args.error("--make-ask-notebook can't be used with --ask, --questions-json or --wait")
+        api, kernel = connect(ASK_SLUG)
+        check_gpu(api, need_hours=0.5)
+        sys.exit(0 if make_ask_notebook(api, kernel) else 1)
     try:
         questions = questions_from(opts.ask, opts.questions_json)
     except (TypeError, ValueError) as e:

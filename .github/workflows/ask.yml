@@ -1,11 +1,18 @@
 # Ask the trained model on Kaggle's free GPU (Actions → Ask the model on Kaggle → Run workflow).
-# Runs try_model.ipynb: Ollama with the repo's Modelfile, the example calls, the speed, and your questions.
+# run = questions: runs try_model.ipynb (Ollama with the repo's Modelfile, the example calls, the speed, your questions).
+# run = notebook: makes or refreshes your Kaggle notebook wimb-shop-model-ask ("Ask the shop model": run the model
+# once, then ask it many questions from a phone), checks it once and prints its link.
 # Needs the repository secret KAGGLE_API_TOKEN and one finished training run (Train on Kaggle).
 name: Ask the model on Kaggle
 
 on:
   workflow_dispatch:
     inputs:
+      run:
+        description: 'questions = answer the questions below; notebook = make/refresh your "Ask the shop model" notebook on Kaggle'
+        type: choice
+        options: [questions, notebook]
+        default: questions
       product:
         description: "The product asked about, e.g. 16A MCB"
         type: string
@@ -46,21 +53,35 @@ jobs:
             echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
             exit 1
           fi
-      - name: Ask the model on Kaggle (about 10 minutes)
+      - name: Ask the model on Kaggle, or make your ask notebook (about 5–10 minutes)
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           # Inputs reach the script only as environment variables (never pasted into it).
+          RUN_MODE: ${{ inputs.run }}
           PRODUCT: ${{ inputs.product }}
           SAID: ${{ inputs.said }}
           QUESTIONS_JSON: ${{ inputs.questions_json }}
         run: |
-          ARGS=()
-          if [ -n "$SAID" ]; then ARGS+=(--ask "$PRODUCT" "$SAID"); fi
-          if [ -n "$QUESTIONS_JSON" ]; then ARGS+=(--questions-json "$QUESTIONS_JSON"); fi
+          if [ "$RUN_MODE" = "notebook" ]; then
+            if [ -n "$SAID$QUESTIONS_JSON" ]; then
+              echo "::warning::run = notebook does not answer the questions (run again with run = questions)"
+            fi
+            ARGS=(--make-ask-notebook)
+          else
+            ARGS=()
+            if [ -n "$SAID" ]; then ARGS+=(--ask "$PRODUCT" "$SAID"); fi
+            if [ -n "$QUESTIONS_JSON" ]; then ARGS+=(--questions-json "$QUESTIONS_JSON"); fi
+          fi
           python try_on_kaggle.py "${ARGS[@]}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: kaggle-output-try
           path: kaggle_output_try/
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output-ask
+          path: kaggle_output_ask/
           if-no-files-found: ignore

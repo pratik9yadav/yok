@@ -2,3 +2,4 @@ __pycache__/
 .pytest_cache/
 kaggle_output/
 kaggle_output_try/
+kaggle_output_ask/

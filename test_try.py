@@ -118,9 +118,10 @@ def fake_ollama():
     server.server_close()
 
 
-def test_both_notebooks_are_built_from_current_files() -> None:
-    for name, nb in ((build_notebook.NOTEBOOK, build_notebook.train_notebook()),
-                     (build_notebook.TRY_NOTEBOOK, build_notebook.try_notebook())):
+def test_all_notebooks_are_built_from_current_files() -> None:
+    built = build_notebook.notebooks()
+    assert set(built) == {"train_colab.ipynb", "try_model.ipynb", "ask_model.ipynb"}
+    for name, nb in built.items():
         current = (HERE / name).read_text(encoding="utf-8") == build_notebook.text(nb)
         assert current, f"{name} is out of date: run python build_notebook.py"
 
@@ -240,8 +241,9 @@ class FakeApi:
         return SimpleNamespace(status=self.final if self.calls["polls"] > 1 else Status.RUNNING, failure_message="")
 
     def kernels_push(self, folder, acc=None):
-        self.calls.update(meta=json.loads((Path(folder) / "kernel-metadata.json").read_text()), acc=acc,
-                          notebook=json.loads((Path(folder) / "try_model.ipynb").read_text(encoding="utf-8")))
+        meta = json.loads((Path(folder) / "kernel-metadata.json").read_text())
+        self.calls.update(meta=meta, acc=acc, files=sorted(p.name for p in Path(folder).iterdir()),
+                          notebook=json.loads((Path(folder) / meta["code_file"]).read_text(encoding="utf-8")))
         return SimpleNamespace(error=None, url="https://kaggle/x", invalid_kernel_sources=self.invalid_sources)
 
     def kernels_output(self, kernel, path, file_pattern=None, force=False):
