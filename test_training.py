@@ -210,12 +210,13 @@ def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch, cap
         def kernels_output(self, kernel, path, file_pattern=None, force=False):
             row = {f: 1.0 for f in KEYS}
             (Path(path) / "results.json").write_text(json.dumps(
-                {"sets": {"test": {"examples": 30, "before": row, "after": row, "mistakes_after": []}}}))
+                {"sets": {"test": {"examples": 30, "before": row, "after": row, "mistakes_after": []}},
+                 "train_set": "v2", "train_rows": 1451}))
             (Path(path) / "results_gguf.json").write_text(json.dumps(
                 {"gguf": "m.gguf", "seconds": 5, "sets": {"test": {"examples": 30, "of": 30, "all_correct": 1.0}}}))
 
         def kernels_list_files(self, kernel, page_size=20):
-            return SimpleNamespace(files=[SimpleNamespace(name="wimb-shop-model/m.Q4_K_M.gguf", size=2.5e9)])
+            return SimpleNamespace(files=[SimpleNamespace(name="wimb-shop-model/m.Q4_K_M.gguf", size=2_500_000_000)])
 
     monkeypatch.setattr(run_on_kaggle, "OUT", tmp_path / "out")
     monkeypatch.setattr(run_on_kaggle.time, "sleep", lambda s: None)
@@ -224,7 +225,8 @@ def test_kaggle_runner_pushes_waits_and_fetches(tmp_path: Path, monkeypatch, cap
     assert run_on_kaggle.wait(api, "me/wimb-shop-model-training") is True
     run_on_kaggle.fetch(api, "me/wimb-shop-model-training")
     out = capsys.readouterr().out
-    assert "test set: 30 calls" in out and "m.Q4_K_M.gguf  2,500 MB" in out and "GGUF file m.gguf" in out
+    assert "test set: 30 calls" in out and "m.Q4_K_M.gguf  (size 2,500,000,000)" in out and "GGUF file m.gguf" in out
+    assert "Training set: v2 (1451 rows)" in out
     assert calls["acc"] == "NvidiaTeslaT4" and calls["has_notebook"]
     assert calls["meta"]["id"] == "me/wimb-shop-model-training" and calls["meta"]["enable_internet"]
     assert (tmp_path / "out" / "results.json").exists()

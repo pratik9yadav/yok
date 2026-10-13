@@ -42,9 +42,12 @@ Real call transcripts go in `data/train.jsonl`, one JSON object per line:
 Keep `data/test.jsonl` separate from training data (a test checks this).
 
 ## Results so far and what is next
-See "Results" in README.md (run 8: test 83% / hard 43% after training; exported file 87% / 50%).
+See "Results" in README.md. Run 9 (v2): test 97% / hard 84% / fresh 77% after training; exported
+file 97% / 79% / 70%. Run 10 (v1 control): 83% / 43% / 60%. `fresh` is the fairest number.
 `results.json` in a run's output holds, per set, scores, mistakes and every raw reply. The
 notebook also tests the exported GGUF through llama-server on CPU (`results_gguf.json`).
-Next step that helps most: more varied training data (real transcripts if the owner has any;
-otherwise realistic examples that are NOT copied from `data/hard_test.jsonl`, which stays held out).
-Then run again (about 30 minutes, free). Use the repo's `Modelfile`, not the one Unsloth writes.
+Next step that helps most: decide one rule for how full `alternative` should be (brand only, or
+brand + size + item), say it in `SYSTEM` and follow it in `make_data.py` and the answer keys; and
+more "paune / sava / saadhe" spoken prices in `make_data.py`. Real transcripts still beat everything.
+Never take ideas or wording from the held-out sets. Then run again (about 60 minutes, free).
+Use the repo's `Modelfile`, not the one Unsloth writes.

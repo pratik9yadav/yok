@@ -135,8 +135,8 @@ def list_output(api, kernel: str) -> None:
     try:
         files = api.kernels_list_files(kernel, page_size=100).files or []
         for f in files:
-            size = int(getattr(f, "size", None) or 0)
-            print(f"   {getattr(f, 'name', f)}" + (f"  {size / 1e6:,.0f} MB" if size else ""))
+            size = getattr(f, "size", None)  # as Kaggle reports it; its unit is not documented
+            print(f"   {getattr(f, 'name', f)}" + (f"  (size {size:,})" if size else ""))
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print("Could not list the output files:", e)
 
@@ -159,13 +159,13 @@ def fetch(api, kernel: str) -> None:
             print_log(log)
     gguf = OUT / "results_gguf.json"
     if gguf.exists():
-        data = json.loads(gguf.read_text(encoding="utf-8"))
-        if "error" in data:
-            print("\nGGUF test did not run:", data["error"])
-        for name, res in data.get("sets", {}).items():
+        exported = json.loads(gguf.read_text(encoding="utf-8"))
+        if "error" in exported:
+            print("\nGGUF test did not run:", exported["error"])
+        for name, res in exported.get("sets", {}).items():
             if res["examples"]:
-                print(f"\n== GGUF file {data['gguf']}, {name} set: {res['all_correct']:.0%} of "
-                      f"{res['examples']} calls fully right (of {res['of']}), took {data['seconds']} s")
+                print(f"\n== GGUF file {exported['gguf']}, {name} set: {res['all_correct']:.0%} of "
+                      f"{res['examples']} calls fully right (of {res['of']}), took {exported['seconds']} s")
     print("\nFiles the run kept:")
     list_output(api, kernel)
     if results.exists():
