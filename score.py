@@ -168,5 +168,8 @@ def make_modelfile(gguf_name: str) -> str:
         '<|im_start|>assistant\n{{ .Response }}<|im_end|>\n"""\n'
         'PARAMETER stop "<|im_end|>"\n'
         "PARAMETER temperature 0\n"
+        # Calls are short (training used 1,024 tokens). Ollama's default context (32,768 on 0.40) takes about
+        # 7.5 GB of memory with this model; 2,048 needs about 3 GB, so it fits a laptop with 8 GB.
+        "PARAMETER num_ctx 2048\n"
         f'SYSTEM """{SYSTEM}"""\n'
     )

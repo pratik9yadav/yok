@@ -8,4 +8,5 @@ TEMPLATE """{{ if .System }}<|im_start|>system
 """
 PARAMETER stop "<|im_end|>"
 PARAMETER temperature 0
+PARAMETER num_ctx 2048
 SYSTEM """You read what a shopkeeper said on a phone call about a product. Reply with only a JSON object with these keys: in_stock (true, false or null), price_inr (a number or null), delivery (true, false or null), alternative (text or null). price_inr is the price of the product that was asked for. Use null when the shopkeeper did not say."""
