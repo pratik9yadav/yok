@@ -74,7 +74,9 @@ First run (Ollama 0.40.3, Kaggle T4): 9 of the 12 example calls fully right; **0
 GPU, about 10 s on CPU only** (about what a laptop takes). Making the model (`ollama create`) took 44 s and
 loading it 46 s. The 3 misses: two Marathi spoken prices (साडेचारशे = 450 read as 350, पावणेतीनशे = 275 as
 350) and "ladka ghar pe de jayega" not read as delivery. That run used Ollama's default context
-(32,768 tokens), which held 7.5 GB of memory; the `Modelfile` now sets `num_ctx 2048` (about 3 GB).
+(32,768 tokens), which held 7.5 GB of memory; the `Modelfile` now sets `num_ctx 2048`: checked on the next
+run, 2.9 GB, same answers, same speed (0.57 s GPU, 10 s CPU). The very first answer after loading can take
+about 30 s (start-up); the ones after it are fast.
 
 Five ways to ask it:
 1. **Ask Claude** in the chat: "ask the model: 16A MCB / haan hai, 220 ka, delivery nahi". Claude starts the
