@@ -1,0 +1,72 @@
+# Measure free coding models at fixing bugs on Kaggle's free GPU (Actions → Coder model on Kaggle → Run workflow).
+# Runs coder/coder_eval.ipynb: each model in Ollama gets the 164 HumanEvalFix (Python) tasks; the job log ends with a
+# table: tasks fixed, seconds per task, GPU or CPU. About 3½ hours for 4 models (each stops at 45 minutes).
+# Needs the repository secret KAGGLE_API_TOKEN.
+name: Coder model on Kaggle
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "eval = start a new run; fetch = only collect the last run's results"
+        type: choice
+        options: [eval, fetch]
+        default: eval
+      models:
+        description: "Ollama model names, comma-separated"
+        type: string
+        default: "qwen2.5-coder:7b,qwen2.5-coder:14b,qwen3-coder:30b,gpt-oss:20b"
+      limit:
+        description: "Use only the first N tasks, e.g. 10 for a quick check (empty = all 164)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# One run at a time: every run uses the same Kaggle notebook.
+concurrency:
+  group: kaggle-coder
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Check the Kaggle token
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: Measure the models on Kaggle (up to about 4 hours) or collect the last run
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          # Inputs reach the script only as environment variables (never pasted into it).
+          ACTION: ${{ inputs.action }}
+          MODELS: ${{ inputs.models }}
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          ARGS=()
+          if [ "$ACTION" = "fetch" ]; then
+            ARGS+=(--wait)
+          else
+            if [ -n "$MODELS" ]; then ARGS+=(--models "$MODELS"); fi
+            if [ -n "$LIMIT" ]; then ARGS+=(--limit "$LIMIT"); fi
+          fi
+          python coder/run_eval.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output-coder
+          path: kaggle_output_coder/
+          if-no-files-found: ignore

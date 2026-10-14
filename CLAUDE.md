@@ -63,3 +63,8 @@ brand + size + item), say it in `SYSTEM` and follow it in `make_data.py` and the
 more "paune / sava / saadhe" spoken prices in `make_data.py`. Real transcripts still beat everything.
 Never take ideas or wording from the held-out sets. Then run again (about 60 minutes, free).
 Use the repo's `Modelfile`, not the one Unsloth writes.
+
+## Coder model (separate project, in `coder/`)
+"Measure the coding models": run `.github/workflows/coder.yml` ("Coder model on Kaggle", inputs `models`, `limit`,
+`action`; about 3½ hours), read the table at the end of the job log. Notebook: edit `coder/build.py` or
+`coder/fixeval.py`, then `python coder/build.py` and `python -m pytest`. Never edit `coder/coder_eval.ipynb` by hand.
