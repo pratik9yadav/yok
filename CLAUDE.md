@@ -72,3 +72,6 @@ First full run: qwen3-coder:30b 73% (120/164), qwen2.5-coder:14b 64%, 7b 57%, gp
 "Train the coder model" (phase 2): run `coder.yml` with `action` train (`smoke` yes first, ~30 min); after ~5½ h a
 "still running" job is normal: run `action` fetch-train. Edit `coder/build_train.py`/`coder/fixtrain.py`, then `python coder/build.py`.
 Phase 2 full run: 14B 65% → 61% after QLoRA on 2,000 CommitPackFT fixes (worse); use qwen3-coder:30b as is.
+"Give the coding agent a task" (phase 3): run `.github/workflows/agent.yml` ("Coding agent (free model)", input `task`;
+~30–60 min); it opens a PR from `agent/run-<id>` (or the job summary shows its question). Review the PR; never merge
+unasked. Edit `coder/agent.py`/`coder/build_agent.py`, then `python coder/build.py`; from here: `python coder/run_agent.py --task "..."`.

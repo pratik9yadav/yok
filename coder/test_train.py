@@ -16,7 +16,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
 import run_on_kaggle
-from coder import build, build_train, fixeval, fixtrain, run_train
+from coder import build, build_agent, build_train, fixeval, fixtrain, run_train
 from coder.test_coder import FIXED, NOT_FIXED, TASKS
 from test_try import FakeApi, Status
 
@@ -558,11 +558,13 @@ def test_workflow_trains_fetches_and_still_evaluates(tmp_path: Path) -> None:
     assert 330 < int(re.search(r"timeout-minutes: (\d+)", text).group(1))  # the job outlasts the wait
 
 
-def test_build_writes_both_notebooks(tmp_path: Path, monkeypatch) -> None:
+def test_build_writes_all_coder_notebooks(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(build, "HERE", tmp_path)
     monkeypatch.setattr(build_train, "HERE", tmp_path)
-    for name in ("fixeval.py", "fixtrain.py"):
+    monkeypatch.setattr(build_agent, "HERE", tmp_path)
+    for name in ("fixeval.py", "fixtrain.py", "agent.py"):
         (tmp_path / name).write_text((HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
     build.main()
     assert (tmp_path / build.NOTEBOOK).read_text("utf-8") == (HERE / build.NOTEBOOK).read_text("utf-8")
     assert (tmp_path / build_train.NOTEBOOK).read_text("utf-8") == (HERE / build_train.NOTEBOOK).read_text("utf-8")
+    assert (tmp_path / build_agent.NOTEBOOK).read_text("utf-8") == (HERE / build_agent.NOTEBOOK).read_text("utf-8")

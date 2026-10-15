@@ -1,0 +1,133 @@
+# The free coding agent (Actions → Coding agent (free model) → Run workflow → type the task).
+# qwen3-coder:30b in Ollama works on a copy of this repository on Kaggle's free GPU (coder/coder_agent.ipynb), at
+# most 40 steps and 45 minutes. Its change comes back as a pull request to review (about 30–60 minutes in all).
+# If it has a question instead, the job summary shows it and no pull request is made.
+# Safety: the agent runs on a throwaway Kaggle machine with no secrets; the change is checked (never .github/, at
+# most 200 KB) and only ever goes to a new branch agent/run-<id> with a pull request; nothing is pushed to main.
+# The agent's code runs on GitHub only in the first job, which can't write to the repository; the second job, which
+# can, never runs it (it only applies the patch and opens the pull request).
+# Needs the repository secret KAGGLE_API_TOKEN, and Settings → Actions → General → "Allow GitHub Actions to create
+# and approve pull requests".
+name: Coding agent (free model)
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "What should the agent do? Plain words, e.g. Fix the typo in README.md"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# One run at a time: every run uses the same Kaggle notebook.
+concurrency:
+  group: kaggle-agent
+  cancel-in-progress: false
+
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      open_pr: ${{ steps.decide.outputs.open_pr }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # the agent's code runs below: no GitHub token on disk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: Check the Kaggle token
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: The agent works on the task on Kaggle (up to about 90 minutes)
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          # The task reaches the script only as an environment variable (never pasted into it).
+          TASK: ${{ inputs.task }}
+        run: |
+          ARGS=("--task=$TASK" --commit "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY")
+          python coder/run_agent.py "${ARGS[@]}"
+      - name: Say what happened (job summary), and whether to open a pull request
+        id: decide
+        if: always()
+        env:
+          TASK: ${{ inputs.task }}
+        run: python coder/agent_pr.py decide
+      - name: Check the change on this runner (tests and linter; never fails the job)
+        if: steps.decide.outputs.open_pr == 'true'
+        run: |
+          rm -rf ~/.kaggle ~/.config/kaggle
+          OUT=kaggle_output_agent
+          if ! git apply "$OUT/changes.patch"; then
+            echo "::error::The agent's change does not apply to this commit."
+            exit 1
+          fi
+          git status --short
+          pip install -q -r requirements-dev.txt || true
+          set +e
+          timeout 900 python -m pytest -q > "$OUT/runner_pytest.txt" 2>&1
+          echo $? > "$OUT/runner_pytest.exit"
+          timeout 300 ruff check . > "$OUT/runner_ruff.txt" 2>&1
+          echo $? > "$OUT/runner_ruff.exit"
+          echo "pytest: exit $(cat "$OUT/runner_pytest.exit")"; tail -n 15 "$OUT/runner_pytest.txt"
+          echo "ruff: exit $(cat "$OUT/runner_ruff.exit")"; tail -n 15 "$OUT/runner_ruff.txt"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output-agent
+          path: kaggle_output_agent/
+          if-no-files-found: ignore
+
+  pull-request:
+    needs: agent
+    if: needs.agent.outputs.open_pr == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: kaggle-output-agent
+          path: kaggle_output_agent
+      - name: Write the pull request's title and text (checks the change again)
+        env:
+          TASK: ${{ inputs.task }}
+        run: python coder/agent_pr.py pr
+      - name: Put the change on a new branch and open a pull request (never on main)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OUT=kaggle_output_agent
+          BRANCH="agent/run-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git apply --index "$OUT/changes.patch"
+          git commit -q --no-verify -F "$OUT/commit_message.txt"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          if ! gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$(cat "$OUT/pr_title.txt")" \
+              --body-file "$OUT/pr_body.md"; then
+            LINK="https://github.com/$GITHUB_REPOSITORY/compare/$GITHUB_REF_NAME...$BRANCH?expand=1"
+            echo "::error::Could not open the pull request. Allow it once: Settings → Actions → General → Allow GitHub Actions to create and approve pull requests. The change is on branch $BRANCH: $LINK"
+            echo "Could not open the pull request; the change is on branch \`$BRANCH\`. Open it by hand: $LINK" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Opened a pull request from \`$BRANCH\`." >> "$GITHUB_STEP_SUMMARY"
