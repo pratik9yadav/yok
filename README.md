@@ -115,6 +115,15 @@ Five ways to ask it:
       ```
 
 ## Coder model (phase 1: measure)
+**First full run (2026-10-15, Kaggle 2× T4, Ollama 0.40.4, 58 minutes):** bugs fixed of 164, one try each.
+
+| model | fixed | s/task | notes |
+|---|---|---|---|
+| **qwen3-coder:30b** | **120 (73%)** | 2.2 | best and fastest (only 3B of its 30B work per word); 18.6 GB, split over both T4s |
+| qwen2.5-coder:14b | 105 (64%) | 6.1 | 9 GB |
+| qwen2.5-coder:7b | 93 (57%) | 2.9 | 4.7 GB |
+| gpt-oss:20b | 91 (55%) | 5.8 | `think` low |
+
 A second project in this repo: a free open coding model that is good at fixing bugs. First step: measure free
 coding models as they are, before any training, on Kaggle's free GPU (2× T4).
 

@@ -68,3 +68,4 @@ Use the repo's `Modelfile`, not the one Unsloth writes.
 "Measure the coding models": run `.github/workflows/coder.yml` ("Coder model on Kaggle", inputs `models`, `limit`,
 `action`; about 3½ hours), read the table at the end of the job log. Notebook: edit `coder/build.py` or
 `coder/fixeval.py`, then `python coder/build.py` and `python -m pytest`. Never edit `coder/coder_eval.ipynb` by hand.
+First full run: qwen3-coder:30b 73% (120/164), qwen2.5-coder:14b 64%, 7b 57%, gpt-oss:20b 55% (README).
