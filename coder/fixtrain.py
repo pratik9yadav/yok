@@ -426,7 +426,8 @@ def report_lines(results) -> list[str]:
             lines.append("   now broken: " + ", ".join(f["now_broken"]))
     name, target = TARGET
     _, done, total, share = rate(results.get("after"))
-    if share is not None and done == total:
+    full = not results.get("smoke") and (results.get("settings") or {}).get("EVAL_LIMIT") is None
+    if share is not None and done == total and full:  # only a full run (all tasks) is compared
         verdict = "yes" if share > target else "no"
         lines.append(f"Beats phase 1's best ({name}, {target:.0%} with Ollama)? {verdict}: {share:.1%}")
     lines.append("(% = passed of all tasks when all were done, else of the tasks done; greedy pass@1)")

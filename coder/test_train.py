@@ -323,6 +323,9 @@ def test_flips_and_the_report() -> None:
         assert words in text, words
     text = "\n".join(fixtrain.report_lines({"before": before, "after": {}}))
     assert "not scored" in text and "Beats" not in text
+    for partial in ({"smoke": True}, {"settings": {"EVAL_LIMIT": 8}}):  # a smoke or limited run is not compared
+        text = "\n".join(fixtrain.report_lines({"before": before, "after": after, "flips": f, **partial}))
+        assert "Beats" not in text
 
 
 def test_progress_notes_the_loss_and_the_projected_time() -> None:
