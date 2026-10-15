@@ -164,6 +164,16 @@ def tests_line(t: dict | None) -> str:
     return f"{word} (exit {code}, {t.get('seconds', '?')} s)"
 
 
+def print_steps(log: dict) -> None:
+    """Each step in one or two lines: the command (first line), its exit code, and any note."""
+    print("\nSteps:")
+    for step in log.get("steps") or []:
+        command = (step.get("command") or "(no command)").strip().splitlines() or ["(empty)"]
+        more = f" (+{len(command) - 1} lines)" if len(command) > 1 else ""
+        note = f"  [{step['note']}]" if step.get("note") else ""
+        print(f"   {step.get('step')}. $ {command[0][:110]}{more} -> exit {step.get('exit_code')}{note}")
+
+
 def report(r: dict, patch: str | None) -> None:
     """Print agent_result.json and the change for a person."""
     print(f"\nStatus: {r.get('status')}  ({r.get('steps')} steps, {r.get('minutes')} min; {r.get('model')}, "
@@ -192,6 +202,9 @@ def fetch(api, kernel: str, ok: bool = True) -> tuple[dict | None, str]:
     path, patch_path = OUT / build_agent.RESULTS_FILE, OUT / build_agent.PATCH_FILE
     r = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
     patch = patch_path.read_text(encoding="utf-8") if patch_path.exists() else ""
+    log_path = OUT / "agent_log.json"
+    if log_path.exists():
+        print_steps(json.loads(log_path.read_text(encoding="utf-8")))
     if r is not None:
         report(r, patch)
     if r is None or not ok:

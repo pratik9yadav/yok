@@ -244,8 +244,25 @@ def repo_overview(workdir, limit=150):
     return guide, more, "\n".join(files[:limit]) or "(none)"
 
 
+NOTHING_CHANGED = ("(You said {done}, but no file in the repo has changed: `git status --porcelain` is empty. Your edit "
+                   "did not happen. Make the change now (for example with python or a cat heredoc), check it with "
+                   "`git diff`, run the tests, and only then echo {done}. If no change is needed, explain why and "
+                   "echo {done} again.)")
+
+
+def repo_changed(workdir):
+    """True when git sees any change in workdir (edited, new or deleted files); True too when git cannot tell."""
+    try:
+        out = subprocess.run(["git", "status", "--porcelain"], cwd=workdir, capture_output=True, text=True,
+                             timeout=60, check=False)
+    except Exception:  # noqa: BLE001 - no git: do not block the agent
+        return True
+    return out.returncode != 0 or bool(out.stdout.strip())
+
+
 def run(task, model, workdir, *, max_steps=40, minutes=45, num_ctx=32768, num_predict=4096, log_path=None,
-        command_timeout=COMMAND_TIMEOUT, max_output=MAX_OUTPUT, clock=time.time, sleep=time.sleep, say=print):
+        command_timeout=COMMAND_TIMEOUT, max_output=MAX_OUTPUT, clock=time.time, sleep=time.sleep, say=print,
+        changed=repo_changed, empty_done_retries=2):
     """Let the model work on the task in workdir until it finishes, asks a question, or a limit is hit.
 
     model: a function messages -> reply text (OllamaChat, or a fake in the tests). Every step (reply, thought,
@@ -274,7 +291,7 @@ def run(task, model, workdir, *, max_steps=40, minutes=45, num_ctx=32768, num_pr
     def finish(status, summary):
         log.update(status=status, summary=(summary or "").strip()[:4000])
 
-    format_errors = model_failures = 0
+    format_errors = model_failures = empty_dones = 0
     try:
         while True:
             n = len(log["steps"]) + 1
@@ -307,6 +324,15 @@ def run(task, model, workdir, *, max_steps=40, minutes=45, num_ctx=32768, num_pr
 
             if parsed["command"] is None:
                 if parsed["marker"]:  # "AGENT_DONE" written without a block: take it
+                    if parsed["marker"] == DONE and not changed(workdir) and empty_dones < empty_done_retries:
+                        empty_dones += 1
+                        step["note"] = "said done, but nothing changed: sent back"
+                        say("   (said done, but no file changed: sent back)")
+                        steps.append({"line": f"step {n}: (said done, nothing changed)", "messages": [
+                            {"role": "assistant", "content": reply},
+                            {"role": "user", "content": NOTHING_CHANGED.format(done=DONE)}]})
+                        save()
+                        continue
                     finish("question" if parsed["marker"] == QUESTION else "done", parsed["thought"])
                     break
                 format_errors += 1
@@ -329,6 +355,15 @@ def run(task, model, workdir, *, max_steps=40, minutes=45, num_ctx=32768, num_pr
                         timed_out=result["timed_out"])
             say(f"   exit {result['exit_code']}, {result['seconds']} s: {result['output'][-400:]}")
             marker, after = finished(parsed["command"], result["output"])
+            if marker == DONE and not changed(workdir) and empty_dones < empty_done_retries:
+                empty_dones += 1
+                step["note"] = "said done, but nothing changed: sent back"
+                say("   (said done, but no file changed: sent back)")
+                steps.append({"line": f"step {n}: said done, nothing changed", "messages": [
+                    {"role": "assistant", "content": reply},
+                    {"role": "user", "content": observation(result, NOTHING_CHANGED.format(done=DONE))}]})
+                save()
+                continue
             if marker:
                 finish("question" if marker == QUESTION else "done", "\n\n".join(x for x in (parsed["thought"], after)
                                                                                     if x))

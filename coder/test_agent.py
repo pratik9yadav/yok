@@ -91,6 +91,7 @@ def repo(tmp_path: Path) -> Path:
 def run(model, repo: Path, tmp_path: Path, **kwargs) -> dict:
     kwargs.setdefault("say", lambda *a: None)
     kwargs.setdefault("sleep", lambda s: None)
+    kwargs.setdefault("changed", lambda workdir: True)  # most tests are about other things; see the tests below
     return agent.run("Fix add in calc.py", model, str(repo), log_path=str(tmp_path / "agent_log.json"), **kwargs)
 
 
@@ -811,3 +812,24 @@ def test_workflow_jobs_permissions_and_limits() -> None:
     assert upload["if"] == "always()" and upload["with"]["path"] == "kaggle_output_agent/"
     assert "refs/heads/main" not in text and "--force" not in text
     assert "kaggle_output_agent/" in (HERE.parent / ".gitignore").read_text().splitlines()
+
+
+def test_saying_done_with_nothing_changed_is_sent_back(repo, tmp_path) -> None:
+    """The first real run said "done" but had changed no file: the loop now sends it back to make the change."""
+    log = run(Scripted(bash("echo AGENT_DONE"), FIX, bash("echo AGENT_DONE")), repo, tmp_path,
+              changed=agent.repo_changed)
+    assert log["status"] == "done" and len(log["steps"]) == 3
+    assert log["steps"][0]["note"] == "said done, but nothing changed: sent back"
+    assert "def add(a, b):\n    return a + b" in (repo / "calc.py").read_text()
+
+
+def test_saying_done_again_and_again_with_nothing_changed_is_taken_in_the_end(repo, tmp_path) -> None:
+    log = run(Scripted(*[bash("echo AGENT_DONE")] * 3), repo, tmp_path, changed=agent.repo_changed)
+    assert log["status"] == "done" and len(log["steps"]) == 3
+    assert [s.get("note") for s in log["steps"]][:2] == ["said done, but nothing changed: sent back"] * 2
+
+
+def test_repo_changed_sees_edits_and_new_files(repo) -> None:
+    assert not agent.repo_changed(str(repo))
+    (repo / "new.py").write_text("x = 1\n")
+    assert agent.repo_changed(str(repo))
