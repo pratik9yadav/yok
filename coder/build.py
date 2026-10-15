@@ -1,6 +1,7 @@
 """Build coder/coder_eval.ipynb: measure free open coding models at fixing bugs (HumanEvalFix), with Ollama on Kaggle.
+Also writes coder/coder_train.ipynb (phase 2, training; built by coder/build_train.py).
 
-Run after changing this file or coder/fixeval.py:  python coder/build.py
+Run after changing this file, coder/build_train.py, coder/fixeval.py or coder/fixtrain.py:  python coder/build.py
 The notebook reuses the Ollama install/start code and helpers of the shop-model notebooks (build_notebook.py).
 """
 
@@ -153,9 +154,12 @@ def notebook() -> dict:
 
 
 def main() -> None:
+    from coder import build_train
+
     out = HERE / NOTEBOOK
     out.write_text(text(notebook()), encoding="utf-8")
     print(f"wrote {out}")
+    build_train.main()
 
 
 if __name__ == "__main__":

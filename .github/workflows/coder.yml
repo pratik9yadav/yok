@@ -2,15 +2,18 @@
 # Runs coder/coder_eval.ipynb: each model in Ollama gets the 164 HumanEvalFix (Python) tasks; the job log ends with a
 # table: tasks fixed, seconds per task, GPU or CPU. About 3½ hours for 4 models (each stops at 45 minutes).
 # Needs the repository secret KAGGLE_API_TOKEN.
+# action train (phase 2): runs coder/coder_train.ipynb: trains Qwen2.5-Coder-14B on open bug-fix commits and scores
+# it before and after (about 5–8 hours on Kaggle). A GitHub job may last 6 hours at most, so it waits about 5½ hours;
+# if Kaggle is still going it ends green with "still running": then run again with action fetch-train.
 name: Coder model on Kaggle
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: "eval = start a new run; fetch = only collect the last run's results"
+        description: "eval = measure models; fetch = collect the last eval; train = train and score (phase 2); fetch-train = collect the last training run"
         type: choice
-        options: [eval, fetch]
+        options: [eval, fetch, train, fetch-train]
         default: eval
       models:
         description: "Ollama model names, comma-separated"
@@ -20,6 +23,11 @@ on:
         description: "Use only the first N tasks, e.g. 10 for a quick check (empty = all 164)"
         type: string
         default: ""
+      smoke:
+        description: "train only: yes = a 20–30 minute check of the whole training run (40 examples, 8 tasks)"
+        type: choice
+        options: ["no", "yes"]
+        default: "no"
 
 permissions:
   contents: read
@@ -32,7 +40,7 @@ concurrency:
 jobs:
   eval:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 355  # GitHub's limit is 360
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,15 +56,24 @@ jobs:
             echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
             exit 1
           fi
-      - name: Measure the models on Kaggle (up to about 4 hours) or collect the last run
+      - name: Measure the models or train on Kaggle (up to about 5½ hours here), or collect the last run
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           # Inputs reach the script only as environment variables (never pasted into it).
           ACTION: ${{ inputs.action }}
           MODELS: ${{ inputs.models }}
           LIMIT: ${{ inputs.limit }}
+          SMOKE: ${{ inputs.smoke }}
         run: |
           ARGS=()
+          if [ "$ACTION" = "train" ] || [ "$ACTION" = "fetch-train" ]; then
+            # Wait at most 330 minutes; a run still going ends this job green with "still running".
+            ARGS+=(--wait-minutes 330)
+            if [ "$ACTION" = "fetch-train" ]; then ARGS+=(--wait); fi
+            if [ "$ACTION" = "train" ] && [ "$SMOKE" = "yes" ]; then ARGS+=(--smoke); fi
+            python coder/run_train.py "${ARGS[@]}"
+            exit 0
+          fi
           if [ "$ACTION" = "fetch" ]; then
             ARGS+=(--wait)
           else
@@ -68,5 +85,7 @@ jobs:
         if: always()
         with:
           name: kaggle-output-coder
-          path: kaggle_output_coder/
+          path: |
+            kaggle_output_coder/
+            kaggle_output_coder_train/
           if-no-files-found: ignore
