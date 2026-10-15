@@ -147,6 +147,12 @@ prompt, code extraction, test running and scoring; `coder/run_eval.py` starts it
 checks it all with a fake Ollama.
 
 ## Coder model (phase 2: train)
+**First full run (2026-10-15, 3 h on one T4): training made it worse.** Qwen2.5-Coder-14B, 2,000 bug-fix
+commits from CommitPackFT (5,793 kept of 56,025; 3 dropped as overlapping the test), 250 steps, 112 min, loss
+0.08. HumanEvalFix: **106/164 (65%) before → 100/164 (61%) after**: 14 newly fixed, 20 newly broken. So raw
+commits are not the right teacher (most are whole-file edits with short, vague messages, and the model has
+likely seen them before). The best free model is still qwen3-coder:30b as it is (73%).
+
 Can a free 14B model, trained for free, beat phase 1's best (qwen3-coder:30b, 73%)? `coder/coder_train.ipynb`
 trains **Qwen2.5-Coder-14B-Instruct** (Apache 2.0; 4-bit, QLoRA with Unsloth) on one Kaggle T4 and scores it on
 HumanEvalFix before and after, with phase 1's prompt, code extraction and tests (`coder/fixeval.py`).
