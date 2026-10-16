@@ -183,6 +183,21 @@ notebooks); `coder/fixtrain.py` holds the data filters, decontamination, prompt 
 `coder/run_train.py` starts it on Kaggle; `coder/test_train.py` checks it all offline.
 
 ## Coder model (phase 3: the coding agent)
+**Capability test (2026-10-16, branch `bench/agent-1`: a small orders module with planted bugs; each result checked
+with hidden tests): 4 of 6 solved.**
+
+| task | result |
+|---|---|
+| 1. crash: `parse_price("₹1,250.50")` | ✅ right fix; left a stray `test_fix.py` and a duplicated test |
+| 2. wrong maths: 10% off 1000 gave 100 | ✅ clean one-line fix and 4 tests (one import-order lint) |
+| 3. vague report: "3 in stock, but one has 0" | ✅ found `>= 0`, fixed, good edge-case tests |
+| 4. Monday's sales shown under Tuesday | ❌ looped on `ls` for 30 steps, no change |
+| 5. new feature: Indian money format `₹12,50,000` | ❌ said "done, all tests pass" but changed no file |
+| 6. rename `calc_total` → `order_total` in 3 files | ✅ complete and correct |
+
+Each run took 3–18 minutes on Kaggle's free T4s. The two failures are the loop's weak spots, not only the model's:
+it repeats a command forever, and it can still claim "done" with nothing changed after being sent back twice.
+
 A free "junior engineer": you give it a task in plain words, it works on a copy of this repository on Kaggle's free
 GPU with **qwen3-coder:30b** (phase 1's best: 73%, used as it is), and its change comes back as a **pull request**
 for you to review.
