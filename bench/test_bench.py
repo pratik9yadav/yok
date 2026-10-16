@@ -6,6 +6,11 @@ from bench.report import order_lines
 
 
 def test_parse_plain_price() -> None:
+    assert parse_price("₹1,250.50") == 1250.5
+
+
+def test_parse_rupee_price() -> None:
+    assert parse_price("₹1,250.50") == 1250.5
     assert parse_price("1250") == 1250.0
 
 
