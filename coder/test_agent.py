@@ -755,7 +755,7 @@ def run_step(tmp_path: Path, step: dict, env: dict, *stubs: str) -> list[list[st
                                     f"open({str(calls)!r}, 'a').write(json.dumps([{name!r}, *sys.argv[1:]]) + '\\n')\n")
         (bin_dir / name).chmod(0o755)
     run_env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", **env}
-    script = step["run"].replace("${{ github.run_id }}", "42").replace("${{ github.repository }}", "o/r")  # GitHub's
+    script = step["run"].replace("${{ github.run_id }}", "42").replace("${{ github.run_attempt }}", "1").replace("${{ github.repository }}", "o/r")  # GitHub's
     subprocess.run(["bash", "-e", "-c", script], env=run_env, cwd=tmp_path, capture_output=True, check=True)
     return [json.loads(line) for line in calls.read_text().splitlines()]
 
@@ -768,7 +768,7 @@ def test_workflow_passes_the_task_only_through_the_environment(tmp_path: Path) -
     for job in workflow()["jobs"].values():
         for step in job["steps"]:
             used = set(re.findall(r"\$\{\{\s*([^}]*?)\s*\}\}", step.get("run", "")))
-            assert used <= {"github.run_id", "github.repository"}, (step.get("name"), used)
+            assert used <= {"github.run_id", "github.run_attempt", "github.repository"}, (step.get("name"), used)
     task = NASTY[7] + "\n" + NASTY[5]
     calls = run_step(tmp_path, step_named("agent", "run_agent.py"),
                      {"TASK": task, "GITHUB_SHA": "0123abc", "GITHUB_REPOSITORY": "o/r"}, "python")
@@ -784,7 +784,7 @@ def test_workflow_opens_the_pull_request_with_the_files_as_they_are(tmp_path: Pa
     calls = run_step(tmp_path, step_named("pull-request", "gh pr create"),
                      {"GH_TOKEN": "t", "GITHUB_REF_NAME": "main", "GITHUB_REPOSITORY": "o/r",
                       "GITHUB_STEP_SUMMARY": str(summary)}, "git", "gh")
-    branch = "agent/run-42"
+    branch = "agent/run-42-1"
     assert ["git", "switch", "-c", branch] in calls
     assert ["git", "apply", "--index", "kaggle_output_agent/changes.patch"] in calls
     assert ["git", "commit", "-q", "--no-verify", "-F", "kaggle_output_agent/commit_message.txt"] in calls

@@ -223,7 +223,7 @@ minutes: read every pull request before merging; when tests fail on the runner, 
 
 Safety: it runs on a throwaway Kaggle machine that holds no secrets (no GitHub or Kaggle token; the repository must
 be public); it never commits or pushes: only its patch comes back. The patch is refused if it touches `.github/`
-or is larger than 200 KB. The change only ever goes to a new branch `agent/run-<id>` with a pull request; nothing
+or is larger than 200 KB. The change only ever goes to a new branch `agent/run-<id>-<attempt>` with a pull request; nothing
 is pushed to main and nothing is merged. The job that runs the agent's code on GitHub can't write to the
 repository; the job that opens the pull request never runs it.
 

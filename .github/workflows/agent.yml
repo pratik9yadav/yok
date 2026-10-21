@@ -116,13 +116,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           OUT=kaggle_output_agent
-          BRANCH="agent/run-${{ github.run_id }}"
+          BRANCH="agent/run-${{ github.run_id }}-${{ github.run_attempt }}"  # a re-run gets a new branch
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git apply --index "$OUT/changes.patch"
           git commit -q --no-verify -F "$OUT/commit_message.txt"
-          git push --force origin "HEAD:refs/heads/$BRANCH"  # the agent owns this branch; a re-run replaces it
+          git push origin "HEAD:refs/heads/$BRANCH"
           if ! gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$(cat "$OUT/pr_title.txt")" \
               --body-file "$OUT/pr_body.md"; then
             LINK="https://github.com/$GITHUB_REPOSITORY/compare/$GITHUB_REF_NAME...$BRANCH?expand=1"
