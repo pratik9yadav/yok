@@ -122,7 +122,7 @@ jobs:
           git switch -c "$BRANCH"
           git apply --index "$OUT/changes.patch"
           git commit -q --no-verify -F "$OUT/commit_message.txt"
-          git push origin "HEAD:refs/heads/$BRANCH"
+          git push --force origin "HEAD:refs/heads/$BRANCH"  # the agent owns this branch; a re-run replaces it
           if ! gh pr create --base "$GITHUB_REF_NAME" --head "$BRANCH" --title "$(cat "$OUT/pr_title.txt")" \
               --body-file "$OUT/pr_body.md"; then
             LINK="https://github.com/$GITHUB_REPOSITORY/compare/$GITHUB_REF_NAME...$BRANCH?expand=1"
