@@ -63,6 +63,13 @@ def graded(task: dict, reply: str, tmp_path: Path) -> dict:
     ("File: inventory.py\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
     ("1. `inventory.py` (new file):\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
     ("Here is the new `inventory.py`:\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
+    ("`inventory.py`:\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
+    ("inventory.py:\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
+    ("File inventory.py\n```python\nx = 1\n```", {"inventory.py": "x = 1\n"}),
+    ("```python\n# inventory.py\nx = 1\n```", {"inventory.py": "x = 1\n"}),
+    ("```python\n# os.path\nx = 1\n```", {}),  # a comment, not a file name
+    ("```path/to/file.ext\nx = 1\n```", {}),  # the old format line's placeholder: never a file
+    ("```python path/to/inventory.py\nx = 1\n```", {}),
     ("Some code:\n```python\nprint(1)\n```", {}),  # no name: not a file
     ("```python 3.11\nx\n```\n```text\nx\n```", {}),  # a version or a language is not a path
     ("<think>draft\n```a.py\nbad\n```\n</think>\n```a.py\ngood\n```", {"a.py": "good\n"}),  # not the thinking
@@ -103,6 +110,97 @@ def test_safe_paths_are_cleaned() -> None:
     assert grade.safe_path("a b.py") is None and grade.safe_path(None) is None
 
 
+# ---- the fallback: a reply that names no file ----
+
+def unnamed(*blocks: tuple[str, str]) -> str:
+    """A reply of unnamed blocks: (language, text) each, with a sentence before each."""
+    return "\n".join(f"Here you go:\n```{lang}\n{text.rstrip()}\n```" for lang, text in blocks)
+
+
+CODE = "def count_words(text):\n    return {}\n"
+TESTS = "from words import count_words\n\n\ndef test_empty():\n    assert count_words('') == {}\n"
+TWO_FILES = {"id": "98-two", "task_md": "Write a class `Cart` in `shop/cart.py`.\nPut `price_of(item)` in "
+             "`shop/prices.py`.", "meta": {"kind": "build", "difficulty": 1, "files": ["shop/cart.py", "shop/prices.py"],
+                                           "timeout": 30}, "starter": {}}
+CART, PRICES = "class Cart:\n    pass\n", "def price_of(item):\n    return 1\n"
+
+
+@pytest.mark.parametrize(("task", "reply", "found"), [
+    (WORDS, unnamed(("python", CODE)), {"words.py": (CODE, "fallback: the one code block")}),
+    (WORDS, unnamed(("py", CODE), ("python", TESTS)), {"words.py": (CODE, "fallback: the one code block"),
+                                                       "test_words.py": (TESTS, "fallback: a block of tests")}),
+    (WORDS, unnamed(("python", "import pytest\n\n" + TESTS), ("python3", CODE), ("python", TESTS)),
+     {"words.py": (CODE, "fallback: the one code block"), "test_1.py": ("import pytest\n\n" + TESTS, "fallback: a block of tests"),
+      "test_2.py": (TESTS, "fallback: a block of tests")}),
+    (WORDS, unnamed(("python", CODE), ("bash", "pip install x\npython words.py"), ("console", "$ pytest\n1 passed"),
+                    ("text", "def count_words(): no"), ("output", "{'hi': 2}"), ("", "1 passed in 0.01s"), ("json", "{}")),
+     {"words.py": (CODE, "fallback: the one code block")}),  # shell, console, text and output blocks are not files
+    (WORDS, unnamed(("", CODE)), {"words.py": (CODE, "fallback: the one code block")}),  # no language, but Python
+    (WORDS, unnamed(("python", CODE), ("python", "from words import count_words\n\nprint(count_words('a b'))")),
+     {"words.py": (CODE, "fallback: the one code block")}),  # an example of using it is not the module
+    (WORDS, unnamed(("python", "import re\n"), ("python", CODE), ("python", "print(count_words('x'))")),
+     {"words.py": (CODE, "fallback: the one code block")}),  # only blocks that define something, when some do
+    (WORDS, unnamed(("python", CODE), ("python", "def helper():\n    pass\n")),
+     {"words.py": (CODE + "\n" + "def helper():\n    pass\n", "fallback: 2 code blocks joined in order")}),
+    (WORDS, "```path/to/file.ext\n" + CODE + "```", {"words.py": (CODE, "fallback: the one code block")}),
+    (WORDS, "```python path/to/file.ext\n" + CODE + "```", {"words.py": (CODE, "fallback: the one code block")}),
+    (TWO_FILES, unnamed(("python", PRICES), ("python", CART)),
+     {"shop/cart.py": (CART, "fallback: the block defining Cart"),
+      "shop/prices.py": (PRICES, "fallback: the block defining price_of")}),
+    (TWO_FILES, "```shop/cart.py\n" + CART + "```\n```shop/prices.py\n" + PRICES + "```",
+     {"shop/cart.py": (CART, "named"), "shop/prices.py": (PRICES, "named")}),  # named: no fallback needed
+])
+def test_the_fallback_places_unnamed_blocks(task, reply, found) -> None:
+    parsed = grade.read_reply(reply, task)
+    assert parsed["files"] == {path: text for path, (text, _) in found.items()}
+    assert parsed["found_by"] == {path: how for path, (_, how) in found.items()}
+    assert parsed["fallback"] == (None if set(parsed["found_by"].values()) == {"named"} else "used")
+    assert not any(p.startswith("path/to") or p.endswith(".ext") for p in parsed["files"])
+    assert grade.parse_files(reply, task) == parsed["files"]
+
+
+@pytest.mark.parametrize(("task", "reply", "why"), [
+    (WORDS, "No code, sorry.", "gave up: no Python block"),
+    (WORDS, unnamed(("bash", "echo hi"), ("text", "x")), "gave up: no Python block"),
+    (WORDS, unnamed(("python", TESTS)), "gave up: only tests or examples of use, no code"),
+    (WORDS, unnamed(("python", "from words import count_words\nprint(count_words('a'))")),
+     "gave up: only tests or examples of use, no code"),
+    (TWO_FILES, unnamed(("python", CART + "\n\n" + PRICES)), "gave up: 2 expected files and a block that matches several"),
+    (TWO_FILES, unnamed(("python", CART), ("python", "def total(items):\n    return 0\n")),
+     "gave up: 2 expected files and a block that matches none"),  # ambiguous: which file is total() in?
+    ({**WORDS, "meta": {**WORDS["meta"], "files": ["words.toml"]}}, unnamed(("python", CODE)),
+     "gave up: no expected .py file"),
+])
+def test_the_fallback_gives_up_when_it_cannot_tell(task, reply, why) -> None:
+    parsed = grade.read_reply(reply, task)
+    assert parsed["files"] == {} and parsed["found_by"] == {} and parsed["fallback"] == why
+
+
+@pytest.mark.parametrize("reply", [
+    "```test_words.py\n" + TESTS + "```\n" + unnamed(("python", CODE)),  # one block named a path: no guessing
+    "```/abs/words.py\n" + CODE + "```\n" + unnamed(("python", CODE)),  # a named (if refused) path counts too
+])
+def test_the_fallback_is_only_for_replies_that_name_no_file(reply) -> None:
+    parsed = grade.read_reply(reply, WORDS)
+    assert "words.py" not in parsed["files"] and parsed["fallback"] is None
+    assert set(parsed["found_by"].values()) <= {"named"}
+    assert grade.parse_files(unnamed(("python", CODE))) == {}  # no task given: no fallback
+
+
+def test_a_reply_found_by_the_fallback_is_graded_in_full(tmp_path: Path) -> None:
+    reply = (EXPLANATION + "\n\n" + unnamed(("python", WORDS["reference"]["words.py"]),
+                                              ("python", WORDS["reference"]["test_words.py"])))
+    g = graded(WORDS, reply, tmp_path)
+    assert g["solved"] and g["own_tests"] == 1.0 and g["explains"] == 1.0 and g["fallback"] == "used"
+    assert g["found_by"] == {"words.py": "fallback: the one code block", "test_words.py": "fallback: a block of tests"}
+    assert g["named_by"] == {} and g["unnamed_blocks"] == 2
+    named = graded(WORDS, PERFECT, tmp_path)
+    assert named["found_by"] == {"words.py": "named", "test_words.py": "named"} and named["fallback"] is None
+    nothing = graded(WORDS, "```path/to/file.ext\nI cannot.\n```", tmp_path)
+    assert nothing["files"] == [] and nothing["fallback"] == "gave up: no Python block"
+    assert nothing["rejected"] == [("path/to/file.ext", "a placeholder, not a file name")]
+
+
 def test_read_reply_counts_the_explanation_and_cut_off() -> None:
     parsed = grade.read_reply(PERFECT)
     assert parsed["words"] > grade.EXPLAIN_WORDS and parsed["named_by"] == {"words.py": "fence", "test_words.py": "fence"}
@@ -115,18 +213,20 @@ def test_read_reply_counts_the_explanation_and_cut_off() -> None:
 # ---- the prompt ----
 
 def test_prompt_is_the_request_and_one_line_on_the_format() -> None:
-    assert grade.prompt_for(WORDS) == WORDS["task_md"] + "\n\n" + grade.REPLY_FORMAT
+    line = ("Reply with every file you create or change in full, each in its own fenced code block that starts with "
+            "the file's path, like ```words.py — you may write a short explanation first.")
+    assert grade.reply_format(WORDS) == line and grade.prompt_for(WORDS) == WORDS["task_md"] + "\n\n" + line
     prompt = grade.prompt_for(AVERAGE)
     assert prompt == (AVERAGE["task_md"] + "\n\nThe project's files:\n\n```stats.py\n"
-                      + AVERAGE["starter"]["stats.py"] + "```\n\n" + grade.REPLY_FORMAT)
-    assert grade.REPLY_FORMAT == ("Reply with every file you create or change as a fenced block whose first line is "
-                                  "```path/to/file.ext (full file contents). You may write a short explanation first.")
+                      + AVERAGE["starter"]["stats.py"] + "```\n\n" + line.replace("words.py", "stats.py"))
+    assert grade.parse_files(grade.reply_format(WORDS)) == {}  # the line itself opens no block
 
 
 @pytest.mark.parametrize("task", [WORDS, AVERAGE], ids=["build", "bugfix"])
 def test_prompt_has_no_checklist_and_no_hidden_parts(task) -> None:
     prompt = grade.prompt_for(task).lower()
     given = (task["task_md"] + "".join(task["starter"].values())).lower()
+    assert "path/to" not in prompt and "file.ext" not in prompt and "<" not in grade.reply_format(task)
     for word in ("production", "error handling", "tests", "test", "edge case", "validate", "lint", "security",
                  "type hint", "docstring", "readme", "logging", "typeerror", "valueerror", "robust", "clean"):
         assert (word in prompt) == (word in given), word
@@ -401,8 +501,9 @@ def test_notebook_settings_and_helpers(tmp_path: Path) -> None:
     scope = notebook_scope(tmp_path)
     assert scope["MODELS"] == ["qwen3-coder:30b", "qwen2.5-coder:14b", "gpt-oss:20b", "qwen2.5-coder:7b"]
     assert scope["LIMIT"] is None and scope["MINUTES_PER_MODEL"] == 60 and scope["SAMPLES"] == 1
-    assert scope["OPTIONS"] == {"temperature": 0, "num_ctx": 16384, "num_predict": 6144}
-    assert scope["THINK"] == {"gpt-oss": "medium"}
+    assert scope["OPTIONS"] == {"temperature": 0, "num_ctx": 16384, "num_predict": 8192}
+    assert scope["THINK"] == {"gpt-oss": "medium"} and scope["THINKING_NUM_PREDICT"] == 12288
+    assert scope["RESULTS"]["thinking_num_predict"] == 12288
     assert scope["RESULTS_FILE"] == "exam.json" and "/kaggle/working" not in scope["MODELS_DIR"]
     assert scope["RESULTS"]["reply_format"] == grade.REPLY_FORMAT and scope["RESULTS"]["weights"] == grade.WEIGHTS
     helpers = cell("#@title 2.")
@@ -413,6 +514,16 @@ def test_notebook_settings_and_helpers(tmp_path: Path) -> None:
     ollama = cell("#@title 4.")  # the shared Ollama start code, with the downloads sent to the big disk
     assert build_exam.START_OLLAMA.strip("\n") in ollama
     assert ollama.index('os.environ["OLLAMA_MODELS"] = MODELS_DIR') < ollama.index("ollama serve")
+
+
+def test_every_prompt_and_its_reply_fit_the_context(tmp_path: Path) -> None:
+    """The longest prompt (at a very safe 2 characters a token) plus the most a thinking model may write fit num_ctx."""
+    scope = notebook_scope(tmp_path)
+    folder = build_exam.TASKS_DIR
+    tasks = [WORDS, AVERAGE, *(grade.load_tasks(folder) if folder.is_dir() else [])]
+    longest = max(len(grade.prompt_for(t)) for t in tasks)
+    room = max(scope["OPTIONS"]["num_predict"], scope["THINKING_NUM_PREDICT"])
+    assert longest / 2 + room <= scope["OPTIONS"]["num_ctx"], (longest, room)
 
 
 def test_notebook_holds_the_tasks(tmp_path: Path) -> None:
@@ -497,7 +608,9 @@ def test_notebook_examines_every_model_and_goes_on_after_a_failure(tmp_path, fak
     assert len(chats) == 4
     for body in chats:
         assert body["stream"] is False and len(body["messages"]) == 1 and body["messages"][0]["role"] == "user"
-        assert body["options"] == {"temperature": 0, "num_ctx": 16384, "num_predict": 6144}
+    assert [b["options"] for b in chats] == [{"temperature": 0, "num_ctx": 16384, "num_predict": n}
+                                             for n in (8192, 8192, 12288, 12288)]  # gpt-oss thinks: more room
+    assert oss["options"]["num_predict"] == 12288 and first["options"]["num_predict"] == 8192
     assert [b.get("think") for b in chats] == [None, None, "medium", "medium"]
     assert chats[0]["messages"][0]["content"] == grade.prompt_for(WORDS)
     assert chats[1]["messages"][0]["content"] == grade.prompt_for(AVERAGE)
@@ -712,6 +825,79 @@ def test_runner_stops_when_the_notebook_has_no_tasks(tmp_path, monkeypatch) -> N
         run_exam.main()
 
 
+# ---- regrading a saved run ----
+
+UNNAMED_PERFECT = EXPLANATION + "\n\n" + unnamed(("python", WORDS["reference"]["words.py"]),
+                                                  ("python", WORDS["reference"]["test_words.py"]))
+
+
+def saved_run(tmp_path: Path) -> dict:
+    """exam.json as the first run left it: two replies the old grader found no files in, one model that failed."""
+    def attempt(task, reply, done_reason="stop"):
+        old = grade.grade(task, {}, tmp_path, reply)  # what the old, stricter reader made of it: no files
+        return {"sample": 0, "reply": reply, "seconds": 3.0, "tokens": 300, "token_seconds": 6.0,
+                "done_reason": done_reason, "grade": old}
+    tasks = [{"task": WORDS["id"], "kind": "build", "difficulty": 1, "attempts": [attempt(WORDS, UNNAMED_PERFECT)]},
+             {"task": AVERAGE["id"], "kind": "bugfix", "difficulty": 1,
+              "attempts": [attempt(AVERAGE, "Let me think about the average of an empty list first, " * 20, "length")]},
+             {"task": "77-gone", "kind": "build", "difficulty": 1, "attempts": [attempt(WORDS, PERFECT)]},
+             {"task": WORDS["id"], "kind": "build", "difficulty": 1, "attempts": [{"error": "request failed: x"}]}]
+    for record in tasks:
+        exam.score_task(record)
+    model = {"model": "qwen3-coder:30b", "pulled": True, "size_gb": 18.6, "pull_seconds": 90.0, "load_seconds": 9.0,
+             "total": 4, "minutes": 12.0,
+             "processor": "100% GPU", "errors": ["77-gone: grading failed: KeyError()"], "tasks": tasks}
+    exam.summarise(model)
+    return {**RESULT, "reply_format": "old line", "models": [model, RESULT["models"][2]]}
+
+
+def test_regrade_grades_every_saved_reply_again(tmp_path: Path) -> None:
+    run = saved_run(tmp_path)
+    assert run["models"][0]["no_files"] == 3 and run["models"][0]["solved"] == 0
+    r = run_exam.regrade(run, [WORDS, AVERAGE], tmp_path)
+    m = r["models"][0]
+    words, average, gone, failed = m["tasks"]
+    assert words["solved"] and words["total"] == 100.0  # the fallback found its files
+    assert words["attempts"][0]["grade"]["found_by"]["words.py"] == "fallback: the one code block"
+    assert average["hidden"] == 0.0 and not average["attempts"][0]["grade"]["files"]
+    assert "grade" not in gone["attempts"][0] and gone["attempts"][0]["error"] == "regrade: no task 77-gone in tasks/"
+    assert failed["attempts"][0] == {"error": "request failed: x"}  # nothing was asked: nothing to grade
+    assert (m["solved"], m["no_files"], m["fallback"], m["done"]) == (1, 1, 1, 4)
+    assert m["errors"] == ["77-gone: regrade: no task 77-gone in tasks/"] and m["minutes"] == 12.0  # kept
+    assert r["regraded"]["before"]["qwen3-coder:30b"]["no_files"] == 3
+    assert r["regraded"]["reply_format_asked"] == "old line" and r["regraded"]["checkers"]["pytest"]
+    assert run["models"][0]["no_files"] == 3  # the saved run itself is not changed
+    assert "1 read by the fallback (no file named)" in "\n".join(exam.table(r))
+    lines = run_exam.no_file_replies(r)
+    assert len(lines) == 1 and lines[0].startswith("   qwen3-coder:30b 02-fix-average (cut off; gave up: no Python "
+                                                   "block): \"Let me think")
+    assert len(lines[0]) < 400  # only the start of the reply
+    assert "no files in the reply (cut off; gave up: no Python block)" in "\n".join(exam.weakest(m))
+    assert "files found by the fallback" in exam.why(words)
+
+
+def test_runner_regrades_the_last_run(tmp_path, monkeypatch, capsys) -> None:
+    api = FakeKaggle(saved_run(tmp_path))
+    monkeypatch.setattr(run_exam, "TASKS_DIR", SAMPLES)
+    assert run_main(api, tmp_path, monkeypatch, "--regrade", "--wait-minutes", "5") == 0
+    assert "meta" not in api.calls and "need_hours" not in api.calls  # nothing pushed: no GPU used
+    out = capsys.readouterr().out
+    saved = json.loads((tmp_path / "out" / run_exam.REGRADED_FILE).read_text(encoding="utf-8"))
+    assert saved["models"][0]["solved"] == 1 and saved["regraded"]["before"]["qwen3-coder:30b"]["solved"] == 0
+    for text in ("Regraded with the current grader", "Before → after the regrade:",
+                 "solved 0 → 1 of 4; no files 3 → 1; read by the fallback 1",
+                 "Still no files (1), the first 300 characters of each reply:", "02-fix-average (cut off;",
+                 "the 5 weakest tasks", f"Saved: {tmp_path / 'out' / run_exam.REGRADED_FILE}"):
+        assert text in out, text
+    assert out.count("Before → after") == 1 and out.count("Ollama 0.40.4") == 1  # the old report is not printed too
+
+
+def test_runner_regrade_without_a_saved_run_fails(tmp_path, monkeypatch, capsys) -> None:
+    assert run_main(FakeKaggle(None), tmp_path, monkeypatch, "--regrade") == 1
+    assert "No exam.json" in capsys.readouterr().out
+    assert not (tmp_path / "out" / run_exam.REGRADED_FILE).exists()
+
+
 @pytest.mark.parametrize("argv", [("--models", "a b"), ("--models", ""), ("--limit", "0"), ("--limit", "x"),
                                   ("--wait-minutes", "0")])
 def test_bad_options_stop_before_kaggle(argv, monkeypatch) -> None:
@@ -732,5 +918,7 @@ def test_workflow_runs_the_exam(tmp_path: Path) -> None:
         *exam_run, "--models", "qwen3-coder:30b,gpt-oss:20b", "--limit", "5"]
     assert workflow_command(tmp_path, ACTION="exam") == exam_run
     assert workflow_command(tmp_path, ACTION="fetch-exam", MODELS="a:1", LIMIT="3") == [*exam_run, "--wait"]
+    assert workflow_command(tmp_path, ACTION="regrade-exam", MODELS="a:1", LIMIT="3") == [*exam_run, "--regrade"]
+    assert "python -m pip install -q --disable-pip-version-check bandit" in text  # security graded as on Kaggle
     assert "kaggle_output_exam/" in (HERE.parent.parent / ".gitignore").read_text(encoding="utf-8")
     assert os.path.exists(HERE / "run_exam.py")

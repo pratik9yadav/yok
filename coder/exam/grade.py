@@ -31,8 +31,9 @@ TASK_NAME = re.compile(r"^\d{2}-[a-z0-9][a-z0-9-]*$")  # e.g. 01-inventory-ledge
 DEFAULT_TIMEOUT = 60  # seconds for one pytest run, when meta.json gives none
 MAX_TIMEOUT = 600
 HIDDEN_TEST = "test_hidden.py"
-REPLY_FORMAT = ("Reply with every file you create or change as a fenced block whose first line is ```path/to/file.ext "
-                "(full file contents). You may write a short explanation first.")
+# One neutral line on the reply format; {path} is the task's first expected file (a real name, never a placeholder).
+REPLY_FORMAT = ("Reply with every file you create or change in full, each in its own fenced code block that starts with "
+                "the file's path, like ```{path} — you may write a short explanation first.")
 WEIGHTS = {"hidden": 55, "own_tests": 15, "lint": 10, "security": 10, "explains": 10}  # of 100
 JUNK_PENALTY = 5  # points off the total when the reply leaves stray files
 EXPLAIN_WORDS = 40  # an explanation is more than this many words outside the code blocks
@@ -188,8 +189,13 @@ def prompt_for(task):
     if task.get("starter"):
         parts.append("The project's files:")
         parts += [fenced(path, text) for path, text in sorted(task["starter"].items())]
-    parts.append(REPLY_FORMAT)
+    parts.append(reply_format(task))
     return "\n\n".join(parts)
+
+
+def reply_format(task):
+    """The format line, with the task's first expected file as the example."""
+    return REPLY_FORMAT.format(path=task["meta"]["files"][0])
 
 
 # ---- the reply ----
@@ -197,7 +203,12 @@ def prompt_for(task):
 THINKING = re.compile(r"<think(?:ing)?>.*?</think(?:ing)?>", re.DOTALL)
 FENCE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})[ \t]*(.*?)[ \t]*$")
 MARKER = re.compile(r"^\s*(?:#|//|<!--)\s*(?:file(?:name)?|path)\s*:\s*(\S+?)\s*(?:-->)?\s*$", re.IGNORECASE)
+# A first line that is only a comment with a file name ("# inventory.py"): known extensions only, so "# os.path" is
+# not read as a name.
+BARE_MARKER = re.compile(r"^\s*(?:#|//)\s*([\w./\\-]*[\w-]\.(?:py|md|txt|toml|cfg|ini|json|ya?ml|rst))\s*$")
 PATHLIKE = re.compile(r"^[\w./\\-]*[\w-]\.[A-Za-z][A-Za-z0-9]*$")  # x.py, src/x.py (not 3.11)
+# A placeholder copied from a format line ("path/to/file.ext"): never a file, its block counts as unnamed.
+PLACEHOLDER = re.compile(r"(?:^|/)path/to/|\.ext$", re.IGNORECASE)
 LANGS = {"python", "python3", "py", "text", "txt", "bash", "sh", "shell", "console", "json", "toml", "yaml", "yml",
          "ini", "markdown", "md", "diff", "patch", "plaintext", "cfg"}
 
@@ -227,10 +238,10 @@ def path_in_info(info):
 
 
 def path_in_heading(line):
-    """A path named by the line just before a block: "**a.py**", "### `a.py`", "File: a.py", "a.py:",
-    "a.py (new)", "Here is the new `a.py`:"; or None."""
+    """A path named by the line just before a block: "**a.py**", "### `a.py`", "File: a.py", "File a.py", "a.py:",
+    "`a.py`:", "a.py (new)", "Here is the new `a.py`:"; or None."""
     line = re.sub(r"^\s*(?:#{1,6}\s*|[-*+]\s+|\d+[.)]\s+)", "", line or "").strip()
-    plain = re.sub(r"^[*_`]*(?:file(?:name)?|path)\s*:\s*", "", line, flags=re.IGNORECASE)
+    plain = re.sub(r"^[*_`]*(?:file(?:name)?|path)\b[*_`]*(?:\s*:\s*|\s+)", "", line, flags=re.IGNORECASE)
     plain = re.sub(r"\s*\((?:new|updated|changed|modified|fixed)[^)]*\)\W*$", "", plain, flags=re.IGNORECASE)
     plain = _clean(_clean(plain).rstrip(":"))
     if PATHLIKE.match(plain):
@@ -243,13 +254,15 @@ def path_in_heading(line):
     return None
 
 
-def read_reply(reply):
-    """The reply taken apart: {"files": {path: text}, "named_by": {path: how}, "rejected": [(path, why)],
-    "unnamed_blocks": n, "cut_off": the last block was never closed, "explanation": the text outside the blocks,
-    "words": its word count}. A later block for the same path replaces the earlier one."""
+def read_reply(reply, task=None):
+    """The reply taken apart: {"files": {path: text}, "named_by": {path: how}, "found_by": {path: "named" or
+    "fallback: ..."}, "fallback": None (not needed or no task given), "used" or "gave up: why", "rejected":
+    [(path, why)], "unnamed_blocks": n, "cut_off": the last block was never closed, "explanation": the text outside
+    the blocks, "words": its word count}. A later block for the same path replaces the earlier one. With the task,
+    a reply in which no block names a path gets its unnamed Python blocks placed by fallback_files."""
     lines = without_thinking(reply).split("\n")
-    prose, files, named_by, rejected = [], {}, {}, []
-    unnamed, cut_off, before = 0, False, ""
+    prose, files, named_by, rejected, blocks = [], {}, {}, [], []
+    unnamed, named, cut_off, before = 0, 0, False, ""
     i = 0
     while i < len(lines):
         opening = FENCE.match(lines[i])
@@ -278,14 +291,21 @@ def read_reply(reply):
             i += 1
         i += 1
         cut_off = not closed
-        if path is None and body and MARKER.match(body[0]):
-            path, how, body = MARKER.match(body[0]).group(1), "first line", body[1:]
+        if path is None and body and (MARKER.match(body[0]) or BARE_MARKER.match(body[0])):
+            path, how, body = (MARKER.match(body[0]) or BARE_MARKER.match(body[0])).group(1), "first line", body[1:]
         if path is None:
             path, how = path_in_heading(before), "heading"
         before = ""
+        if path is not None and PLACEHOLDER.search(path.replace("\\", "/")):
+            rejected.append((path, "a placeholder, not a file name"))
+            path = None
         if path is None:
             unnamed += 1
+            lang = (info.split() or [""])[0].lower()  # ```path/to/file.ext: no language given
+            blocks.append({"lang": "" if PLACEHOLDER.search(lang) else lang,
+                           "text": "\n".join(body).rstrip("\n") + "\n"})
             continue
+        named += 1
         clean = safe_path(path)
         if clean is None:
             rejected.append((path, "not a safe relative path (absolute, '..', hidden/ or reference/)"))
@@ -296,13 +316,111 @@ def read_reply(reply):
         named_by[clean] = how
     explanation = "\n".join(prose).strip()
     words = len([w for w in explanation.split() if re.search(r"\w", w)])
-    return {"files": files, "named_by": named_by, "rejected": rejected, "unnamed_blocks": unnamed,
-            "cut_off": cut_off, "explanation": explanation, "words": words}
+    found_by, fallback = dict.fromkeys(files, "named"), None
+    if task is not None and not named and not files:
+        files, found_by, fallback = fallback_files(blocks, task)
+    return {"files": files, "named_by": named_by, "found_by": found_by, "fallback": fallback, "rejected": rejected,
+            "unnamed_blocks": unnamed, "cut_off": cut_off, "explanation": explanation, "words": words}
 
 
-def parse_files(reply):
+def parse_files(reply, task=None):
     """{path: full text} of every file in the reply (see read_reply)."""
-    return read_reply(reply)["files"]
+    return read_reply(reply, task)["files"]
+
+
+# ---- the fallback: a reply that names no file ----
+#
+# Used only when no block in the reply names a path (a placeholder like path/to/file.ext is not a name). Only
+# Python blocks count (```python, ```py, ```python3, or no language and the text is Python that defines or imports
+# something); shell, console, text, output and other blocks are ignored. Then, in this order:
+#   1. a block of pytest tests (a top-level def test_..., class Test... or import pytest) → test_<stem>.py, where
+#      <stem> is the first expected file's name (test_1.py, test_2.py, ... when there are several such blocks);
+#   2. a block that imports an expected module is an example of using it, not the module: left out;
+#   3. one expected .py file: the one remaining block is that file; several are joined in order (a later definition
+#      wins, as in Python), keeping only the blocks that define a top-level def or class when some do;
+#   4. several expected .py files: each block goes to the file whose names it defines (the top-level names in that
+#      file's starter, and the `names` on the task.md lines that mention the file); a block that matches no file or
+#      several, and so the whole reply, is given up on.
+# Giving up means no files, as before. grade_reply records how each file was found ("named" or "fallback: ...").
+
+PY_LANGS = {"python", "python3", "py"}
+TEST_BLOCK = re.compile(r"^(?:async\s+)?def test_\w*\s*\(|^class Test\w*\b|^import pytest\b|^from pytest import ",
+                        re.MULTILINE)
+TOP_NAME = re.compile(r"^(?:async\s+def|def|class)\s+([A-Za-z_]\w*)", re.MULTILINE)
+
+
+def python_block(block):
+    """Is this unnamed block Python code (not a shell session, output or text)?"""
+    if block["lang"] in PY_LANGS:
+        return True
+    if block["lang"]:
+        return False
+    try:
+        tree = ast.parse(block["text"])
+    except (SyntaxError, ValueError):
+        return False
+    return any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Import, ast.ImportFrom))
+               for n in tree.body)
+
+
+def imports_module(text, module):
+    return re.search(rf"^\s*(?:from\s+{re.escape(module)}\s+import\b|import\s+{re.escape(module)}\b)", text,
+                     re.MULTILINE) is not None
+
+
+def names_for(task, expected):
+    """{expected file: names the task ties to it} (see the fallback rules); a name tied to two files is dropped."""
+    names = {}
+    for path in expected:
+        found = set(TOP_NAME.findall((task.get("starter") or {}).get(path, "")))
+        for line in task["task_md"].splitlines():
+            if path in line or path.rsplit("/", 1)[-1] in line:
+                found |= set(re.findall(r"`([A-Za-z_]\w*)", line))
+        names[path] = found
+    shared = {n for p in expected for q in expected if p != q for n in names[p] & names[q]}
+    return {p: n - shared for p, n in names.items()}
+
+
+def fallback_files(blocks, task):
+    """Place the unnamed blocks of a reply that names no file: (files, found_by, "used" or "gave up: why")."""
+    expected = [p for p in task["meta"]["files"] if p.endswith(".py")]
+    python = [b for b in blocks if python_block(b)]
+    if not expected:
+        return {}, {}, "gave up: no expected .py file"
+    if not python:
+        return {}, {}, "gave up: no Python block"
+    tests = [b for b in python if TEST_BLOCK.search(b["text"])]
+    modules = [module_of(p) for p in expected]
+    code = [b for b in python if not any(b is t for t in tests) and not any(imports_module(b["text"], m)
+                                                                         for m in modules)]
+    if len(code) > 1 and any(TOP_NAME.search(b["text"]) for b in code):
+        code = [b for b in code if TOP_NAME.search(b["text"])]
+    if not code:
+        return {}, {}, "gave up: only tests or examples of use, no code"
+    files, found_by = {}, {}
+    if len(expected) == 1:
+        files[expected[0]] = "\n\n".join(b["text"].rstrip("\n") for b in code) + "\n"
+        found_by[expected[0]] = ("fallback: the one code block" if len(code) == 1
+                                 else f"fallback: {len(code)} code blocks joined in order")
+    else:
+        names = names_for(task, expected)
+        placed = {}
+        for b in code:
+            defined = set(TOP_NAME.findall(b["text"]))
+            hits = [p for p in expected if defined & names[p]]
+            if len(hits) != 1:
+                return {}, {}, (f"gave up: {len(expected)} expected files and a block that matches "
+                                + ("none" if not hits else "several"))
+            placed.setdefault(hits[0], []).append(b)
+        for path, chosen in placed.items():
+            files[path] = "\n\n".join(b["text"].rstrip("\n") for b in chosen) + "\n"
+            used = sorted({n for b in chosen for n in TOP_NAME.findall(b["text"])} & names[path])
+            found_by[path] = "fallback: the block defining " + ", ".join(used)
+    stem = expected[0].rsplit("/", 1)[-1][:-3]
+    for n, b in enumerate(tests, 1):
+        path = f"test_{stem}.py" if len(tests) == 1 else f"test_{n}.py"
+        files[path], found_by[path] = b["text"], "fallback: a block of tests"
+    return files, found_by, "used"
 
 
 # ---- running the checks ----
@@ -587,11 +705,12 @@ def grade(task, files, workdir=None, reply=None):
 
 
 def grade_reply(task, reply, workdir=None):
-    """Read the files out of a model's reply and grade them; also how the reply was written."""
-    parsed = read_reply(reply)
+    """Read the files out of a model's reply and grade them; also how the reply was written and how each file was
+    found ("found_by": "named", or "fallback: ..." when no block named a path)."""
+    parsed = read_reply(reply, task)
     graded = grade(task, parsed["files"], workdir, reply)
-    graded.update(named_by=parsed["named_by"], rejected=parsed["rejected"], unnamed_blocks=parsed["unnamed_blocks"],
-                  cut_off=parsed["cut_off"])
+    graded.update(named_by=parsed["named_by"], found_by=parsed["found_by"], fallback=parsed["fallback"],
+                  rejected=parsed["rejected"], unnamed_blocks=parsed["unnamed_blocks"], cut_off=parsed["cut_off"])
     return graded
 
 

@@ -8,15 +8,17 @@
 # action exam (phase 4): runs coder/exam/exam.ipynb, the engineer exam: real-world tasks with no style guide in the
 # prompt, graded on hidden tests, own tests, lint, security and explanation. About 4½ hours for 4 models (at most 60
 # minutes each); if Kaggle is still going it ends green with "still running": then run again with action fetch-exam.
+# action regrade-exam: no GPU: fetches the last exam's exam.json and grades every saved reply again with the current
+# grader here (bandit installed, as on Kaggle); writes kaggle_output_exam/exam_regraded.json and prints the report.
 name: Coder model on Kaggle
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: "eval = measure models; fetch = collect the last eval; train = train and score (phase 2); fetch-train = collect the last training run; exam = the engineer exam (phase 4); fetch-exam = collect the last exam"
+        description: "eval = measure models; fetch = collect the last eval; train = train and score (phase 2); fetch-train = collect the last training run; exam = the engineer exam (phase 4); fetch-exam = collect the last exam; regrade-exam = grade the last exam's replies again (no GPU)"
         type: choice
-        options: [eval, fetch, train, fetch-train, exam, fetch-exam]
+        options: [eval, fetch, train, fetch-train, exam, fetch-exam, regrade-exam]
         default: eval
       models:
         description: "Ollama model names, comma-separated"
@@ -75,6 +77,13 @@ jobs:
             if [ "$ACTION" = "fetch-train" ]; then ARGS+=(--wait); fi
             if [ "$ACTION" = "train" ] && [ "$SMOKE" = "yes" ]; then ARGS+=(--smoke); fi
             python coder/run_train.py "${ARGS[@]}"
+            exit 0
+          fi
+          if [ "$ACTION" = "regrade-exam" ]; then
+            # The last exam's saved replies, graded again here with the current grader. bandit grades security as on
+            # Kaggle (pytest and ruff come with requirements-dev.txt).
+            python -m pip install -q --disable-pip-version-check bandit
+            python coder/exam/run_exam.py --wait-minutes 330 --regrade
             exit 0
           fi
           if [ "$ACTION" = "exam" ] || [ "$ACTION" = "fetch-exam" ]; then

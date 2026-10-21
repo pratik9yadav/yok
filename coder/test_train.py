@@ -547,7 +547,7 @@ def test_workflow_trains_fetches_and_still_evaluates(tmp_path: Path) -> None:
     for line in text.splitlines():  # inputs reach the scripts only as environment variables
         if "${{ inputs." in line:
             assert re.fullmatch(r" +[A-Z_]+: \$\{\{ inputs\.\w+ \}\}", line), line
-    assert "options: [eval, fetch, train, fetch-train, exam, fetch-exam]" in text
+    assert "options: [eval, fetch, train, fetch-train, exam, fetch-exam, regrade-exam]" in text
     assert "kaggle_output_coder_train/" in text
     assert int(re.search(r"timeout-minutes: (\d+)", text).group(1)) <= 360  # GitHub's limit
     train = ["coder/run_train.py", "--wait-minutes", "330"]

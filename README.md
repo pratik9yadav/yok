@@ -319,7 +319,11 @@ How a reply is graded (`coder/exam/grade.py`), 0-100:
 | explanation | 10 | more than 40 words outside the code |
 | stray files | -5 | files nothing needs (a scratch script, notes): not an expected file, test, README or a module it imports |
 
-Each reply is tested in a fresh folder; the hidden tests run with the model's pytest config and conftest.py ignored,
+Files are read from the reply's fenced blocks named by a path (```` ```inventory.py ````, `# inventory.py` as the
+first line, or `inventory.py:` / `File inventory.py` just before the block). Only when no block names a path, a fixed
+fallback places its Python blocks (a block of tests → `test_<file>.py`; one expected file ← the code block, or the code
+blocks joined; several expected files ← matched by the names they define; else nothing), and the report counts how
+many replies needed it. Each reply is tested in a fresh folder; the hidden tests run with the model's pytest config and conftest.py ignored,
 and every test run is stopped at the task's timeout (with anything it started). The report gives, per model: the
 average total, tasks solved, each part, the scores by kind of task, seconds per task, and its 5 weakest tasks
 (with why). `exam.json` keeps every reply and every grade with the raw test, lint and bandit output.
@@ -327,10 +331,13 @@ average total, tasks solved, each part, the scores by kind of task, seconds per 
 How to run: **Actions → Coder model on Kaggle → Run workflow → action `exam`** (`models`, `limit` as in phase 1;
 `limit` = 3 is a quick check), or ask Claude "give the coding models the engineer exam". Each model stops after 60
 minutes (download included), so about 4½ hours for the 4 default models (qwen3-coder:30b, qwen2.5-coder:14b,
-gpt-oss:20b with `think` medium, qwen2.5-coder:7b); greedy (temperature 0), num_ctx 16384, up to 6,144 tokens per
-reply. If the job ends with "still running", run it again with action **`fetch-exam`**. Before any model, the notebook
+gpt-oss:20b with `think` medium, qwen2.5-coder:7b); greedy (temperature 0), num_ctx 16384, up to 8,192 tokens per
+reply (12,288 for a thinking model: its thinking and its answer). If the job ends with "still running", run it again
+with action **`fetch-exam`**. Action **`regrade-exam`** (no GPU, a few minutes) fetches the last run and grades every
+saved reply again with the current grader (`kaggle_output_exam/exam_regraded.json`; the log shows each model's scores
+before → after, and the start of every reply that still has no files). Before any model, the notebook
 checks every reference solution passes on Kaggle and leaves out a task whose reference fails there. From a terminal:
-`python coder/exam/run_exam.py` (`--models a,b`, `--limit N`, `--wait`); files land in `kaggle_output_exam/`.
+`python coder/exam/run_exam.py` (`--models a,b`, `--limit N`, `--wait`, `--regrade`); files land in `kaggle_output_exam/`.
 
 Writing a task: add the folder, then `python -m coder.exam.grade --check-references` (each reference must pass all its
 hidden tests, and the starter alone must not), then `python coder/build.py` (the tasks are copied into the

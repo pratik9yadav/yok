@@ -38,7 +38,8 @@ fix, review or refactor, and one line on how to send files back). Nothing else: 
 
 **How a reply is graded (0-100):** the task's hidden tests, never shown (55); did it write its own tests, and do
 they pass (15); lint with a fixed ruff rule set (10); security with bandit (10); does it explain what it did (10).
-Stray files (scratch scripts nothing uses) cost 5. "Solved" = every hidden test passes.
+Stray files (scratch scripts nothing uses) cost 5. "Solved" = every hidden test passes. A reply that names no file
+has its Python blocks placed by a fixed fallback (see `fallback_files`); the report counts how many needed it.
 
 It saves everything to `exam.json` (Output tab) after every task: every reply, every grade and the raw test output.
 Time: at most `MINUTES_PER_MODEL` minutes per model (download included), so about 4½ hours for 4 models.
@@ -58,8 +59,9 @@ MODELS = ["qwen3-coder:30b", "qwen2.5-coder:14b", "gpt-oss:20b", "qwen2.5-coder:
 LIMIT = None
 MINUTES_PER_MODEL = 60  # a model stops after this (download, loading and answers), so the run ends in time
 SAMPLES = 1  # answers per task (with temperature 0 they are all the same)
-OPTIONS = {"temperature": 0, "num_ctx": 16384, "num_predict": 6144}  # room for the task, its files and whole files back
+OPTIONS = {"temperature": 0, "num_ctx": 16384, "num_predict": 8192}  # room for the task, its files and whole files back
 THINK = {"gpt-oss": "medium"}  # thinking models: how much to think first
+THINKING_NUM_PREDICT = 12288  # thinking models: room for the thinking and the answer (the prompt still fits num_ctx)
 # Downloads go to the big disk. Not /kaggle/working: it holds only about 20 GB, and all of it is saved as output.
 MODELS_DIR = "/tmp/ollama-models"
 GRADE_DIR = "/tmp/exam-grading"  # each reply is tested in a fresh folder here (deleted after)
@@ -70,8 +72,8 @@ WORKING_DIR = "/kaggle/working"  # exam.json is saved here (the notebook's Outpu
 STATE = """
 RESULTS = {"exam": "engineer exam (coder phase 4)", "setting": SETTING, "reply_format": REPLY_FORMAT,
            "weights": WEIGHTS, "junk_penalty": JUNK_PENALTY, "ruff_config": RUFF_CONFIG, "options": OPTIONS,
-           "think": THINK, "samples": SAMPLES, "minutes_per_model": MINUTES_PER_MODEL, "limit": LIMIT,
-           "models_asked": MODELS, "models_dir": MODELS_DIR, "ollama_version": None, "gpu": None, "gpus": None,
+           "think": THINK, "thinking_num_predict": THINKING_NUM_PREDICT, "samples": SAMPLES,
+           "minutes_per_model": MINUTES_PER_MODEL, "limit": LIMIT, "models_asked": MODELS, "models_dir": MODELS_DIR, "ollama_version": None, "gpu": None, "gpus": None,
            "disk": None, "pip": None, "checkers": None, "tasks_total": None, "tasks_used": None, "task_ids": None,
            "kinds": None, "reference_check": None, "tasks_left_out": [], "models": [], "errors": []}
 """
@@ -133,8 +135,8 @@ for model in MODELS:
     entry = {"model": model}
     RESULTS["models"].append(entry)
     try:
-        take_exam(OLLAMA_URL, model, TASKS, entry, MINUTES_PER_MODEL, OPTIONS, THINK, SAMPLES, save=save_results,
-                  models_dir=MODELS_DIR, workdir=GRADE_DIR)
+        take_exam(OLLAMA_URL, model, TASKS, entry, MINUTES_PER_MODEL, OPTIONS, THINK, THINKING_NUM_PREDICT, SAMPLES,
+                  save=save_results, models_dir=MODELS_DIR, workdir=GRADE_DIR)
     except Exception as e:  # record it and go on to the next model
         entry.setdefault("errors", []).append(f"{e!r}"[:500])
         failed(model, e)

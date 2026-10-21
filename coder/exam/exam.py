@@ -57,17 +57,19 @@ def score_task(record):
         record[part] = rounded(average([s[part] for s in scores]))
 
 
-def take_exam(url, model, tasks, entry, minutes, options, think=None, samples=1, save=lambda: None, log=print,
-              models_dir="/tmp", workdir=None):
+def take_exam(url, model, tasks, entry, minutes, options, think=None, thinking_num_predict=None, samples=1,
+              save=lambda: None, log=print, models_dir="/tmp", workdir=None):
     """Download and load one model, give it every task, grade each reply; fill entry (a dict in the results) as it
     goes, so a stop part-way keeps everything done until then. Stops when `minutes` have passed (download and
-    loading included), or after 3 failed requests in a row."""
+    loading included), or after 3 failed requests in a row. A thinking model gets thinking_num_predict tokens
+    (its thinking and its answer) instead of options' num_predict."""
     deadline = time.time() + minutes * 60
     level = think_for(model, think)
+    options = {**options, **({"num_predict": thinking_num_predict} if level and thinking_num_predict else {})}
     entry.update(model=model, think=level, options=options, samples=samples, total=len(tasks), done=0, solved=0,
                  score=None, score_done=None, pulled=False, pull_seconds=None, size_gb=None, load_seconds=None,
                  processor=None, ollama_ps=None, gpu_memory=None, avg_seconds=None, tokens_per_s=None, cut_off=0,
-                 no_files=0, junk=0, stopped_by_time=False, minutes=None,
+                 no_files=0, fallback=0, junk=0, stopped_by_time=False, minutes=None,
                  disk_free_gb_before=disk_free_gb(models_dir), errors=[], tasks=[])
     started = time.time()
 
@@ -156,6 +158,8 @@ def summarise(entry, started=None):
     entry["tokens_per_s"] = round(sum(a["tokens"] for a in answered) / token_seconds, 1) if token_seconds else None
     entry["cut_off"] = sum(a.get("done_reason") == "length" for a in answered)
     entry["no_files"] = sum(not g.get("files") for g in graded)
+    entry["fallback"] = sum(any(how.startswith("fallback") for how in (g.get("found_by") or {}).values())
+                            for g in graded)  # replies whose files only the fallback found (no block named a path)
     entry["junk"] = sum(bool(g.get("junk")) for g in graded)
     if started is not None:
         entry["minutes"] = round((time.time() - started) / 60, 1)
@@ -183,7 +187,8 @@ def table(results):
             note.append(f"stopped at the time limit after {done} of {total} tasks")
         elif done and done < total:
             note.append(f"stopped after {done} of {total} tasks")
-        for key, words in (("cut_off", "cut off"), ("no_files", "with no files"), ("junk", "with stray files")):
+        for key, words in (("cut_off", "cut off"), ("no_files", "with no files"),
+                           ("fallback", "read by the fallback (no file named)"), ("junk", "with stray files")):
             if m.get(key):
                 note.append(f"{m[key]} {words}")
         if m.get("think"):
@@ -215,13 +220,16 @@ def why(record):
     g = attempt.get("grade") or {}
     reasons = []
     if not g.get("files"):
-        reasons.append("no files in the reply" + (" (cut off)" if attempt.get("done_reason") == "length" else ""))
+        notes = [n for n in ("cut off" if attempt.get("done_reason") == "length" else None, g.get("fallback")) if n]
+        reasons.append("no files in the reply" + (f" ({'; '.join(notes)})" if notes else ""))
     elif g.get("hidden_timed_out"):
         reasons.append("the hidden tests ran out of time")
     elif g.get("hidden", 0) < 1:
         failed = [line.strip() for line in (g.get("outputs") or {}).get("hidden", "").splitlines()
                   if line.startswith(("FAILED", "ERROR"))]
         reasons.append("; ".join(f[:110] for f in failed[:2]) or f"{g.get('hidden_passed')}/{g.get('hidden_total')}")
+    if any(how.startswith("fallback") for how in (g.get("found_by") or {}).values()):
+        reasons.append("files found by the fallback (no file named)")
     if g.get("files") and not g.get("own_test_files"):
         reasons.append("no tests")
     elif g.get("own_tests") == 0.5:
