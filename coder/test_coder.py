@@ -108,8 +108,11 @@ def fake_ollama():
                 state["chats"].append(body)
                 state["loaded"] = model
                 said = body["messages"][-1]["content"]
-                name = said.split("Fix bugs in ", 1)[1].split(".", 1)[0]
-                message = {"role": "assistant", "content": replies[name]}
+                if state.get("answer"):  # a test's own replies (coder/exam/test_exam.py): answer(prompt) -> text
+                    content = state["answer"](said)
+                else:
+                    content = replies[said.split("Fix bugs in ", 1)[1].split(".", 1)[0]]
+                message = {"role": "assistant", "content": content}
                 if body.get("think"):
                     message["thinking"] = THOUGHT
                 self.respond({"message": message, "done": True, "done_reason": "stop",

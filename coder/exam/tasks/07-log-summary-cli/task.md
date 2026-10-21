@@ -1,0 +1,5 @@
+Our shop server writes a log file with lines like `2026-10-01 10:00:03 ERROR payment gateway timeout` (date, time, level, message; levels are DEBUG, INFO, WARNING and ERROR). I want a small command-line tool to summarise it.
+Please write `logsum.py`, runnable as `python logsum.py PATH [--top N] [--json]`, with a `main(argv=None)` function that returns the exit code so it can be tested.
+It should report the total number of log lines (blank lines don't count), the count per level, how many lines couldn't be understood, the earliest and latest timestamp, and the N most common ERROR messages (default 5; ties sorted alphabetically).
+With `--json` it prints one JSON object with the keys `total_lines`, `by_level` (all four levels, 0 if none), `malformed`, `first`, `last` (as `"YYYY-MM-DD HH:MM:SS"`, or null) and `top_errors` (a list of `{"message": ..., "count": ...}`); without it, a short readable summary.
+It runs on the server from cron, so it must not blow up with a traceback on a bad file — print a clear message to stderr and return a non-zero exit code.

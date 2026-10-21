@@ -75,3 +75,5 @@ Phase 2 full run: 14B 65% → 61% after QLoRA on 2,000 CommitPackFT fixes (worse
 "Give the coding agent a task" (phase 3): run `.github/workflows/agent.yml` ("Coding agent (free model)", input `task`;
 ~30–60 min); it opens a PR from `agent/run-<id>-<attempt>` (or the job summary shows its question). Review the PR; never merge
 unasked. Edit `coder/agent.py`/`coder/build_agent.py`, then `python coder/build.py`; from here: `python coder/run_agent.py --task "..."`.
+"Give the coding models the engineer exam" (phase 4): run `coder.yml` with `action` exam (~4½ h; "still running": `fetch-exam`),
+report the table and weakest tasks from the job log. Tasks in `coder/exam/tasks/`: check with `python -m coder.exam.grade --check-references`, then `python coder/build.py`.

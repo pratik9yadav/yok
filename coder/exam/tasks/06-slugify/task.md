@@ -1,0 +1,3 @@
+Our online catalogue needs URL-safe ids for products. Please write `slugs.py` with `slugify(text, max_length=60)`: lowercase, accents removed ("Café" becomes "cafe"), every run of other characters turned into a single `-`, no `-` at the start or end, and at most `max_length` characters. If nothing is left (for example a name written only in Hindi), use `"item"`.
+Also add a class `SlugRegistry(max_length=60)` with `claim(text)` that returns a slug no one has claimed before from that registry: the first "Tata Salt" gets `tata-salt`, the next ones `tata-salt-2`, `tata-salt-3` and so on, still within `max_length`.
+We have thousands of products with the same name ("Parle-G" in every pack size), so it has to stay quick.

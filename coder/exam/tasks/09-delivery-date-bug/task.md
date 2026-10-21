@@ -1,0 +1,2 @@
+Bug report from the shop: a customer ordered at 3:10 pm on Saturday 3 October (India time) and the app promised delivery on Sunday 4 October. We never deliver on Sundays, and an order after 2 pm should only be dispatched the next day anyway. A few late-night orders also seem to get the wrong date.
+The logic is `promised_date(order_time, holidays=())` in `delivery.py`; our server stores times in UTC. Please fix it.

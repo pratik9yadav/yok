@@ -1,0 +1,1 @@
+`invoices.py` is the part of our customer portal that lets people log in and download their invoices. It goes on the public internet next week. Please review it before release and fix what's wrong; other code calls `read_invoice`, `compress_invoice`, `new_download_token` and `login`, so keep those working the same way.
