@@ -114,6 +114,59 @@ Five ways to ask it:
         "prompt": "Product: 16A MCB\nShopkeeper: haan hai, 220 ka, delivery nahi"}'
       ```
 
+## Voice v0 (speech to speech)
+A first spoken shop call, all free open models on Kaggle's free T4. The AI asks 3 questions in Hindi by voice
+(is the 16A MCB in stock? the price? delivery?). Each spoken answer goes through three models, one after the other
+(a cascade):
+1. **Ears**: Whisper large-v3 turbo turns the speech into Hindi text.
+2. **Brain**: the trained shop model (Ollama, the repo's `Modelfile`, exactly as in "Try the model") gives the
+   4 fields; a small template writes a short polite reply in Hindi, e.g. "ठीक है, 16A MCB ₹220 में है, डिलीवरी नहीं।
+   धन्यवाद!". Not in stock with another product, price not said, or nothing understood (it asks again politely)
+   each get their own reply.
+3. **Mouth**: a text-to-speech model says the questions and the replies.
+
+Every step is timed (seconds for ears, brain, mouth, total). It needs one finished training run. Not tested on
+Kaggle yet.
+
+**Run it:** **Actions → Voice v0 (speech to speech) → Run workflow** (about 20–40 minutes), or ask Claude
+"run voice v0". From a terminal: `python voice/run_voice.py`.
+
+**Listen:** on the GitHub run's page, at the bottom, **Artifacts → kaggle-output-voice** (a zip with the .wav
+files); or on kaggle.com, your notebook `wimb-voice-v0` → **Output** tab → folder `voice/`: `q1.wav`–`q3.wav`
+(the questions), `synthetic_1.wav`… (the test answers), `reply_1.wav`… (the replies) and `voice_results.json`
+(what was heard, understood and replied, and the times).
+
+**Test answers:** every run makes 6 made-up shopkeeper answers with the TTS voice (yes with the price in words
+"दो सौ बीस", no + another brand, delivery yes and no, Hinglish written in Hindi letters, "पता नहीं, बाद में कॉल करो"),
+so it runs end to end without your recordings. They check the plumbing, not real accents.
+
+**Add your own recordings (from a phone):**
+1. Record each answer as a shopkeeper would say it (a recorder app, or a WhatsApp voice note sent to yourself
+   and saved). Name each file by the question it answers: `q1_…` (in stock?), `q2_…` (price?), `q3_…`
+   (delivery?), e.g. `q2_rate.m4a`. .m4a, .mp3, .ogg, .opus and .wav all work. Only record people who agreed.
+2. kaggle.com → **Datasets** → **New Dataset** → upload the files → title `wimb-voice-clips` → keep it
+   **Private** → **Create**.
+3. **Actions → Voice v0 → Run workflow** → `clips_dataset`: `<your Kaggle name>/wimb-voice-clips` (the end of the
+   dataset's link) → **Run workflow**. Your clips are processed first, then the 6 made-up ones.
+
+**The better Hindi voice (optional):** Indic Parler-TTS needs a free Hugging Face token. Log in to
+huggingface.co, open https://huggingface.co/ai4bharat/indic-parler-tts and accept its terms, make a **Read** token
+(Settings → Access Tokens). Then on kaggle.com open your notebook `wimb-voice-v0` (made by the first run) →
+**Edit** → **Add-ons → Secrets** → add `HF_TOKEN` with the token, switch it on for this notebook. Without it the
+fallback voice (MMS-TTS) is used.
+
+**Models and licences** (the run records which voice it used and its licence):
+
+| Part | Model | Licence |
+|---|---|---|
+| Ears | `openai/whisper-large-v3-turbo` | MIT |
+| Brain | the shop model: Qwen3-4B-Instruct-2507 + our LoRA, in Ollama | Apache-2.0 (Ollama: MIT) |
+| Mouth, first choice | `ai4bharat/indic-parler-tts` (library `parler-tts` 0.2.3) | Apache-2.0 |
+| Mouth, fallback | `facebook/mms-tts-hin` | CC-BY-NC-4.0: **for this internal test only, not for business use** (the results say so) |
+
+This cascade is the start. The goal is a direct speech-to-speech model, trained on real shop calls recorded with
+the shopkeepers' consent.
+
 ## Coder model (phase 1: measure)
 **First full run (2026-10-15, Kaggle 2× T4, Ollama 0.40.4, 58 minutes):** bugs fixed of 164, one try each.
 
@@ -324,6 +377,7 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `test_training.py` | Checks the data and scoring: `python -m pytest` |
 | `test_try.py` | Checks `try_model.ipynb` and `try_on_kaggle.py` with a fake Ollama. |
 | `test_ask.py` | Checks `ask_model.ipynb` (with a fake Ollama and ipywidgets) and `try_on_kaggle.py --make-ask-notebook`. |
+| `voice/` | Voice v0 (speech to speech): `voice_v0.ipynb` (built by `voice/build_voice.py` from `voice/voicecall.py`), `run_voice.py` (runs it on Kaggle), `test_voice.py`. |
 
 ## Use real data
 Real call transcripts beat everything else. Put them in a new file in `data/` (same format, one per

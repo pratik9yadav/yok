@@ -73,10 +73,12 @@ def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
     push_notebook(api, kernel, notebook_for(train_set, gguf), "train_colab.ipynb")
 
 
-def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None) -> None:
+def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None,
+                  dataset_sources: list[str] | None = None) -> None:
     """Start a run of this notebook on Kaggle: private, T4 GPU, internet on.
 
     kernel_sources: other notebooks whose output is attached as input (under /kaggle/input).
+    dataset_sources: Kaggle datasets ("owner/slug") attached as input (under /kaggle/input too).
     """
     folder = Path(tempfile.mkdtemp())
     (folder / code_file).write_text(json.dumps(nb, ensure_ascii=False), encoding="utf-8")
@@ -84,7 +86,8 @@ def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: li
         "id": kernel, "title": kernel.split("/", 1)[1], "code_file": code_file,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
-        "dataset_sources": [], "competition_sources": [], "kernel_sources": kernel_sources or [], "model_sources": [],
+        "dataset_sources": dataset_sources or [], "competition_sources": [], "kernel_sources": kernel_sources or [],
+        "model_sources": [],
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     # T4: the older P100 is too old for the training library.
@@ -96,12 +99,17 @@ def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: li
     if bad:  # Kaggle still starts the run, without that input
         sys.exit(f"Kaggle could not attach {bad} as input (no such notebook, or no access). "
                  "Run the training first (Actions → Train on Kaggle).")
+    bad = getattr(resp, "invalid_dataset_sources", None)
+    if bad:
+        sys.exit(f"Kaggle could not attach the dataset {bad} as input (no such dataset, or no access). "
+                 "Check its name: owner/slug, as in its kaggle.com/datasets/owner/slug link.")
     print("Started:", getattr(resp, "url", None) or f"https://www.kaggle.com/code/{kernel}", flush=True)
     try:  # what Kaggle saved for this run: shows whether the GPU request arrived
         saved = Path(tempfile.mkdtemp())
         api.kernels_pull(kernel, str(saved), metadata=True)
         server = json.loads((saved / "kernel-metadata.json").read_text())
-        keys = ("enable_gpu", "machine_shape", "enable_internet") + (("kernel_sources",) if kernel_sources else ())
+        keys = (("enable_gpu", "machine_shape", "enable_internet") + (("kernel_sources",) if kernel_sources else ())
+                + (("dataset_sources",) if dataset_sources else ()))
         print("Kaggle saved:", {k: server.get(k) for k in keys}, flush=True)
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print("Could not read back the run settings:", e, flush=True)
