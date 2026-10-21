@@ -9,7 +9,19 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 
-from score import FIELDS, KEYS, SYSTEM, answer_text, evaluate, make_modelfile, parse, results_payload, score, show
+from score import (
+    FIELDS,
+    KEYS,
+    SYSTEM,
+    answer_text,
+    evaluate,
+    make_modelfile,
+    parse,
+    results_payload,
+    score,
+    show,
+    user_message,
+)
 
 
 def load(name: str) -> list[dict]:
@@ -444,3 +456,8 @@ def test_fresh_test_set_is_held_out_from_everything() -> None:
     for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "real/xpqa_hi_examples.jsonl"):
         others |= {ex["said"] for ex in load(name)}
     assert not fresh & others
+
+def test_user_message_returns_correct_format() -> None:
+    result = user_message("16A MCB", "haan hai")
+    expected = "Product: 16A MCB\nShopkeeper: haan hai"
+    assert result == expected
