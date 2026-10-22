@@ -3,6 +3,8 @@
 Run after changing the data, score.py or Modelfile:  python build_notebook.py
 """
 
+import base64
+import gzip
 import inspect
 import json
 from pathlib import Path
@@ -965,6 +967,13 @@ def block(name: str, text: str) -> str:
     return f"{name} = [json.loads(line) for line in r'''\n{text}\n'''.strip().splitlines()]\n"
 
 
+def packed_block(name: str, text: str) -> str:
+    """Like block(), but gzip + base64 on one line: a big set (v4) would make the notebook too big for Kaggle."""
+    packed = base64.b64encode(gzip.compress(text.encode("utf-8"), mtime=0)).decode("ascii")
+    return (f'{name} = [json.loads(line) for line in __import__("gzip").decompress(__import__("base64").b64decode('
+            f'"{packed}")).decode("utf-8").splitlines()]\n')
+
+
 METADATA = {
     "colab": {"provenance": [], "gpuType": "T4"},
     "accelerator": "GPU",
@@ -981,7 +990,7 @@ def train_notebook() -> dict:
         "#@title 4. Training data and scoring (hidden; built from data/ and score.py)\n"
         + score_src
         + "\n\n"
-        + block("TRAIN_V4", embedded("train_v4.jsonl"))
+        + packed_block("TRAIN_V4", embedded("train_v4.jsonl"))
         + block("TRAIN_V2", embedded("train.jsonl"))
         + "# Real Hindi answers from Amazon xPQA (CDLA-Sharing-1.0; see data/real/NOTICE-xpqa.md)\n"
         + block("REAL_XPQA", real_rows(HERE / "data" / "real" / "xpqa_hi_examples.jsonl"))

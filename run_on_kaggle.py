@@ -76,6 +76,12 @@ def notebook_for(train_set: str, gguf: bool) -> dict:
             source = re.sub(r'^TRAIN_SET = "\w+"', f'TRAIN_SET = "{train_set}"', source, flags=re.MULTILINE)
             source = re.sub(r"^MAKE_OLLAMA_FILE = \w+", f"MAKE_OLLAMA_FILE = {gguf}", source, flags=re.MULTILINE)
             cell["source"] = source.splitlines(keepends=True)
+        elif source.startswith("#@title 4."):  # only the chosen training set: all of them make the notebook too big
+            for name in {"v4": ("TRAIN_V2", "TRAIN_V1"), "v2": ("TRAIN_V4", "TRAIN_V1"), "v1": ("TRAIN_V4", "TRAIN_V2")}[train_set]:
+                source, n = re.subn(rf"^{name} = .*?splitlines\(\)\]\n", f"{name} = []  # not this run\n", source,
+                                    count=1, flags=re.MULTILINE | re.DOTALL)
+                assert n == 1, name
+            cell["source"] = source.splitlines(keepends=True)
     return nb
 
 

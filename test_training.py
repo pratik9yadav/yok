@@ -654,3 +654,16 @@ def test_train_workflow_offers_v4() -> None:
     text = (HERE / ".github" / "workflows" / "train.yml").read_text(encoding="utf-8")
     assert "options: [v2, v1, v4]" in text and "default: v2" in text
     assert "inputs.train_set == 'v4' && 330 || 150" in text
+
+
+def test_runner_sends_only_the_chosen_training_set_and_stays_small() -> None:
+    """The v4 run failed with 400 from Kaggle when the notebook carried every training set (2.3 MB)."""
+    import run_on_kaggle
+
+    for train_set, rows in (("v4", 6151), ("v2", 1451), ("v1", 400)):
+        nb = run_on_kaggle.notebook_for(train_set, True)
+        assert len(json.dumps(nb, ensure_ascii=False).encode()) < 700_000, train_set
+        cell = next("".join(c["source"]) for c in nb["cells"] if "".join(c["source"]).startswith("#@title 4."))
+        scope: dict = {"TRAIN_SET": train_set}
+        exec(cell, scope)  # noqa: S102 - our own generated notebook cell
+        assert len(scope["TRAIN_DATA"]) == rows, train_set
