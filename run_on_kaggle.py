@@ -12,6 +12,8 @@ Needs, once:
 """
 
 import argparse
+import base64
+import gzip
 import json
 import re
 import sys
@@ -67,6 +69,13 @@ def check_gpu(api, need_hours: float = 1) -> None:
         sys.exit(f"Less than {need_hours:g} hour of Kaggle GPU time left this week. It resets weekly.")
 
 
+def packed_block(name: str, text: str) -> str:
+    """A data line like build_notebook.block(), but gzip + base64 on one line, to keep the notebook small for Kaggle."""
+    packed = base64.b64encode(gzip.compress(text.encode("utf-8"), mtime=0)).decode("ascii")
+    return (f'{name} = [json.loads(line) for line in __import__("gzip").decompress(__import__("base64").b64decode('
+            f'"{packed}")).decode("utf-8").splitlines()]\n')
+
+
 def notebook_for(train_set: str, gguf: bool) -> dict:
     """The notebook with its settings cell set to this training set and export choice."""
     nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
@@ -81,6 +90,11 @@ def notebook_for(train_set: str, gguf: bool) -> dict:
                 source, n = re.subn(rf"^{name} = .*?splitlines\(\)\]\n", f"{name} = []  # not this run\n", source,
                                     count=1, flags=re.MULTILINE | re.DOTALL)
                 assert n == 1, name
+            if train_set == "v4":  # 6,000 rows written out make the notebook too big for Kaggle: send them packed
+                match = re.search(r"^TRAIN_V4 = \[json\.loads\(line\) for line in r'''\n(.*?)\n'''\.strip\(\)"
+                                  r"\.splitlines\(\)\]\n", source, flags=re.MULTILINE | re.DOTALL)
+                assert match, "TRAIN_V4"
+                source = source.replace(match.group(0), packed_block("TRAIN_V4", match.group(1)))
             cell["source"] = source.splitlines(keepends=True)
     return nb
 
