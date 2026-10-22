@@ -36,6 +36,21 @@ The model files end up in the run's **Output** tab on kaggle.com.
    https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 2. Ask Claude to "train the model", or tap **Actions → Train on Kaggle → Run workflow**.
 
+## Results: v4 (run 11, 2026-10-22: 6,151 rows, 2 epochs, 1 h 55 min on Kaggle)
+
+| set | before training | v2 after | **v4 after** | v4 exported Q4_K_M file |
+|---|---|---|---|---|
+| test (30) | 63% | 97% | **100%** | 100% |
+| hard (56) | 27% | 84% | **77%** | 80% |
+| fresh (60, blind) | 45% | 77% | **82%** | 78% |
+| asr (60, blind, speech-to-text style) | 25% | not measured | **95%** | 93% (56 of 60 done) |
+
+v4 is better on fresh (+5) and test, and reads speech-to-text Devanagari very well (asr 95%), but is worse on
+hard (−7, 4 calls). Most of its misses are `alternative` wording: v4 learned "brand + size + item" without
+"wala"/"ka", while the hard and fresh answer keys use other forms ("फिलिप्स वाला", "Dewalt 13 mm drill"). Real
+misreads left: a price after "पचासी नहीं पंचानवे" (95 → 590), unit vs pack price, "aake le lo" (no delivery) and
+one Marathi row read as in stock. v2 has not been scored on the asr set yet.
+
 ## Results (Kaggle T4, Qwen3-4B-Instruct-2507, 2 epochs, runs 9 and 10)
 Share of calls where all four fields are exactly right. Three held-out sets, never trained on:
 `test` = 30 hand-written calls, `hard` = 56 calls in harder styles, `fresh` = 60 calls written blind

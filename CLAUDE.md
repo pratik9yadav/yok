@@ -13,6 +13,7 @@ trained on: `data/test.jsonl` (30), `data/hard_test.jsonl` (56), `data/fresh_tes
 Never use held-out rows for ideas or phrasing when changing `make_data.py`; tests check for leakage.
 `data/train_v4.jsonl` (v4, 6,000 rows, Whisper-style Devanagari/Latin Hindi, Hinglish, Marathi with ASR noise) is made by
 `make_data.py` too (README "Training set v4"); train it with `train.yml` `train_set` v4 (own notebook `-v4`, ~2–2.5 h).
+Run 11 (v4): test 100% / hard 77% / fresh 82% / asr 95% (GGUF 100/80/78/93); v2 hard 84%, asr not measured.
 Held-out too: `data/asr_test.jsonl` (blind, scored as set "asr"); never read it or the other held-out sets for ideas.
 
 `train_colab.ipynb`, `try_model.ipynb` and `ask_model.ipynb` are generated: edit `build_notebook.py`, `score.py`
