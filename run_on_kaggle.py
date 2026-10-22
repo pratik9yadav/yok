@@ -7,6 +7,8 @@ Needs, once:
 
     python run_on_kaggle.py           start a run, wait (about 40 min), print the results
     python run_on_kaggle.py --wait    wait for the run already going, then print the results
+    python run_on_kaggle.py --train-set v4    train on set v4 (its own notebook, wimb-shop-model-training-v4,
+                                              so the v2 model the try/ask/voice notebooks use is not overwritten)
 """
 
 import argparse
@@ -21,10 +23,18 @@ HERE = Path(__file__).parent
 SLUG = "wimb-shop-model-training"
 OUT = HERE / "kaggle_output"
 DONE = {"COMPLETE": True, "ERROR": False, "CANCEL_REQUESTED": False, "CANCEL_ACKNOWLEDGED": False}
+TRAIN_SETS = ["v2", "v1", "v4"]
+# How long a whole run may take (minutes) and the GPU hours it needs. v4 has 6,151 rows (v2: 1,451): about
+# 1 hour of training for 2 epochs, so about 2-2.5 hours in all with the tests and the GGUF export.
+WAIT_MIN = {"v4": 300}
+NEED_HOURS = {"v4": 3}
 
 
-def slug_for(train_set: str) -> str:
-    """v2 keeps the main notebook (its Output tab holds the model); other sets get their own."""
+def slug_for(train_set: str, slug: str | None = None) -> str:
+    """v2 keeps the main notebook (its Output tab holds the model); other sets get their own
+    (v4: wimb-shop-model-training-v4). slug: a notebook name of your own instead."""
+    if slug:
+        return slug
     return SLUG if train_set == "v2" else f"{SLUG}-{train_set}"
 
 
@@ -196,15 +206,16 @@ def fetch(api, kernel: str) -> None:
 def main() -> None:
     args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
-    args.add_argument("--train-set", choices=["v2", "v1"], default="v2", help="training data to use (default v2)")
+    args.add_argument("--train-set", choices=TRAIN_SETS, default="v2", help="training data to use (default v2)")
+    args.add_argument("--slug", help="Kaggle notebook name to use instead of the one for the training set")
     args.add_argument("--no-gguf", action="store_true", help="skip exporting and testing the Ollama file")
     opts = args.parse_args()
-    api, kernel = connect(slug_for(opts.train_set))
+    api, kernel = connect(slug_for(opts.train_set, opts.slug))
     if not opts.wait:
-        check_gpu(api)
+        check_gpu(api, NEED_HOURS.get(opts.train_set, 1))
         push(api, kernel, opts.train_set, gguf=not opts.no_gguf)
         time.sleep(30)
-    ok = wait(api, kernel)
+    ok = wait(api, kernel, WAIT_MIN.get(opts.train_set, 120))
     fetch(api, kernel)
     sys.exit(0 if ok else 1)
 

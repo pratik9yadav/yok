@@ -11,6 +11,9 @@ WIMB project (pratik9yadav/WIMB). `data/train.jsonl` (training set v2, 1,300 row
 time; `data/train_v1.jsonl` is the first 400 made-up rows (for comparison). Held-out sets, never
 trained on: `data/test.jsonl` (30), `data/hard_test.jsonl` (56), `data/fresh_test.jsonl` (60, blind).
 Never use held-out rows for ideas or phrasing when changing `make_data.py`; tests check for leakage.
+`data/train_v4.jsonl` (v4, 6,000 rows, Whisper-style Devanagari/Latin Hindi, Hinglish, Marathi with ASR noise) is made by
+`make_data.py` too (README "Training set v4"); train it with `train.yml` `train_set` v4 (own notebook `-v4`, ~2–2.5 h).
+Held-out too: `data/asr_test.jsonl` (blind, scored as set "asr"); never read it or the other held-out sets for ideas.
 
 `train_colab.ipynb`, `try_model.ipynb` and `ask_model.ipynb` are generated: edit `build_notebook.py`, `score.py`
 or `data/`, then run `python build_notebook.py` and `python -m pytest`. Never edit the notebooks by hand.

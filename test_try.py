@@ -144,14 +144,15 @@ def test_demo_questions_are_well_formed_and_not_from_other_data(demo_rows: list[
     said = [nfc_lower(ex["said"]).strip() for ex in demo_rows]
     assert len(set(said)) == len(said)
     others = set()
-    for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "fresh_test.jsonl",
-                 "real/xpqa_hi_examples.jsonl"):
+    for name in ("train.jsonl", "train_v1.jsonl", "train_v4.jsonl", "test.jsonl", "hard_test.jsonl",
+                 "fresh_test.jsonl", "real/xpqa_hi_examples.jsonl"):
         others |= {nfc_lower(ex["said"]).strip() for ex in load(name)}
     assert not set(said) & others
-    long_runs = set().union(*(runs(ex["said"]) for name in ("train.jsonl", "test.jsonl", "hard_test.jsonl",
-                                                             "fresh_test.jsonl") for ex in load(name)))
+    long_runs = set().union(*(runs(ex["said"]) for name in ("train.jsonl", "train_v4.jsonl", "test.jsonl",
+                                                             "hard_test.jsonl", "fresh_test.jsonl")
+                              for ex in load(name)))
     shared = [ex["said"] for ex in demo_rows if runs(ex["said"]) & long_runs]
-    assert not shared, shared[:3]
+    assert not shared, f"{len(shared)} demo rows share 8 words in a row with other data"
     # Not even close to a held-out row: no run of 6 words, no same product name.
     held_out = [ex for name in ("test.jsonl", "hard_test.jsonl", "fresh_test.jsonl") for ex in load(name)]
     six = set().union(*(runs(ex["said"], 6) for ex in held_out))

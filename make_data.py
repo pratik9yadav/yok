@@ -1957,12 +1957,926 @@ def stats(rows: list[dict], meta: list[dict]) -> dict:
     }
 
 
-def main() -> None:
-    path = HERE / "data" / "train.jsonl"
-    rows, meta = make()
+# =============================================================================================
+# Training set v4 (data/train_v4.jsonl): the same kind of calls, written the way a speech-to-text model
+# (Whisper) writes them. Whisper writes most Hindi and Hinglish speech in Devanagari, English words included
+# ("हाँ है, दो सौ बीस का, डिलीवरी नहीं"), with small errors. v2 (data/train.jsonl) is made by the code above and
+# does not change; v4 reuses its products, prices, number words and spellings, and adds:
+#   - the owner's language and script mix (MIX_V4): Hindi, Hinglish and Marathi, in Devanagari and in Latin letters;
+#   - speech-to-text noise on NOISE_SHARE_V4 of the Devanagari rows, never on the words the answer depends on;
+#   - spoken prices with सवा / साढ़े / पौने / डेढ़ / ढाई (सव्वा / साडे / पावणे / दीड / अडीच) + सौ / हज़ार, off the
+#     price_words.json grid too (पौने सत्रह सौ = 1675), discounts, corrections, unit vs box;
+#   - delivery said directly and indirectly ("ladka ghar pe de jayega", "पोरगा घरी आणून देईल", "aake le jao");
+#   - one rule for `alternative`: brand + size/type + item, exactly as the shopkeeper said it, in the script used;
+#   - unclear, call-back, wrong-number and "pata nahi" replies: all four fields null.
+
+N_ROWS_V4 = 6000
+SEED_V4 = 2604
+NOISE_SHARE_V4 = 0.30  # of the Devanagari rows
+# The owner's mix: class -> (share of all rows, the languages in it with their weights)
+MIX_V4 = {
+    "Hindi, Devanagari": (0.25, {"hi_dev": 1.0}),
+    "Hinglish, Devanagari": (0.25, {"hx_dev": 1.0}),
+    "Hinglish, Latin": (0.20, {"hi_rom": 0.65, "hien": 0.35}),
+    "Marathi, Devanagari": (0.20, {"mr_dev": 0.8, "mx_dev": 0.2}),
+    "Marathi, Latin": (0.10, {"mr_rom": 0.7, "mren": 0.3}),
+}
+LANG_NAMES_V4 = {**LANG_NAMES, "hx_dev": "Hinglish in Devanagari (as Whisper writes it)",
+                 "mx_dev": "Marathi-English in Devanagari", "hi_dev": "Hindi in Devanagari",
+                 "hi_rom": "romanized Hindi/Hinglish", "hien": "code-mixed Hinglish, Latin",
+                 "mren": "code-mixed Marathi-English, Latin"}
+BASE["hx_dev"] = "hi_dev"  # code-mixed banks fall back to their base bank (as hien -> hi_rom)
+BASE["mx_dev"] = "mr_dev"
+OWN_BANK_V4 = ("hien", "mren", "hx_dev", "mx_dev")
+
+# v4's banks: a copy of v2's (which must not change, or train.jsonl would), with more phrasings.
+BANKS4: dict[str, dict[str, list[str]]] = {lang: {slot: list(v) for slot, v in bank.items()}
+                                           for lang, bank in BANKS.items()}
+
+
+def extend_v4(lang: str, **slots: list[str]) -> None:
+    bank = BANKS4.setdefault(lang, {})
+    for slot, items in slots.items():
+        bank[slot] = bank.get(slot, []) + items
+
+
+extend_v4(
+    "hi_rom",
+    del_yes=["ladka ghar pe de jayega", "ladka ghar pe chhod dega", "ghar tak pahuncha denge", "courier kar denge",
+             "apna aadmi de aayega", "address bhej do, ladka de aayega", "shaam tak ghar pe aa jayega",
+             "aapke ghar tak bhijwa denge", "delivery boy hai, bhej denge", "pahuncha dunga, fikar mat karo"],
+    del_no=["pick up karna padega", "aake le jao", "khud aake uthana padega", "dukaan se le jana padega",
+            "bhejne ka intezaam nahi hai", "abhi delivery band hai", "counter pe aake le lo",
+            "ladka nahi hai bhejne ko, aake le jao"],
+    discount=["MRP {m} hai par {p} laga denge", "{m} ka hai, aapke liye {p}", "{m} likha hai, discount karke {p}",
+              "company ka rate {m} hai, main {p} lunga", "list mein {m} hai, aapko {p} padega"],
+    discount_rev=["{p} laga denge, waise {m} ka hai", "aapse {p} lenge, likha {m} hai",
+                  "{p} de dena, MRP toh {m} hai"],
+    wrong_number=["galat number hai", "ye dukaan nahi hai, ghar ka number hai", "kaun? yahan koi dukaan nahi hai",
+                  "aapne galat number lagaya hai", "kisse baat karni hai? ye wo dukaan nahi hai"],
+    unclear=["pata nahi bhai", "abhi bata nahi sakta, baad mein call karo", "kal phone karna",
+             "main naya hun, mujhe nahi pata, seth se puchho", "ghante bhar baad call karo"],
+    wrong=["{w} ka... nahi nahi, galat bola, {p} ka hai", "{w}... arre nahi, {p}"],
+)
+extend_v4(
+    "hien",
+    del_yes=["boy ghar pe de jayega", "courier kar denge sir", "ghar tak deliver kar denge"],
+    del_no=["pick up karna padega", "self pickup hai, delivery nahi"],
+    discount=["MRP {m} hai but {p} laga denge", "list price {m}, discount ke baad {p}"],
+    discount_rev=["aapko {p}, MRP {m} hai"],
+    wrong_number=["wrong number hai sir", "sorry, wrong number"],
+)
+extend_v4(
+    "mr_rom",
+    del_yes=["porga ghari aanun deil", "porga ghari sodun deil", "gharpoch pohochvun deu", "courier karto",
+             "manus pathavto ghari"],
+    del_no=["yeun gheun ja", "pick up karava lagel", "dukanatun nyava lagel", "pathavaychi soy nahi"],
+    discount=["MRP {m} aahe, pan {p} la lavto", "{m} cha aahe, tumchyasathi {p}", "{m} lihila aahe, discount karun {p}"],
+    discount_rev=["{p} la lavto, MRP {m} aahe"],
+    wrong_number=["chukicha number aahe", "wrong number aahe", "he dukan nahi, gharcha number aahe"],
+    unclear=["mahit nahi ho", "udya phone kara", "mi navin aahe, mala mahit nahi"],
+)
+extend_v4(
+    "mren",
+    del_yes=["boy ghari deliver karel", "courier karto sir"],
+    del_no=["self pickup aahe"],
+    discount=["MRP {m} aahe but {p} la deu"],
+    wrong_number=["wrong number aahe sir"],
+)
+extend_v4(
+    "hi_dev",
+    del_yes=["लड़का घर पे दे जाएगा", "लड़का छोड़ देगा घर पर", "घर तक पहुँचा देंगे", "कूरियर कर देंगे",
+             "अपना आदमी दे आएगा", "पता भेज दो, लड़का दे आएगा", "शाम तक घर पहुँच जाएगा", "आपके घर तक भिजवा देंगे"],
+    del_no=["आकर ले जाओ", "खुद आकर उठाना पड़ेगा", "दुकान से ले जाना पड़ेगा", "भेजने का इंतज़ाम नहीं है",
+            "अभी डिलीवरी बंद है", "लड़का नहीं है भेजने को, आकर ले जाइए"],
+    discount=["MRP {m} है पर {p} लगा देंगे", "{m} का है, आपके लिए {p}", "{m} लिखा है, छूट देकर {p}",
+              "कंपनी का रेट {m} है, मैं {p} लूँगा", "लिस्ट में {m} है, आपको {p} पड़ेगा"],
+    discount_rev=["{p} लगा देंगे, वैसे {m} का है", "आपसे {p} लेंगे, लिखा {m} है"],
+    wrong_number=["गलत नंबर है", "ये दुकान नहीं है, घर का नंबर है", "किससे बात करनी है? यहाँ कोई दुकान नहीं है",
+                  "आपने गलत नंबर मिलाया है"],
+    unclear=["पता नहीं भाई", "अभी नहीं बता सकता, बाद में फ़ोन करो", "कल फ़ोन करना", "मैं नया हूँ, मुझे नहीं पता",
+             "घंटे भर बाद कॉल करो"],
+    wrong=["{w} का... नहीं नहीं, गलत बोला, {p} का है"],
+    filler=["अं", "हम्म", "देखो", "वो"],
+)
+extend_v4(
+    "mr_dev",
+    del_yes=["पोरगा घरी आणून देईल", "पोरगा घरी सोडून देईल", "घरपोच पोहोचवून देऊ", "कुरिअर करतो",
+             "माणूस पाठवून देतो घरी", "संध्याकाळी घरी पोहोचेल"],
+    del_no=["येऊन घेऊन जा", "पिकअप करावा लागेल", "दुकानातून न्यावं लागेल", "पाठवायची सोय नाही"],
+    discount=["एमआरपी {m} आहे, पण {p}_ला लावतो", "{m}चं आहे, तुमच्यासाठी {p}", "छापील {m}, डिस्काउंट करून {p}"],
+    discount_rev=["{p}_ला लावतो, एमआरपी {m} आहे", "तुम्हाला {p}, छापील किंमत {m}"],
+    wrong_number=["चुकीचा नंबर आहे", "रॉंग नंबर", "हे दुकान नाही हो, घरचा नंबर आहे"],
+    unclear=["माहीत नाही हो", "उद्या फोन करा", "मी नवीन आहे, मला माहीत नाही", "तासाभराने कॉल बॅक करतो"],
+    filler=["अं", "हां", "तर"],
+)
+# Hinglish as Whisper writes it: in Devanagari, English words too (अवेलेबल, डिलीवरी, प्राइस); Latin MRP / GST.
+BANKS4["hx_dev"] = {
+    "open": ["हाँ बोलिए सर", "हेलो, हाँ बोलो", "यस सर, बोलिए", "हाँ जी सर, बताइए", "हेलो? हाँ, बोलो भाई"],
+    "yes": ["हाँ सर, अवेलेबल है", "स्टॉक में है सर", "यस, अवेलेबल है", "हाँ, रेडी स्टॉक है", "हाँ है, कोई प्रॉब्लम नहीं",
+            "हाँ सर, वो मॉडल अवेलेबल है", "हाँ है", "है भाई, मिल जाएगा", "हाँ जी, स्टॉक में पड़ा है"],
+    "yes_qty": ["{q} {u} अवेलेबल है अभी", "स्टॉक में सिर्फ {q} {u} है", "हाँ, {q} {u} पड़े हैं"],
+    "no": ["सॉरी सर, अभी आउट ऑफ स्टॉक है", "स्टॉक नहीं है अभी", "वो मॉडल अवेलेबल नहीं है", "अभी स्टॉक फिनिश हो गया",
+           "नॉट अवेलेबल सर", "वो आइटम हम नहीं रखते", "नहीं है भाई, खत्म हो गया"],
+    "tomorrow": ["अभी स्टॉक नहीं है, कल तक आ जाएगा", "अभी आउट ऑफ स्टॉक है, नया स्टॉक कल आ रहा है",
+                 "अभी अवेलेबल नहीं है, ऑर्डर प्लेस किया है, मंडे तक आएगा"],
+    "order": ["अभी नहीं है, ऑर्डर पे मंगवा देंगे", "नहीं है, बोलो तो मंगवा देता हूँ, दो दिन लगेंगे"],
+    "unclear": ["सर एक मिनट, चेक करके बताता हूँ", "ओनर अभी नहीं हैं, बाद में कॉल कीजिए",
+                "अभी कन्फर्म नहीं कर सकता, गोडाउन चेक करना पड़ेगा", "प्लीज़ थोड़ी देर बाद कॉल करो",
+                "पता नहीं भाई, बाद में कॉल करो", "अभी बिज़ी हूँ, कॉल बैक करता हूँ"],
+    "wrong_number": ["रॉन्ग नंबर है", "गलत नंबर लगाया है आपने", "ये दुकान का नंबर नहीं है", "सॉरी, रॉन्ग नंबर"],
+    "price": ["प्राइस {p} है", "{p} रुपीज़ है", "रेट {p} है सर", "{p} फाइनल प्राइस है", "आपके लिए {p}",
+              "बेस्ट प्राइस {p}", "{p} का पड़ेगा", "{p} लगेगा", "{p} का है"],
+    "mrp": ["MRP {m} है, बट आपको {p} में दे देंगे", "एमआरपी {m} है, डिस्काउंट के बाद {p} पड़ेगा",
+            "प्रिंटेड एमआरपी {m}, अपना प्राइस {p}"],
+    "mrp_rev": ["अपना प्राइस {p}, एमआरपी {m} है", "आपको {p} में मिलेगा, MRP {m} है"],
+    "discount": ["एमआरपी {m} है पर {p} लगा देंगे", "{m} का है, आपके लिए {p}", "{m} लिखा है, डिस्काउंट करके {p}",
+                 "लिस्ट प्राइस {m}, आपको {p} पड़ेगा"],
+    "discount_rev": ["{p} लगा देंगे, वैसे {m} का है", "आपको {p}, MRP तो {m} है"],
+    "old_new": ["प्राइस इनक्रीज़ हो गया, पहले {old} था, अब {p}", "लास्ट मंथ {old} था, अब {p} है"],
+    "old_rev": ["अब प्राइस {p} है, पहले {old} था", "अब {p} है, लास्ट मंथ {old} था"],
+    "unit_bulk": ["सिंगल पीस {p}, {bn} का फुल बॉक्स {bulk}", "पर पीस {p}, {bn} लो तो {bu} लगेगा",
+                  "{p} का एक, {bn} का डब्बा {bulk} का"],
+    "unit_bulk_rev": ["{bn} का फुल बॉक्स {bulk}, सिंगल पीस {p}", "डब्बा {bulk} का है, {bn} पीस वाला, एक का {p}"],
+    "pack": ["फुल पैकेट {p}, लूज़ पीस {unit} का"],
+    "pack_rev": ["लूज़ पीस {unit} का, फुल पैकेट {p}"],
+    "gst": ["{p} प्लस जीएसटी", "{p}, जीएसटी एक्स्ट्रा", "{p} इन्क्लूसिव ऑफ जीएसटी"],
+    "fee": ["डिलीवरी हो जाएगी, {fee} रुपीज़ चार्ज एक्स्ट्रा", "होम डिलीवरी अवेलेबल है, {fee} चार्ज",
+            "लड़का दे आएगा, {fee} रुपये लगेंगे"],
+    "item_price": ["आइटम प्राइस {p}, डिलीवरी चार्ज अलग", "प्रोडक्ट का {p}, डिलीवरी एक्स्ट्रा"],
+    "timing": ["शॉप {h} बजे तक ओपन है"],
+    "del_yes": ["होम डिलीवरी अवेलेबल है", "डिलीवरी हो जाएगी सर", "सेम डे डिलीवरी कर देंगे", "फ्री डिलीवरी है",
+                "लड़का घर पे दे जाएगा", "कूरियर कर देंगे", "बॉय भेज दूंगा", "घर तक पहुँचा देंगे",
+                "अपना लड़का छोड़ देगा घर पे", "एड्रेस भेजो, डिलीवर कर देंगे"],
+    "del_no": ["डिलीवरी नहीं होती, पिकअप करना पड़ेगा", "सॉरी, डिलीवरी सर्विस नहीं है", "आपको शॉप से पिकअप करना होगा",
+               "आके ले जाओ", "खुद आके ले जाना पड़ेगा", "डिलीवरी बंद है अभी, दुकान से ले लो"],
+    "trap_yes": ["नो नो, अवेलेबल है", "आउट ऑफ स्टॉक नहीं है, अवेलेबल है"],
+    "trap_del_yes": ["डिलीवरी की टेंशन मत लो, भेज देंगे"],
+    "trap_del_no": ["भेज देता, पर आज बॉय छुट्टी पे है, आके ले जाओ"],
+    "alt": ["{alt} अवेलेबल है, चलेगा?", "{alt} है, सेम क्वालिटी", "उसकी जगह {alt} ले सकते हो", "{alt} पड़ा है, वो ले लो"],
+    "alt_neg": ["{ask} नहीं है, {alt} है", "{ask} वाला फिनिश है, {alt} अवेलेबल है"],
+    "alt_price": ["{alt} अवेलेबल है, उसका प्राइस {ap}", "{alt} है, {ap} का"],
+    "chatter": ["सर आज बहुत बिज़ी डे है", "नेटवर्क इशू है, आवाज़ ब्रेक हो रही है", "सीज़न टाइम है ना, डिमांड ज़्यादा है",
+                "एक कस्टमर खड़ा है, होल्ड करो"],
+    "filler": ["मतलब", "देखो", "अं", "वो क्या है", "बेसिकली"],
+    "close": ["और कुछ?", "बताओ क्या करना है", "ओके?", "और कुछ चाहिए सर?"],
+    "wrong": ["{w}... नहीं नहीं, {p} है", "{w}, सॉरी सॉरी, {p}"],
+    "wrong_rev": ["{p} है, {w} नहीं"],
+    "noprice": ["रेट अभी पता नहीं, ओनर से पूछना पड़ेगा", "प्राइस कन्फर्म करके बताता हूँ"],
+    "address": ["सर", "भाई", "बॉस", "जी"],
+}
+BANKS4["mx_dev"] = {
+    "open": ["हो सर, बोला", "हॅलो, हां बोला", "येस, बोला"],
+    "yes": ["हो सर, अवेलेबल आहे", "स्टॉकमध्ये आहे", "आहे सर, रेडी स्टॉक आहे"],
+    "no": ["सॉरी, आउट ऑफ स्टॉक आहे", "स्टॉक नाही आहे सध्या", "ते मॉडेल अवेलेबल नाही"],
+    "tomorrow": ["आत्ता स्टॉक नाही, उद्या येईल", "सध्या आउट ऑफ स्टॉक आहे, नवीन स्टॉक परवा येणार आहे"],
+    "unclear": ["एक मिनिट, चेक करून सांगतो", "ओनर नाहीत, नंतर कॉल करा", "माहीत नाही, नंतर कॉल करा"],
+    "wrong_number": ["रॉंग नंबर आहे", "चुकीचा नंबर लागलाय", "हे दुकान नाही, चुकीचा नंबर"],
+    "price": ["प्राइस {p} आहे", "रेट {p} आहे सर", "{p} फायनल", "तुम्हाला {p}_ला देऊ"],
+    "mrp": ["MRP {m} आहे, पण तुम्हाला {p}_ला देऊ", "एमआरपी {m}, डिस्काउंट नंतर {p}"],
+    "discount": ["एमआरपी {m} आहे पण {p}_ला लावतो", "{m}चं आहे, तुम्हाला {p}_ला देतो"],
+    "gst": ["{p} प्लस जीएसटी", "{p}, जीएसटी एक्स्ट्रा"],
+    "fee": ["डिलिव्हरी देतो, {fee} चार्ज लागेल", "पोरगा घरी आणून देईल, {fee} रुपये लागतील"],
+    "item_price": ["आयटमचा प्राइस {p}, डिलिव्हरी वेगळी"],
+    "old_new": ["आधी {old} होता, आता प्राइस {p} झाला"],
+    "del_yes": ["होम डिलिव्हरी आहे", "डिलिव्हरी देतो सर", "पोरगा घरी आणून देईल", "कुरिअर करतो", "घरपोच करून देतो",
+                "बॉय पाठवतो"],
+    "del_no": ["डिलिव्हरी नाही, शॉपवरून पिकअप करा", "पिकअप करावा लागेल", "येऊन घेऊन जा"],
+    "alt": ["{alt} अवेलेबल आहे, चालेल का?", "{alt} आहे, सेम क्वालिटी"],
+    "alt_price": ["{alt} आहे, त्याचा प्राइस {ap}"],
+    "chatter": ["आज खूप बिझी आहे सर", "नेटवर्क प्रॉब्लेम आहे, आवाज कट होतोय"],
+    "filler": ["म्हणजे", "बघा", "अं"],
+}
+
+# Words in alternative names, in Devanagari (Hindi, Marathi), besides v2's DEV_WORDS.
+DEV_WORDS_V4 = {
+    **DEV_WORDS,
+    "exhaust": ("एग्जॉस्ट", "एक्झॉस्ट"), "ceiling": ("सीलिंग", "सीलिंग"), "pedestal": ("पेडस्टल", "पेडेस्टल"),
+    "immersion": ("इमर्शन", "इमर्शन"), "room": ("रूम", "रूम"), "soldering": ("सोल्डरिंग", "सोल्डरिंग"),
+    "angle": ("एंगल", "अँगल"), "welding": ("वेल्डिंग", "वेल्डिंग"), "water": ("वॉटर", "वॉटर"), "chain": ("चेन", "चेन"),
+    "blade": ("ब्लेड", "ब्लेड"), "steering": ("स्टीयरिंग", "स्टिअरिंग"), "handle": ("हैंडल", "हँडल"),
+    "car": ("कार", "कार"), "bike": ("बाइक", "बाईक"), "screwdriver": ("स्क्रूड्राइवर", "स्क्रूड्रायव्हर"),
+    "amp": ("एम्पियर", "अँपिअर"), "watt": ("वॉट", "वॉट"), "polycab": ("पॉलीकैब", "पॉलीकॅब"),
+    "finolex": ("फिनोलेक्स", "फिनोलेक्स"), "supreme": ("सुप्रीम", "सुप्रीम"), "astral": ("एस्ट्रल", "ॲस्ट्रल"),
+    "exide": ("एक्साइड", "एक्साइड"), "amaron": ("अमरोन", "अमरॉन"), "ngk": ("एनजीके", "एनजीके"),
+    "godrej": ("गोदरेज", "गोदरेज"), "harrison": ("हैरिसन", "हॅरिसन"), "taparia": ("तपारिया", "तपारिया"),
+    "birla": ("बिड़ला", "बिर्ला"), "makita": ("मकिता", "मकिता"), "sq": ("स्क्वेयर", "स्क्वेअर"),
+    "lock": ("लॉक", "लॉक"), "cover": ("कवर", "कव्हर"),
+}
+# Brands a shop may offer instead of the hand-made list's products (v2's PRODUCTS has no brands).
+OLD_BRANDS_V4 = {
+    "1.5 sq mm copper wire, 90 m roll": ["Polycab", "Finolex", "Havells"], "1 inch PVC elbow": ["Supreme", "Astral"],
+    "Activa clutch plate": ["Bosch"], "12V 7Ah battery": ["Exide", "Amaron"], "9W LED bulb": ["Philips", "Syska", "Wipro"],
+    "16A MCB": ["Havells", "Legrand", "Schneider", "Anchor"], "fan capacitor 2.5 mfd": ["Havells", "Crompton"],
+    "Pulsar 150 spark plug": ["Bosch", "NGK"], "wall putty 20 kg": ["Birla"], "8 mm drill bit": ["Bosch", "Taparia"],
+    "50 mm padlock": ["Godrej", "Harrison"], "Activa air filter": ["Bosch"],
+    "10W-30 engine oil 1 L": ["Castrol", "Shell", "Motul"], "bike headlight bulb": ["Philips", "Osram"],
+    "4 socket extension board": ["Anchor", "Havells"],
+}
+KIND_NOUN = {t[0]: t[1] for t in TYPES} | {"glass_cutter": "glass cutter", "bolt_cutter": "bolt cutter",
+                                           "pipe_cutter": "pipe cutter"}
+SPEC_V4 = re.compile(r"\b\d+(?:\.\d+)?(?: ?(?:mm|sq mm|L|ml|HP|inch)|W|A|Ah|V)?\b")
+
+
+def respell_spec(rng: random.Random, word: str) -> str:
+    """"32A" -> "32 amp", "25W" -> "25 watt" (as people say them), sometimes."""
+    m = re.fullmatch(r"(\d+)(A|W)", word)
+    if m and rng.random() < 0.45:
+        return f"{m[1]} {'amp' if m[2] == 'A' else 'watt'}"
+    return word
+
+
+def to_devanagari_v4(rng: random.Random, name: str, family: str) -> str:
+    """Each word that has a Devanagari spelling is written in Devanagari (most of the time); the rest stays."""
+    out = []
+    for word in name.split():
+        dev = DEV_WORDS_V4.get(word.lower())
+        out.append(dev[0 if family == "hi" else 1] if dev and rng.random() < 0.85 else word)
+    return " ".join(out)
+
+
+def alternatives_v4(products: list[Product]) -> dict[str, list[dict]]:
+    """For each product: the products a shop may offer instead, as {brand, spec, noun, short}."""
+    real = load_real_products()
+    by_kind: dict[str, list[dict]] = {}
+    for r in real:
+        by_kind.setdefault(r["kind"], []).append(r)
+    by_name = {r["name"]: r for r in real}
+    out = {}
+    for p in products:
+        if p.source == "old":
+            brands = OLD_BRANDS_V4.get(p.name, [])
+            alts = []
+            for full, short in p.alts:
+                maker = brands if brands and not full.lower().startswith(("local", "fevicol", "m-seal")) else [None]
+                alts += [{"brand": b, "spec": None, "noun": full, "short": short} for b in maker]
+            out[p.name] = alts
+            continue
+        r = by_name[p.name]
+        mine, others = maker_words(r["name"]), []
+        for o in by_kind[r["kind"]]:  # other companies only, as in all_products()
+            theirs = maker_words(o["name"])
+            if not theirs & mine and not any(theirs & maker_words(x["name"]) for x in others):
+                others.append(o)
+        alts = []
+        for o in others[:4]:
+            core = re.sub(r" \(pack of \d+\)| for .*$", "", o["name"])
+            specs = [s for s in SPEC_V4.findall(core[len(o["brand"]):]) if re.search(r"\d", s)]
+            alts.append({"brand": o["brand"], "spec": " ".join(specs[:1]) or None,
+                         "noun": KIND_NOUN.get(o["kind"], o["short_noun"]), "short": o["short_noun"]})
+        out[p.name] = alts
+    return out
+
+
+# Prices said with a fraction: सवा (+1/4), साढ़े (+1/2), पौने (-1/4) before N सौ or N हज़ार (Marathi सव्वा, साडे,
+# पावणे; N + शे). price_words.json has these only on its grid (and डेढ़ / ढाई, दीड / अडीच); here they are built by
+# the same rule for every N, so prices off the grid are said too (पौने सत्रह सौ = 1675, सवा पाँच हज़ार = 5250).
+FRACTION_PREFIX = {
+    ("hi", "dev"): {"sava": ["सवा"], "saadhe": ["साढ़े", "साढे"], "paune": ["पौने"]},
+    ("hi", "roman"): {"sava": ["sava", "sawa", "savaa"], "saadhe": ["sadhe", "saadhe", "sade"],
+                      "paune": ["paune", "pone", "pauna"]},
+    ("mr", "dev"): {"sava": ["सव्वा"], "saadhe": ["साडे"], "paune": ["पावणे"]},
+    ("mr", "roman"): {"sava": ["savva", "sawwa"], "saadhe": ["sade", "saade"], "paune": ["pavane", "pavne"]},
+}
+FRACTION_DELTA = {"sava": 0.25, "saadhe": 0.5, "paune": -0.25}
+FRACTION_MIN = {"sava": 1, "saadhe": 3, "paune": 2}  # 150 / 250 are डेढ़ / ढाई, not "साढ़े एक / दो"
+THOUSAND = {("hi", "dev"): ["हज़ार", "हजार"], ("hi", "roman"): ["hazar", "hajar", "hazaar"],
+            ("mr", "dev"): ["हजार"], ("mr", "roman"): ["hazar", "hajar"]}
+SAU_N = [n for n in range(1, 46) if n % 10]  # N सौ: 1-9, 11-19, 21-29, ... (10, 20, 30, 40 are said in thousands)
+
+
+class Fractions:
+    def __init__(self, numbers: Numbers) -> None:
+        self.forms: dict[tuple[int, str, str], list[list[str]]] = {}  # (price, lang, script) -> options
+        for price, forms in numbers.forms.items():  # price_words.json's own colloquial forms (डेढ़ सौ, ढाई हज़ार)
+            for lang in ("hi", "mr"):
+                for o in forms.get((lang, "colloquial"), []):
+                    self.add(price, lang, "dev", o["dev"])
+                    self.add(price, lang, "roman", o["roman"])
+        for lang in ("hi", "mr"):
+            for script in ("dev", "roman"):
+                pre = FRACTION_PREFIX[(lang, script)]
+                for name, delta in FRACTION_DELTA.items():
+                    for n in SAU_N:
+                        if n < FRACTION_MIN[name]:
+                            continue
+                        hundreds = self.hundreds(numbers, n, lang, script)
+                        joins = [""] if lang == "mr" and n == 1 else ["", " "] if lang == "mr" else [" "]
+                        self.add(int(n * 100 + delta * 100), lang, script,
+                                 [p + j + h for p in pre[name] for h in hundreds for j in joins])
+                    for n in range(1, 20):
+                        if n < FRACTION_MIN[name] or n * 1000 + delta * 1000 > 20000:
+                            continue
+                        word = numbers.primary(n, lang)
+                        words = [""] if n == 1 else (word["dev"][:1] if script == "dev" else word["roman"])
+                        joins = [" "] if lang == "hi" or n == 1 else ["", " "]
+                        self.add(int(n * 1000 + delta * 1000), lang, script,
+                                 [(p + j + w + " " + t).replace("  ", " ") for p in pre[name] for j in joins
+                                  for w in words for t in THOUSAND[(lang, script)]])
+        self.tokens = {t for options in self.forms.values() for o in options for text in o for t in text.split()}
+        self.prices = {lang: sorted({p for (p, la, _) in self.forms if la == lang}) for lang in ("hi", "mr")}
+
+    @staticmethod
+    def hundreds(numbers: Numbers, n: int, lang: str, script: str) -> list[str]:
+        """N सौ / Nशे, the way price_words.json (and make_data.py above it) writes N x 100."""
+        if n == 1:
+            return ["सौ"] if (lang, script) == ("hi", "dev") else ["sau"] if lang == "hi" else (
+                ["शे"] if script == "dev" else ["she"])
+        kind = "formal" if n < 10 else "hundreds_style"
+        o = next(o for o in numbers.forms[n * 100][(lang, kind)] if o["primary"])
+        return o["dev"][:1] if script == "dev" else o["roman"][:2]
+
+    def add(self, price: int, lang: str, script: str, texts: list[str]) -> None:
+        texts = [nfc(t) for t in texts if t]
+        if texts:
+            self.forms.setdefault((price, lang, script), []).append(texts)
+
+    def words(self, rng: random.Random, price: int, lang: str, script: str) -> str | None:
+        options = self.forms.get((price, lang, "dev" if script == "dev" else "roman"))
+        if not options:
+            return None
+        texts = rng.choice(options)
+        return texts[0] if len(texts) == 1 or rng.random() < 0.55 else rng.choice(texts[1:])
+
+
+# Speech-to-text noise (Devanagari rows only). Parts of these kinds may lose or repeat a word: nothing the answer
+# depends on is in them except a price, and number words, digits and the alternative's name are never touched.
+NOISE_SAFE_SLOTS = {"open", "close", "filler", "address", "chatter", "timing", "price", "noprice"}
+NOISE_OPS = {"drop a word": 2, "merge words": 2, "split a word": 1, "repeat a word": 2, "filler word": 3,
+             "nukta/chandrabindu": 3, "digits": 1, "no punctuation": 3}
+KNOWN_MERGES = ["दे देंगे", "भेज देंगे", "कर देंगे", "मिल जाएगा", "आ जाएगा", "दे दूंगा", "ले लो", "दे जाएगा",
+                "लगा देंगे", "देऊ शकतो", "मिल जाएगी", "हो जाएगी", "पाठवून देतो", "बघून सांगतो", "चेक करके"]
+KNOWN_SPLITS = {"देखकर": "देख कर", "करके": "कर के", "आकर": "आ कर", "स्टॉकमध्ये": "स्टॉक मध्ये",
+                "आमच्याकडे": "आमच्या कडे", "गोडाऊनमध्ये": "गोडाऊन मध्ये", "सकाळपासून": "सकाळ पासून", "इससे": "इस से",
+                "उसकी": "उस की", "आपवाला": "आप वाला", "वाजेपर्यंत": "वाजे पर्यंत", "परवापर्यंत": "परवा पर्यंत",
+                "नाहीये": "नाही ये", "मिलाकर": "मिला कर", "तुमच्यासाठी": "तुमच्या साठी", "दुकानातून": "दुकाना तून"}
+REPEATABLE = {"हाँ", "हां", "है", "अरे", "जी", "हो", "आहे", "तो", "वो", "अच्छा", "बोलो", "बोला", "हेलो", "हॅलो"}
+ASR_FILLERS = {"hi": ["अं", "हम्म", "देखो", "मतलब", "तो", "अच्छा", "वो"], "mr": ["अं", "हां", "बघा", "म्हणजे", "तर"]}
+ASR_START_FILLERS = {"hi": ["हाँ जी", "हां जी", "हेलो"], "mr": ["हां", "हॅलो"]}
+KNOWN_MERGES = [nfc(m) for m in KNOWN_MERGES]
+KNOWN_SPLITS = {nfc(k): nfc(v) for k, v in KNOWN_SPLITS.items()}
+REPEATABLE = {nfc(w) for w in REPEATABLE}
+# English words that Whisper writes in Devanagari or in Latin letters, either way (Hinglish rows).
+LATIN_LOANS = {"डिलीवरी": "delivery", "डिलिव्हरी": "delivery", "स्टॉक": "stock", "रेट": "rate", "प्राइस": "price",
+               "एमआरपी": "MRP", "जीएसटी": "GST", "ऑर्डर": "order", "अवेलेबल": "available", "फाइनल": "final",
+               "डिस्काउंट": "discount", "पिकअप": "pickup", "होम": "home", "सर": "sir", "सॉरी": "sorry",
+               "कूरियर": "courier", "कॉल": "call", "पीस": "piece", "बॉक्स": "box", "ओनर": "owner", "शॉप": "shop"}
+
+
+class Row4(Row):
+    """A v4 row: v4's banks, protected facts, and speech-to-text noise."""
+
+    def __init__(self, gen: "Generator4", lang: str, product: Product, kind: str, noisy: bool) -> None:
+        super().__init__(gen, lang, product, kind)
+        self.slots: list[str] = []
+        self.protect: list[str] = []  # numbers as said, the alternative's name: never changed by the noise
+        self.noisy = noisy
+        self.noise: list[str] = []
+        self.alt_names: list[str] = []
+
+    def bank_lang(self, slot: str) -> str:
+        if self.lang in OWN_BANK_V4:
+            own = BANKS4[self.lang]
+            if slot in own and (self.rng.random() < 0.7 or slot not in BANKS4[BASE[self.lang]]):
+                return self.lang
+            return BASE[self.lang]
+        return self.lang
+
+    def has(self, slot: str) -> bool:
+        return slot in BANKS4[self.lang] or slot in BANKS4[self.base]
+
+    def say(self, slot: str, **text) -> str:
+        blang = self.bank_lang(slot)
+        return self.fill(self.rng.choice(BANKS4[blang][slot]), blang, **text)
+
+    def add(self, slot: str, **text) -> None:
+        self.parts.append(self.say(slot, **text))
+        self.slots.append(slot)
+
+    def render(self, key: str, family: str, script: str) -> tuple[str, bool]:
+        if key == self.main and self.price_style == "fraction":
+            said = self.gen.fractions.words(self.rng, self.nums[key], family, script) if family != "en" else None
+            if said:
+                self.protect.append(nfc(said))
+                return said, True
+            self.price_style = "colloquial"
+        value, words = super().render(key, family, script)
+        self.protect.append(nfc(value))
+        return value, words
+
+    def alt_text(self, allow_short: bool = True, label: bool = True) -> str:
+        said, name = self.gen.alt_phrase(self, allow_short)
+        if label:
+            self.answer["alternative"] = name
+        self.protect.append(name)
+        self.alt_names.append(name)
+        return said
+
+    # --- the noise
+    def fact_word(self, word: str) -> bool:
+        w = word.strip(",.।?!")
+        if not w or any(c.isdigit() for c in w) or w in self.gen.tokens4:
+            return True
+        return any(w in t or t in w for p in self.protect for t in p.split())
+
+    def noise_parts(self, ops: list[str]) -> None:
+        rng, family = self.rng, FAMILY[self.base]
+        if len(self.slots) != len(self.parts):
+            self.slots = ["?"] * len(self.parts)  # unknown parts are not touched
+        safe = [i for i, s in enumerate(self.slots) if s in NOISE_SAFE_SLOTS]
+        for op in ops:
+            done = False
+            if op == "drop a word":
+                for i in rng.sample(safe, len(safe)):
+                    words = self.parts[i].split()
+                    can = [j for j, w in enumerate(words) if not self.fact_word(w)
+                           and not (0 < j < len(words) - 1 and self.fact_word(words[j - 1])
+                                    and self.fact_word(words[j + 1]))]
+                    if len(words) >= 3 and can:
+                        j = rng.choice(can)
+                        if j > 0 and words[j][-1] in ",.।?!" and words[j - 1][-1] not in ",.।?!":
+                            words[j - 1] += words[j][-1]
+                        self.parts[i] = " ".join(words[:j] + words[j + 1:])
+                        done = True
+                        break
+            elif op == "merge words":
+                known = [(i, m) for i, part in enumerate(self.parts) for m in KNOWN_MERGES if m in part]
+                if known:
+                    i, m = rng.choice(known)
+                    self.parts[i] = self.parts[i].replace(m, m.replace(" ", ""), 1)
+                    done = True
+                else:
+                    for i in rng.sample(safe, len(safe)):
+                        words = self.parts[i].split()
+                        pairs = [j for j in range(len(words) - 1) if not self.fact_word(words[j])
+                                 and not self.fact_word(words[j + 1]) and not re.search(r"[,.।?!]$", words[j])]
+                        if pairs:
+                            j = rng.choice(pairs)
+                            self.parts[i] = " ".join(words[:j] + [words[j] + words[j + 1]] + words[j + 2:])
+                            done = True
+                            break
+            elif op == "split a word":
+                found = [(i, w) for i, part in enumerate(self.parts) for w in KNOWN_SPLITS
+                         if re.search(rf"(?<![ऀ-ॿ]){w}(?![ऀ-ॿ])", part)]
+                if found:
+                    i, w = rng.choice(found)
+                    self.parts[i] = self.parts[i].replace(w, KNOWN_SPLITS[w], 1)
+                    done = True
+            elif op == "repeat a word":
+                for i in rng.sample(range(len(self.parts)), len(self.parts)):
+                    words = self.parts[i].split()
+                    if not words:
+                        continue
+                    first = words[0].strip(",.।?!")
+                    if first in REPEATABLE:
+                        self.parts[i] = first + " " + self.parts[i]
+                        done = True
+                        break
+                    if i in safe:
+                        can = [j for j, w in enumerate(words) if not self.fact_word(w)
+                               and not re.search(r"[,.।?!]$", w)]
+                        if can:
+                            j = rng.choice(can)
+                            self.parts[i] = " ".join(words[:j + 1] + [words[j]] + words[j + 1:])
+                            done = True
+                            break
+            elif op == "filler word":
+                i = rng.randrange(len(self.parts) + 1)
+                word = rng.choice(ASR_START_FILLERS[family] if i == 0 and rng.random() < 0.4 else ASR_FILLERS[family])
+                self.parts.insert(i, word)
+                self.slots.insert(i, "filler")
+                safe = [s + (s >= i) for s in safe] + [i]
+                done = True
+            if done:
+                self.noise.append(op)
+
+    def noise_text(self, said: str, ops: list[str]) -> str:
+        rng = self.rng
+        for op in ops:
+            new = said
+            if op == "nukta/chandrabindu":
+                words = said.split(" ")
+                for j, w in enumerate(words):
+                    if self.fact_word(w):
+                        continue
+                    if "़" in w and rng.random() < 0.7:
+                        w = w.replace("़", "")  # ज़ -> ज, ड़ -> ड
+                    if "ँ" in w and rng.random() < 0.7:
+                        w = w.replace("ँ", "ं")  # हाँ -> हां
+                    if w.startswith("नहीं") and rng.random() < 0.5:
+                        w = w.replace("नहीं", "नही", 1)
+                    if "ॅ" in w and rng.random() < 0.5:
+                        w = w.replace("ॅ", "े")  # हॅलो -> हेलो
+                    words[j] = w
+                new = " ".join(words)
+            elif op == "digits":  # 220 <-> २२०, not inside the alternative's name ("32A")
+                to_dev = bool(re.search(r"[0-9]", said))
+                table = DEV_DIGITS if to_dev else str.maketrans("०१२३४५६७८९", "0123456789")
+                names = {t for a in self.alt_names for t in a.split()}
+                words = said.split(" ")
+                for j, w in enumerate(words):
+                    core = w.strip(",.।?!")
+                    if core and core not in names and re.fullmatch(r"[0-9]+" if to_dev else r"[०-९]+", core):
+                        words[j] = w.translate(table)
+                new = " ".join(words)
+            elif op == "no punctuation" and "no punctuation" not in self.flags:
+                new = self.gen.strip_punctuation(said)
+            if new != said:
+                said = new
+                self.noise.append(op)
+        return said
+
+    def latin_loanwords(self) -> None:
+        """Hinglish rows: some English words in Latin letters, as Whisper sometimes writes them."""
+        for i, part in enumerate(self.parts):
+            words = part.split(" ")
+            for j, w in enumerate(words):
+                core = w.strip(",.।?!")
+                if core in LATIN_LOANS and not self.fact_word(w) and self.rng.random() < 0.7:
+                    words[j] = w.replace(core, LATIN_LOANS[core])
+            self.parts[i] = " ".join(words)
+        self.flags.add("latin loanwords")
+
+    def finish(self) -> str:
+        script, rng = SCRIPT[self.base], self.rng
+        if len(self.slots) != len(self.parts):
+            self.slots = ["?"] * len(self.parts)
+        self.parts = [nfc(part) for part in self.parts]
+        if rng.random() < 0.3 and self.kind != "short":
+            self.flags.add("filler")
+            fillers = BANKS4[self.bank_lang("filler")]["filler"]
+            first = 1 if "opened" in self.flags and len(self.parts) > 1 else 0
+            i = rng.randrange(first, len(self.parts))
+            self.parts[i] = rng.choice(fillers) + " " + self.parts[i]
+        text_ops: list[str] = []
+        if self.noisy:
+            weights = dict(NOISE_OPS)
+            ops = []
+            for _ in range(rng.choice([1, 1, 2, 2, 3])):
+                op = rng.choices(list(weights), weights=list(weights.values()))[0]
+                ops.append(op)
+                weights.pop(op)
+            self.noise_parts([o for o in ops if o in ("drop a word", "merge words", "split a word", "repeat a word",
+                                                     "filler word")])
+            text_ops = [o for o in ops if o in ("nukta/chandrabindu", "digits", "no punctuation")]
+        if self.lang in ("hx_dev", "mx_dev") and rng.random() < 0.35:
+            self.latin_loanwords()
+        sep = rng.choice(SEP[script])
+        no_punct = rng.random() < 0.12
+        said = self.parts[0]
+        for part in self.parts[1:]:
+            if no_punct:
+                said += ", " + part
+                continue
+            new_sentence = said.endswith(("?", ".", "!", "।"))
+            joiner = " " if new_sentence else sep
+            if joiner == " " and not new_sentence and self.gen.ends_with_number(said) and \
+                    self.gen.starts_with_number(part):
+                joiner = ", "
+            said += joiner + part
+        if script == "rom" and rng.random() < 0.35:
+            said = said[0].upper() + said[1:]
+        if no_punct:
+            said = self.gen.strip_punctuation(said)
+            if script == "rom":
+                said = said.lower()
+                if self.answer["alternative"]:
+                    self.answer["alternative"] = self.answer["alternative"].lower()
+            self.flags.add("no punctuation")
+        elif not said.endswith(("?", ".", "!", "।")) and rng.random() < 0.4:
+            said += "।" if script == "dev" and sep == "। " else "."
+        if self.noisy:
+            said = self.noise_text(said, text_ops)
+            if not self.noise:  # every noisy row gets at least one change
+                said = self.noise_text(said, ["no punctuation", "nukta/chandrabindu", "digits"])
+            if not self.noise:
+                said = ASR_FILLERS[FAMILY[self.base]][0] + " " + said
+                self.noise.append("filler word")
+        return said
+
+
+class Generator4(Generator):
+    def __init__(self, seed: int) -> None:
+        super().__init__(seed)
+        self.fractions = Fractions(self.numbers)
+        self.tokens4 = self.numbers.tokens | self.fractions.tokens
+        self.alts4 = alternatives_v4(self.products)
+
+    def ends_with_number(self, text: str) -> bool:
+        words = re.findall(r"[\wऀ-ॿ]+", text)
+        return bool(words) and (any(c.isdigit() for c in words[-1]) or words[-1].lower() in self.tokens4)
+
+    def starts_with_number(self, text: str) -> bool:
+        words = re.findall(r"[\wऀ-ॿ]+", text)
+        return bool(words) and (any(c.isdigit() for c in words[0]) or words[0].lower() in self.tokens4)
+
+    # --- prices
+    def choose_style(self, row: Row) -> str:
+        r = self.rng.random()
+        if SCRIPT[row.base] == "dev":
+            return "digits" if r < 0.26 else "dev_digits" if r < 0.32 else "words" if r < 0.52 else (
+                "fraction" if r < 0.84 else "hundreds")
+        return "digits" if r < 0.34 else "words" if r < 0.52 else "fraction" if r < 0.84 else "hundreds"
+
+    def pick_price(self, row: Row, style: str | None = None) -> int:
+        style = style or self.choose_style(row)
+        fams = self.family_of(row)
+        if style != "fraction" or not fams:
+            return super().pick_price(row, "colloquial" if style == "fraction" else style)
+        product, cands = row.product, self.fractions.prices[fams[0]]
+        if product.price is not None:
+            base = self.jitter(product.price)
+            near = sorted((c for c in cands if abs(c - base) <= 0.15 * base), key=lambda c: abs(c - base))
+            near = near[:3]
+        else:
+            near = [c for c in cands if product.low <= c <= product.high]
+        if not near:
+            return super().pick_price(row, "colloquial")
+        row.price_style = "fraction"
+        return self.rng.choice(near)
+
+    def other_style(self, row: Row, key: str) -> str:
+        if row.price_style == "fraction" and key not in row.styles:
+            row.price_style = "words"
+            try:
+                return super().other_style(row, key)
+            finally:
+                row.price_style = "fraction"
+        return super().other_style(row, key)
+
+    # --- the alternative: brand + size/type + item, as said
+    def alt_phrase(self, row: Row4, allow_short: bool = True) -> tuple[str, str]:
+        rng = self.rng
+        alt = rng.choice(self.alts4[row.product.name])
+        brand, spec, noun, short = alt["brand"], alt["spec"], alt["noun"], alt["short"]
+        if row.product.source == "old":
+            full = (brand + " " if brand else "") + " ".join(respell_spec(rng, w) for w in noun.split())
+            partial = brand or short
+        else:
+            item = noun if rng.random() < 0.6 else short
+            full = " ".join(x for x in (brand, respell_spec(rng, spec) if spec else None, item) if x)
+            partial = f"{brand} {item}" if spec else brand
+        r = rng.random()
+        use_partial = bool(r < 0.14 and partial and partial != full and allow_short)
+        name = partial if use_partial else full
+        if SCRIPT[row.base] == "dev" and rng.random() < 0.55:
+            name = to_devanagari_v4(rng, name, FAMILY[row.base])
+        name = nfc(name)
+        wala = allow_short and (r > 0.86 or (use_partial and rng.random() < 0.5))
+        suffix = {"rom": " wala", "dev": " वाला"}[SCRIPT[row.base]] if wala else ""
+        return name + suffix, name
+
+    # --- rows
+    def row(self, kind: str, lang: str = "hi_dev", noisy: bool = False) -> tuple[dict, Row4]:
+        product = self.product_for(kind, lang)
+        row = Row4(self, lang, product, kind, noisy)
+        getattr(self, "b_" + kind)(row)
+        said = row.finish()
+        return {"product": product.name, "said": said, "answer": row.answer}, row
+
+    def b_spoken_fraction(self, row: Row4) -> None:
+        self.opening(row)
+        row.answer["price_inr"] = row.set_price("fraction")
+        if self.rng.random() < 0.25:
+            row.add("price")
+            self.yes(row)
+        else:
+            self.yes(row)
+            row.add("price")
+        row.delivery(0.4)
+        self.closing(row)
+
+    def b_discount(self, row: Row4) -> None:
+        self.opening(row, 0.2)
+        p = row.set_price()
+        row.nums["m"] = self.near(p, 1.08, 1.3, {p})
+        row.answer["price_inr"] = p
+        self.yes(row)
+        row.add(self.either(row, "discount"))
+        row.delivery(0.35)
+
+    def b_delivery_said(self, row: Row4) -> None:
+        self.opening(row, 0.25)
+        self.yes(row)
+        if self.rng.random() < 0.55:
+            row.answer["price_inr"] = row.set_price()
+            row.add("price")
+        row.delivery(1.0)
+        self.closing(row, 0.15)
+
+    def b_delivery_only(self, row: Row4) -> None:
+        """Only the delivery question is answered (the voice call asks it on its own): stock and price unknown."""
+        self.opening(row, 0.3)
+        row.delivery(1.0)
+        self.closing(row, 0.1)
+
+    def b_wrong_number(self, row: Row4) -> None:
+        self.opening(row, 0.3)
+        row.add("wrong_number")
+
+    def b_other_variant_price(self, row: Row4) -> None:
+        p = row.set_price()
+        row.nums["ap"] = self.near(p, 0.7, 1.4, {p})
+        row.answer["price_inr"] = p
+        self.yes(row)
+        alt = row.alt_text(allow_short=False, label=False)  # in stock: another product is no alternative
+        if row.has("other_first") and self.rng.random() < 0.5:
+            row.add("other_first", alt=alt)
+        else:
+            row.add("price")
+            row.add("other", alt=alt)
+        row.delivery(0.3)
+
+    def b_rambling(self, row: Row4) -> None:
+        inner = self.rng.choice(["clear_price", "spoken_fraction", "discount", "mrp_vs_offered", "old_vs_new",
+                                 "delivery_fee", "delivery_said", "no_stock", "no_stock_alt", "no_stock_alt_price",
+                                 "comes_later", "unclear", "price_correction", "quantity"])
+        if inner == "mrp_vs_offered" and not row.product.mrp:
+            inner = "clear_price"
+        getattr(self, "b_" + inner)(row)
+        row.flags.add("inner:" + inner)
+        blang = row.bank_lang("chatter")
+        used = set(row.parts)
+        fresh = [t for t in BANKS4[blang]["chatter"] if row.fill(t, blang) not in used]
+        first = 1 if "opened" in row.flags else 0
+        last = len(row.parts) - (1 if "closed" in row.flags else 0)
+        for template in self.rng.sample(fresh, min(len(fresh), self.rng.randint(2, 4))):
+            i = self.rng.randint(first, last)
+            row.parts.insert(i, row.fill(template, blang))
+            row.slots.insert(i, "chatter")
+            last += 1
+        if self.rng.random() < 0.4 and "opened" not in row.flags:
+            row.parts.insert(0, row.say("open"))
+            row.slots.insert(0, "open")
+            row.flags.add("opened")
+        if self.rng.random() < 0.3 and "closed" not in row.flags:
+            row.add("close")
+            row.flags.add("closed")
+
+    def b_short(self, row: Row4) -> None:
+        r = self.rng.random()
+        if r < 0.4:
+            self.yes(row)
+        elif r < 0.8:
+            row.answer["in_stock"] = False
+            row.say_no()
+        else:
+            row.add("unclear")
+        if self.rng.random() < 0.5:
+            blang = row.bank_lang("address")
+            row.parts[-1] += " " + self.rng.choice(BANKS4[blang]["address"])
+
+
+PLAN_V4 = {
+    "clear_price": 870, "spoken_fraction": 480, "in_stock_no_price": 240,
+    "mrp_vs_offered": 180, "discount": 240, "old_vs_new": 120, "unit_vs_bulk": 220, "pack_price": 70, "gst": 90,
+    "delivery_fee": 140, "quantity": 90, "timing": 50, "other_variant_price": 80,
+    "delivery_said": 300, "delivery_only": 120,
+    "no_stock": 270, "no_stock_alt": 420, "no_stock_alt_price": 180, "comes_later": 160, "no_stock_price_said": 50,
+    "can_order": 80,
+    "unclear": 330, "wrong_number": 70, "unclear_price_said": 50,
+    "price_correction": 200, "stock_correction_yes": 70, "stock_correction_no": 70, "negation_trap_yes": 90,
+    "negation_trap_no": 70, "delivery_trap": 100,
+    "rambling": 330, "short": 170,
+}
+GROUPS_V4 = {
+    "single clear price": ["clear_price"],
+    "price said with सवा/साढ़े/पौने/डेढ़/ढाई": ["spoken_fraction"],
+    "in stock, no price": ["in_stock_no_price"],
+    "several numbers (MRP, discount, old/new, unit/box, pack, GST, fee, ...)": [
+        "mrp_vs_offered", "discount", "old_vs_new", "unit_vs_bulk", "pack_price", "gst", "delivery_fee", "quantity",
+        "timing", "other_variant_price"],
+    "delivery said (direct and indirect)": ["delivery_said", "delivery_only"],
+    "not in stock": ["no_stock", "no_stock_alt", "no_stock_alt_price", "comes_later", "no_stock_price_said",
+                     "can_order"],
+    "unclear / call back / wrong number (all null)": ["unclear", "wrong_number", "unclear_price_said"],
+    "self-corrections and negation traps": ["price_correction", "stock_correction_yes", "stock_correction_no",
+                                            "negation_trap_yes", "negation_trap_no", "delivery_trap"],
+    "rambling": ["rambling"],
+    "short": ["short"],
+}
+PRICE_STYLE_NAMES = {"digits": "digits", "dev_digits": "Devanagari digits", "words": "words",
+                     "colloquial": "words, सवा/डेढ़ style (on the grid)", "hundreds": "words, hundreds style (बारह सौ)",
+                     "fraction": "words, सवा/साढ़े/पौने/डेढ़/ढाई + सौ/हज़ार"}
+
+
+def make_v4(n: int = N_ROWS_V4, seed: int = SEED_V4) -> tuple[list[dict], list[dict]]:
+    gen = Generator4(seed)
+    plan = [kind for kind, count in PLAN_V4.items() for _ in range(count)]
+    assert len(plan) == n, len(plan)
+    gen.rng.shuffle(plan)
+    classes = [name for name, (share, _) in MIX_V4.items() for _ in range(round(share * n))]
+    assert len(classes) == n, len(classes)
+    gen.rng.shuffle(classes)
+    dev = [i for i, c in enumerate(classes) if c.endswith("Devanagari")]
+    noisy = set(gen.rng.sample(dev, round(NOISE_SHARE_V4 * len(dev))))
+    rows, meta, seen = [], [], set()
+    for i, (kind, cls) in enumerate(zip(plan, classes, strict=True)):
+        langs = MIX_V4[cls][1]
+        for _ in range(50):
+            lang = gen.rng.choices(list(langs), weights=list(langs.values()))[0]
+            ex, row = gen.row(kind, lang, noisy=i in noisy)
+            if ex["said"] not in seen:
+                break
+        seen.add(ex["said"])
+        rows.append(ex)
+        style = PRICE_STYLE_NAMES.get(row.price_style, "digits") if ex["answer"]["price_inr"] is not None else None
+        meta.append({"kind": kind, "lang": row.lang, "mix": cls, "style": style, "flags": sorted(row.flags),
+                     "noise": row.noise, "noisy": i in noisy, "source": row.product.source})
+    return rows, meta
+
+
+HELD_OUT = ("test.jsonl", "hard_test.jsonl", "fresh_test.jsonl", "asr_test.jsonl")
+
+
+def leakage_v4(rows: list[dict], n: int = 8) -> dict:
+    """Counts only (no text is printed): held-out rows equal to, or sharing n words in a row with, a training row."""
+    def grams(text):
+        w = words_of(text)
+        return {tuple(w[i:i + n]) for i in range(len(w) - n + 1)}
+
+    train_said = {r["said"] for r in rows}
+    train_grams = set().union(*(grams(s) for s in train_said))
+    out = {}
+    for name in HELD_OUT:
+        path = HERE / "data" / name
+        if not path.exists():
+            continue
+        held = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        out[name] = {"identical_said": sum(r["said"] in train_said for r in held),
+                     f"rows_sharing_{n}_word_run": sum(bool(grams(r["said"]) & train_grams) for r in held)}
+    return out
+
+
+def stats_v4(rows: list[dict], meta: list[dict]) -> dict:
+    n = len(rows)
+
+    def share(counter: Counter) -> dict:
+        return {k: f"{v} ({v / n:.1%})" for k, v in counter.most_common()}
+
+    group_of = {kind: g for g, kinds in GROUPS_V4.items() for kind in kinds}
+    dev = [m for m in meta if m["mix"].endswith("Devanagari")]
+    nulls = sum(all(v is None for v in r["answer"].values()) for r in rows)
+    alts = [r["answer"]["alternative"] for r in rows if r["answer"]["alternative"]]
+    return {
+        "rows": n,
+        "categories": share(Counter(group_of[m["kind"]] for m in meta)),
+        "kinds": share(Counter(m["kind"] for m in meta)),
+        "language_and_script_mix": share(Counter(m["mix"] for m in meta)),
+        "language_detail": share(Counter(LANG_NAMES_V4[m["lang"]] for m in meta)),
+        "script_of_the_text": share(Counter(script_of(r["said"]) for r in rows)),
+        "asr_noise": {"devanagari_rows": len(dev), "with_noise": f"{sum(m['noisy'] for m in dev)} "
+                      f"({sum(m['noisy'] for m in dev) / len(dev):.1%} of Devanagari rows)",
+                      "changes": dict(Counter(op for m in dev for op in m["noise"]).most_common())},
+        "all_four_null": f"{nulls} ({nulls / n:.1%})",
+        "in_stock": share(Counter(str(r["answer"]["in_stock"]) for r in rows)),
+        "delivery": share(Counter(str(r["answer"]["delivery"]) for r in rows)),
+        "alternative": {"null": n - len(alts), "text": len(alts),
+                        "words in the name": dict(sorted(Counter(len(a.split()) for a in alts).items())),
+                        "in Devanagari": sum(bool(DEVANAGARI.search(a)) for a in alts)},
+        "price_inr": {"null": sum(r["answer"]["price_inr"] is None for r in rows),
+                      "how_said": dict(Counter(m["style"] for m in meta if m["style"]).most_common())},
+        "latin_loanwords_rows": sum("latin loanwords" in m["flags"] for m in meta),
+        "no_punctuation": sum("no punctuation" in m["flags"] or "no punctuation" in m["noise"] for m in meta),
+        "product_source": share(Counter(m["source"] for m in meta)),
+        "distinct_products": len({r["product"] for r in rows}),
+        "leakage": leakage_v4(rows),
+    }
+
+
+def print_table(title: str, table: dict) -> None:
+    print(f"\n{title}")
+    width = max(len(k) for k in table)
+    for k, v in table.items():
+        print(f"  {k:<{width}}  {v}")
+
+
+def write_rows(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    print(f"wrote {len(rows)} examples to {path}")
-    print(json.dumps(stats(rows, meta), ensure_ascii=False, indent=1))
+
+
+def main() -> None:
+    """python make_data.py: both sets; python make_data.py v2 (or v4): only that one."""
+    import sys
+
+    which = sys.argv[1:] or ["v2", "v4"]
+    if "v2" in which:
+        path = HERE / "data" / "train.jsonl"
+        rows, meta = make()
+        write_rows(path, rows)
+        print(f"wrote {len(rows)} examples to {path}")
+        print(json.dumps(stats(rows, meta), ensure_ascii=False, indent=1))
+    if "v4" in which:
+        path = HERE / "data" / "train_v4.jsonl"
+        rows, meta = make_v4()
+        write_rows(path, rows)
+        print(f"\nwrote {len(rows)} examples to {path} (training set v4)")
+        st = stats_v4(rows, meta)
+        print_table("v4 categories", st["categories"])
+        print_table("v4 language and script mix", st["language_and_script_mix"])
+        print_table("v4 speech-to-text noise", st["asr_noise"])
+        print(json.dumps({k: v for k, v in st.items() if k not in ("categories", "language_and_script_mix",
+                                                                   "asr_noise")}, ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":

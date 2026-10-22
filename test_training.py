@@ -1,5 +1,7 @@
 """Checks the data files and the scoring.  Run:  python -m pytest"""
 
+import functools
+import hashlib
 import json
 import re
 import sys
@@ -28,7 +30,8 @@ def assert_well_formed(ex: dict) -> None:
 
 
 def test_data_files_are_well_formed() -> None:
-    for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
+    for name in ("train.jsonl", "train_v1.jsonl", "train_v4.jsonl", "test.jsonl", "hard_test.jsonl",
+                 "fresh_test.jsonl"):
         for ex in load(name):
             assert_well_formed(ex)
 
@@ -69,14 +72,84 @@ def price_words() -> dict[int, set[str]]:
 
 
 def test_train_price_is_actually_said() -> None:
-    """The price is in the reply: as digits (also Devanagari digits, or 1,250) or as words from price_words.json."""
+    """The price is in the reply: as digits (also Devanagari digits, or 1,250) or as words from price_words.json.
+
+    v4 also says prices with a fraction (सवा / साढ़े / पौने + N सौ / N हज़ार, off price_words.json's grid too);
+    fraction_forms() below builds those by the rule, independently of make_data.py.
+    """
     words = price_words()
     devanagari_digits = str.maketrans("0123456789", "०१२३४५६७८९")
-    for ex in load("train.jsonl"):
-        p = ex["answer"]["price_inr"]
-        if p is not None:
-            said_as = {str(p), str(p).translate(devanagari_digits), f"{p:,}"} | words.get(p, set())
-            assert any(s in nfc_lower(ex["said"]) for s in said_as), ex
+    for name, extra in (("train.jsonl", False), ("train_v4.jsonl", True)):
+        for ex in load(name):
+            p = ex["answer"]["price_inr"]
+            if p is not None:
+                said_as = {str(p), str(p).translate(devanagari_digits), f"{p:,}"} | words.get(p, set())
+                if extra:
+                    said_as |= fraction_forms(p)
+                assert any(s in nfc_lower(ex["said"]) for s in said_as), (name, ex)
+
+
+# Fractions of a hundred or a thousand, as said in Hindi and Marathi (Devanagari and Latin letters).
+FRACTIONS = {  # (lang, script): {quarters added: spellings}
+    ("hi", "dev"): {1: ["सवा"], 2: ["साढ़े", "साढे"], -1: ["पौने"]},
+    ("hi", "roman"): {1: ["sava", "sawa", "savaa"], 2: ["sadhe", "saadhe", "sade"], -1: ["paune", "pone", "pauna"]},
+    ("mr", "dev"): {1: ["सव्वा"], 2: ["साडे"], -1: ["पावणे"]},
+    ("mr", "roman"): {1: ["savva", "sawwa"], 2: ["sade", "saade"], -1: ["pavane", "pavne"]},
+}
+HUNDRED_WORD = {("hi", "dev"): [" सौ"], ("hi", "roman"): [" sau", " so"], ("mr", "dev"): ["शे"], ("mr", "roman"): ["she"]}
+THOUSAND_WORD = {("hi", "dev"): ["हज़ार", "हजार"], ("hi", "roman"): ["hazar", "hajar", "hazaar"],
+                 ("mr", "dev"): ["हजार"], ("mr", "roman"): ["hazar", "hajar"]}
+
+
+@functools.cache
+def number_words() -> dict[tuple[int, str, str], set[str]]:
+    """(n, lang, "dev" or "roman") -> every spelling of n (1-99, and n x 100) in price_words.json."""
+    data = json.loads((HERE / "data" / "real" / "price_words.json").read_text(encoding="utf-8"))
+    out: dict[tuple[int, str, str], set[str]] = {}
+    for entry in data["prices"]:
+        for lang in ("hi", "mr"):
+            for kind in ("formal", "hundreds_style"):
+                for f in entry[lang].get(kind, []):
+                    out.setdefault((entry["price"], lang, "dev"), set()).update(
+                        nfc_lower(t) for t in [f["text"], *f.get("spacing_variants", [])])
+                    out.setdefault((entry["price"], lang, "roman"), set()).update(
+                        [f["roman"], *f.get("roman_variants", [])])
+    return out
+
+
+@functools.cache
+def fraction_forms(p: int) -> frozenset[str]:
+    """Every way to say p as सवा / साढ़े / पौने + N सौ (N = 1-45, not 10, 20, 30, 40) or + N हज़ार (N = 1-19)."""
+    words, out = number_words(), set()
+    for (lang, script), prefixes in FRACTIONS.items():
+        joins = [" "] if lang == "hi" else ["", " "]
+        for quarters, spellings in prefixes.items():
+            n, rest = divmod(p - 25 * quarters, 100)
+            if not rest and 1 <= n <= 45 and n % 10:
+                if n == 1:
+                    bases = ["सौ"] if (lang, script) == ("hi", "dev") else ["sau", "so"] if lang == "hi" else (
+                        ["शे"] if script == "dev" else ["she"])
+                    out |= {s + (" " if lang == "hi" else "") + b for s in spellings for b in bases}
+                else:  # N x 100 as price_words.json says it, or N + सौ / शे
+                    bases = words.get((n * 100, lang, script), set()) | {
+                        w + h for w in words[(n, lang, script)] for h in HUNDRED_WORD[(lang, script)]}
+                    out |= {s + j + b for s in spellings for j in joins for b in bases}
+            n, rest = divmod(p - 250 * quarters, 1000)
+            if not rest and 1 <= n <= 19:
+                heads = [""] if n == 1 else sorted(words[(n, lang, script)])
+                out |= {(s + j + h + " " + t).replace("  ", " ") for s in spellings for j in joins for h in heads
+                        for t in THOUSAND_WORD[(lang, script)]}
+    return frozenset(nfc_lower(f) for f in out)
+
+
+def test_fraction_prices_by_hand() -> None:
+    """Checked by hand: पौने सत्रह सौ = 1675, साडेचारशे = 450, पावणेतीनशे = 275, सवा पाँच हज़ार = 5250."""
+    for p, said in ((1675, "पौने सत्रह सौ"), (450, "साडेचारशे"), (275, "पावणेतीनशे"), (5250, "सवा पाँच हज़ार"),
+                    (125, "सवा सौ"), (125, "सव्वाशे"), (3750, "पौने चार हज़ार"), (1250, "साढ़े बारह सौ"),
+                    (1250, "sava hazar"), (6500, "साडेसहा हजार"), (275, "paune teen sau"), (450, "sade charshe")):
+        assert nfc_lower(said) in fraction_forms(p), (p, said)
+    assert nfc_lower("पौने सत्रह सौ") not in fraction_forms(1700)
+    assert nfc_lower("साडेचारशे") not in fraction_forms(350)
 
 
 def test_test_sets_are_not_in_training_data_or_each_other() -> None:
@@ -92,12 +165,24 @@ def runs(text: str, n: int = 8) -> set[tuple[str, ...]]:
     return {tuple(w[i:i + n]) for i in range(len(w) - n + 1)}
 
 
+def held_out_names() -> list[str]:
+    """The held-out sets, never trained on; asr_test.jsonl (calls as speech-to-text writes them) when it is there."""
+    return ["test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"] + (
+        ["asr_test.jsonl"] if (HERE / "data" / "asr_test.jsonl").exists() else [])
+
+
 def test_train_shares_no_long_word_run_with_test_sets() -> None:
-    """No run of 8 words in a row is the same in a training reply and a test reply."""
-    train = set().union(*(runs(ex["said"]) for ex in load("train.jsonl")))
-    for name in ("test.jsonl", "hard_test.jsonl", "fresh_test.jsonl"):
-        shared = [ex["said"] for ex in load(name) if runs(ex["said"]) & train]
-        assert not shared, (name, shared[:3])
+    """No run of 8 words in a row is the same in a training reply (v2 or v4) and a test reply, and no reply is
+    the same. Only counts are reported: a failure must not print held-out text."""
+    for train_name in ("train.jsonl", "train_v4.jsonl"):
+        rows = load(train_name)
+        train = set().union(*(runs(ex["said"]) for ex in rows))
+        said = {nfc_lower(ex["said"]).strip() for ex in rows}
+        for name in held_out_names():
+            held = load(name)
+            shared = sum(bool(runs(ex["said"]) & train) for ex in held)
+            same = sum(nfc_lower(ex["said"]).strip() in said for ex in held)
+            assert not shared and not same, f"{train_name} vs {name}: {shared} rows share 8 words, {same} identical"
 
 
 def test_perfect_replies_score_full_marks() -> None:
@@ -129,19 +214,28 @@ def test_notebook_is_built_from_current_files() -> None:
     scope: dict = {}
     exec(data_cell, scope)  # noqa: S102 - our own generated cell
     real = [{k: r[k] for k in ("product", "said", "answer")} for r in load("real/xpqa_hi_examples.jsonl")]
-    assert scope["TRAIN_SET"] == "v2"
+    assert scope["TRAIN_SET"] == "v2"  # the default stays v2 until v4 is measured
     assert scope["TRAIN_DATA"] == load("train.jsonl") + real
     assert scope["TRAIN_V1"] == load("train_v1.jsonl")
-    assert scope["TEST"] == load("test.jsonl")
-    assert scope["HARD"] == load("hard_test.jsonl")
+    # held-out sets: a failure says which one, without printing it
+    assert scope["TEST"] == load("test.jsonl"), "TEST differs: run python build_notebook.py"
+    assert scope["HARD"] == load("hard_test.jsonl"), "HARD differs: run python build_notebook.py"
     fresh = load("fresh_test.jsonl") if (HERE / "data" / "fresh_test.jsonl").exists() else []
-    assert scope["FRESH"] == fresh
-    assert scope["SETS"] == {"test": scope["TEST"], "hard": scope["HARD"], **({"fresh": fresh} if fresh else {})}
+    assert scope["FRESH"] == fresh, "FRESH differs: run python build_notebook.py"
+    asr = load("asr_test.jsonl") if (HERE / "data" / "asr_test.jsonl").exists() else []
+    assert scope["ASR"] == asr, "ASR differs from data/asr_test.jsonl: run python build_notebook.py"
+    assert list(scope["SETS"]) == ["test", "hard"] + (["fresh"] if fresh else []) + (["asr"] if asr else [])
+    assert all(scope["SETS"][k] is scope[k.upper()] for k in scope["SETS"])
     # v1 is the comparison run: only the first 400 made-up examples
     v1: dict = {"TRAIN_SET": "v1"}
     exec(data_cell, v1)  # noqa: S102
     assert v1["TRAIN_DATA"] == load("train_v1.jsonl")
+    v4: dict = {"TRAIN_SET": "v4"}
+    exec(data_cell, v4)  # noqa: S102
+    assert v4["TRAIN_DATA"] == load("train_v4.jsonl") + real
     assert scope["SYSTEM"] == SYSTEM
+    settings = "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
+    assert 'TRAIN_SET = "v2"  #@param ["v4", "v2", "v1"]' in settings and "EPOCHS = 2 " in settings
 
 
 class FakeModel:
@@ -428,6 +522,13 @@ def test_runner_sets_the_training_set_and_export_choice() -> None:
 
     assert run_on_kaggle.slug_for("v2") == "wimb-shop-model-training"
     assert run_on_kaggle.slug_for("v1") == "wimb-shop-model-training-v1"
+    # v4 gets its own notebook: v2's output (the model the try, ask and voice notebooks attach) is not overwritten
+    assert run_on_kaggle.slug_for("v4") == "wimb-shop-model-training-v4"
+    assert run_on_kaggle.slug_for("v4", "my-test") == "my-test"
+    assert run_on_kaggle.TRAIN_SETS == ["v2", "v1", "v4"] and run_on_kaggle.WAIT_MIN["v4"] > 120
+    v4 = run_on_kaggle.notebook_for("v4", gguf=True)
+    settings = "".join(next(c for c in v4["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
+    assert 'TRAIN_SET = "v4"' in settings and "MAKE_OLLAMA_FILE = True" in settings
     nb = run_on_kaggle.notebook_for("v1", gguf=False)
     settings = "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith("#@title 3."))["source"])
     assert 'TRAIN_SET = "v1"' in settings and "MAKE_OLLAMA_FILE = False" in settings
@@ -441,6 +542,115 @@ def test_fresh_test_set_is_held_out_from_everything() -> None:
     fresh = {ex["said"] for ex in load("fresh_test.jsonl")}
     assert len(fresh) == len(load("fresh_test.jsonl")) == 60
     others = set()
-    for name in ("train.jsonl", "train_v1.jsonl", "test.jsonl", "hard_test.jsonl", "real/xpqa_hi_examples.jsonl"):
+    for name in ("train.jsonl", "train_v1.jsonl", "train_v4.jsonl", "test.jsonl", "hard_test.jsonl",
+                 "real/xpqa_hi_examples.jsonl"):
         others |= {ex["said"] for ex in load(name)}
-    assert not fresh & others
+    assert not fresh & others, f"{len(fresh & others)} fresh rows are in other data"
+
+
+# ---------------------------------------------------------------------------------------------
+# Training set v4 (make_data.make_v4 -> data/train_v4.jsonl)
+
+V2_MD5 = "a5b7354a18cd105d338426ac49fe400e"  # data/train.jsonl (v2): must not change
+
+
+def md5(text: str) -> str:
+    return hashlib.md5(text.encode("utf-8")).hexdigest()  # a checksum, not security
+
+
+def jsonl(rows: list[dict]) -> str:
+    return "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
+
+
+@functools.cache
+def made_v4() -> tuple[list[dict], list[dict]]:
+    import make_data
+
+    return make_data.make_v4()
+
+
+def test_v2_training_set_is_unchanged() -> None:
+    import make_data
+
+    assert md5((HERE / "data" / "train.jsonl").read_text(encoding="utf-8")) == V2_MD5
+    assert jsonl(make_data.make()[0]) == (HERE / "data" / "train.jsonl").read_text(encoding="utf-8")
+
+
+def test_v4_is_reproducible_and_written() -> None:
+    import make_data
+
+    rows, _ = made_v4()
+    again, _ = make_data.make_v4()
+    written = (HERE / "data" / "train_v4.jsonl").read_text(encoding="utf-8")
+    assert md5(jsonl(rows)) == md5(jsonl(again)) == md5(written)
+    assert len(rows) == 6000 and len({r["said"] for r in rows}) > 5990
+
+
+def test_v4_rows_are_well_formed() -> None:
+    for ex in load("train_v4.jsonl"):
+        assert_well_formed(ex)
+        assert ex["said"].strip() and ex["product"].strip()
+        assert not re.search(r"[{}]|_ला", ex["said"]), ex  # no template slot left
+
+
+def test_v4_proportions() -> None:
+    """The owner's mix (within 5 points), noise on about 30% of the Devanagari rows only, about 8% all-null."""
+    import make_data
+
+    rows, meta = made_v4()
+    n = len(rows)
+    want = {"Hindi, Devanagari": 25, "Hinglish, Devanagari": 25, "Hinglish, Latin": 20, "Marathi, Devanagari": 20,
+            "Marathi, Latin": 10}
+    assert {k: round(v[0] * 100) for k, v in make_data.MIX_V4.items()} == want
+    for cls, share in want.items():
+        got = 100 * sum(m["mix"] == cls for m in meta) / n
+        assert abs(got - share) <= 5, (cls, got)
+    # the text agrees: Latin-letter rows have no Devanagari, Devanagari rows have it
+    for r, m in zip(rows, meta, strict=True):
+        assert bool(re.search(r"[ऀ-ॿ]", r["said"])) == m["mix"].endswith("Devanagari"), r
+    marathi = {"mr_dev", "mx_dev", "mr_rom", "mren"}
+    assert all((m["lang"] in marathi) == m["mix"].startswith("Marathi") for m in meta)
+    assert {m["lang"] for m in meta if m["mix"] == "Hinglish, Devanagari"} == {"hx_dev"}
+    assert {m["lang"] for m in meta if m["mix"] == "Hindi, Devanagari"} == {"hi_dev"}
+    dev = [m for m in meta if m["mix"].endswith("Devanagari")]
+    assert abs(100 * sum(m["noisy"] for m in dev) / len(dev) - 30) <= 5
+    assert all(m["noise"] for m in dev if m["noisy"]) and not any(m["noise"] for m in meta if not m["noisy"])
+    nulls = 100 * sum(all(v is None for v in r["answer"].values()) for r in rows) / n
+    assert abs(nulls - 8) <= 5, nulls
+    kinds = {m["kind"] for m in meta}
+    assert {"spoken_fraction", "discount", "unit_vs_bulk", "price_correction", "delivery_said", "wrong_number",
+            "unclear"} <= kinds
+    priced = [m for m in meta if m["style"] is not None]
+    assert sum("सवा/साढ़े/पौने" in m["style"] for m in priced) >= 0.15 * len(priced)
+    assert sum(r["answer"]["delivery"] is None for r in rows) > n / 2  # most calls do not say
+
+
+def test_v4_alternative_is_said_as_labelled() -> None:
+    """The alternative is written exactly as the shopkeeper said it (brand + size/type + item), in that script."""
+    alts = [ex for ex in load("train_v4.jsonl") if ex["answer"]["alternative"] is not None]
+    assert len(alts) > 500
+    for ex in alts:
+        assert nfc_lower(ex["answer"]["alternative"]) in nfc_lower(ex["said"]), ex
+        assert ex["answer"]["in_stock"] is False and ex["answer"]["price_inr"] is None
+    full = sum(len(ex["answer"]["alternative"].split()) >= 2 for ex in alts)
+    assert full >= 0.85 * len(alts)
+
+
+def test_v4_noise_keeps_the_facts() -> None:
+    """In noisy rows the price (test above), the alternative and the "not in stock" words are still there."""
+    rows, meta = made_v4()
+    noisy = [(r, m) for r, m in zip(rows, meta, strict=True) if m["noisy"]]
+    assert len(noisy) > 1000
+    no = r"नही|नाही|नाय|संप|ख़?त्म|खतम|स्टॉक|stock|अवेलेबल|available|फिनिश|शिल्लक|नसतं|मिळत"
+    for r, m in noisy:
+        a, said = r["answer"], nfc_lower(r["said"])
+        if a["alternative"]:
+            assert nfc_lower(a["alternative"]) in said
+        if m["kind"] == "no_stock":
+            assert re.search(nfc_lower(no), said), r
+
+
+def test_train_workflow_offers_v4() -> None:
+    text = (HERE / ".github" / "workflows" / "train.yml").read_text(encoding="utf-8")
+    assert "options: [v2, v1, v4]" in text and "default: v2" in text
+    assert "inputs.train_set == 'v4' && 330 || 150" in text

@@ -16,6 +16,7 @@ NOTEBOOK = "train_colab.ipynb"
 TRY_NOTEBOOK = try_on_kaggle.NOTEBOOK
 ASK_NOTEBOOK = try_on_kaggle.ASK_NOTEBOOK
 DEMO_FILE = "demo_questions.jsonl"
+ASR_FILE = "asr_test.jsonl"
 
 
 def md(text: str) -> dict:
@@ -62,8 +63,10 @@ INTRO = f"""
    Then tell Claude it's done. Claude reads the results from GitHub.
 
 **What it does:** takes a free model (Qwen3 4B), tests it on shop calls, trains it on
-400 examples, tests it again, then tests the saved Ollama file too. Two test sets: 30 calls
-and 56 harder ones written in styles the training data does not have. The model goes to Google Drive.
+the training set chosen in cell 3 (`TRAIN_SET`: v2 by default, or v4 or v1), tests it again, then tests the
+saved Ollama file too. Held-out test sets, never trained on: 30 calls, 56 harder ones written in styles the
+training data does not have, 60 written blind, and (when `data/asr_test.jsonl` is there) calls as speech-to-text
+writes them. The model goes to Google Drive.
 
 It also runs on Kaggle's free GPU: `run_on_kaggle.py` starts it there with no clicks.
 """
@@ -95,9 +98,11 @@ SETTINGS = """
 #@title 3. Settings (and connect Google Drive now, so nothing waits for you later)
 MODEL_NAME = "unsloth/Qwen3-4B-Instruct-2507"  #@param {type:"string"}
 EPOCHS = 2  #@param {type:"integer"}
+# v4: 6,000 rows written as speech-to-text writes them (Hindi, Hinglish and Marathi, mostly in Devanagari, with
+#     speech-to-text errors), plus the 151 real Hindi answers. About 1 hour of training for 2 epochs.
 # v2: training data built from real products, prices and spellings, plus 151 real Hindi answers.
 # v1: the first 400 made-up examples (kept to compare against).
-TRAIN_SET = "v2"  #@param ["v2", "v1"]
+TRAIN_SET = "v2"  #@param ["v4", "v2", "v1"]
 OUTPUT_NAME = "wimb-shop-model"  #@param {type:"string"}
 SAVE_TO_DRIVE = True  #@param {type:"boolean"}
 MAKE_OLLAMA_FILE = True  #@param {type:"boolean"}
@@ -163,7 +168,7 @@ before = run_tests("BEFORE training")
 """
 
 TRAIN = """
-#@title 7. Train (about 10–15 minutes)
+#@title 7. Train (about 10–15 minutes; v4: about 1 hour)
 from datasets import Dataset
 from trl import SFTConfig, SFTTrainer
 
@@ -971,20 +976,23 @@ METADATA = {
 def train_notebook() -> dict:
     score_src = (HERE / "score.py").read_text(encoding="utf-8")
     fresh = (HERE / "data" / "fresh_test.jsonl").exists()
+    asr = (HERE / "data" / ASR_FILE).exists()  # written blind for the speech-to-speech pipeline
     data = (
         "#@title 4. Training data and scoring (hidden; built from data/ and score.py)\n"
         + score_src
         + "\n\n"
+        + block("TRAIN_V4", embedded("train_v4.jsonl"))
         + block("TRAIN_V2", embedded("train.jsonl"))
         + "# Real Hindi answers from Amazon xPQA (CDLA-Sharing-1.0; see data/real/NOTICE-xpqa.md)\n"
         + block("REAL_XPQA", real_rows(HERE / "data" / "real" / "xpqa_hi_examples.jsonl"))
         + block("TRAIN_V1", embedded("train_v1.jsonl"))
         + 'TRAIN_SET = globals().get("TRAIN_SET", "v2")\n'
-        + 'TRAIN_DATA = TRAIN_V2 + REAL_XPQA if TRAIN_SET == "v2" else TRAIN_V1\n'
+        + 'TRAIN_DATA = {"v4": TRAIN_V4 + REAL_XPQA, "v2": TRAIN_V2 + REAL_XPQA, "v1": TRAIN_V1}[TRAIN_SET]\n'
         + block("TEST", embedded("test.jsonl"))
         + block("HARD", embedded("hard_test.jsonl"))
         + (block("FRESH", embedded("fresh_test.jsonl")) if fresh else "FRESH = []\n")
-        + "SETS = {'test': TEST, 'hard': HARD, **({'fresh': FRESH} if FRESH else {})}\n"
+        + (block("ASR", embedded(ASR_FILE)) if asr else "ASR = []\n")
+        + "SETS = {'test': TEST, 'hard': HARD, **({'fresh': FRESH} if FRESH else {}), **({'asr': ASR} if ASR else {})}\n"
         + 'print(TRAIN_SET, len(TRAIN_DATA), "training rows;", {k: len(v) for k, v in SETS.items()}, "test calls")\n'
     )
     return {
