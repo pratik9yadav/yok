@@ -286,6 +286,11 @@ notebooks); `coder/fixtrain.py` holds the data filters, decontamination, prompt 
 `coder/run_train.py` starts it on Kaggle; `coder/test_train.py` checks it all offline.
 
 ## Coder model (phase 3: the coding agent)
+**Capability re-test after the agent fixes (2026-10-24, same 6 tasks, same model): 6 of 6 solved** (was 4 of 6).
+The loop guard fixed task 4 (it had looped on `ls` for 30 steps) and the honest-finish check fixed task 5 (it had
+said done with no change). Task 1 now leaves no stray file. Every fix passes the hidden tests; four replies still
+had one ruff import-order nit. Each run opened a pull request against the bench branch (PRs #2–#7).
+
 **Capability test (2026-10-16, branch `bench/agent-1`: a small orders module with planted bugs; each result checked
 with hidden tests): 4 of 6 solved.**
 
