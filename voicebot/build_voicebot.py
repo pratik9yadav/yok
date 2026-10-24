@@ -100,12 +100,15 @@ RESULTS["hf_token"] = bool(HF_TOKEN)
 missing = [p for p in ("ffmpeg", "espeak-ng", "zstd") if not shutil.which(p)]
 if missing:  # ffmpeg reads phone audio; espeak-ng: kokoro's Hindi pronunciation; zstd: Ollama's download
     sh("apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg espeak-ng zstd", timeout=900)
-for packages in (["faster-whisper", "soundfile", "librosa", "scipy"], ["kokoro>=0.9.4", "misaki[en]"],
-                 ["datasets", "huggingface_hub"]):
+for packages in (["faster-whisper", "soundfile", "librosa", "scipy"], ["kokoro-onnx"], ["datasets", "huggingface_hub"]):
     try:
         pip(*packages)
     except Exception as e:
         failed("pip install " + " ".join(packages), e)
+try:  # Kokoro on the GPU (the CPU onnxruntime stays as the fallback)
+    pip("onnxruntime-gpu")
+except Exception as e:
+    print("onnxruntime-gpu did not install (Kokoro runs on the CPU):", f"{{e!r}}"[:300])
 if HF_TOKEN and "parler" in TTS:
     try:
         pip("{PARLER_PIP}")
@@ -118,7 +121,8 @@ if MODE == "live":
         failed("pip install {GRADIO_PIP}", e)
 import importlib.metadata as md
 
-for p in ("torch", "transformers", "faster-whisper", "ctranslate2", "kokoro", "parler-tts", "datasets", "gradio"):
+for p in ("torch", "transformers", "faster-whisper", "ctranslate2", "kokoro-onnx", "onnxruntime", "onnxruntime-gpu",
+          "parler-tts", "datasets", "gradio"):
     try:
         RESULTS["versions"][p] = md.version(p)
     except md.PackageNotFoundError:
@@ -195,6 +199,11 @@ if MODE == "eval":
     ranked = sorted(READY, key=lambda m: (-RESULTS["text_test"][m]["all"]["passed"],
                                           RESULTS["text_test"][m]["model_seconds_avg"] or 99))
     RESULTS["best_brain"] = ranked[0] if ranked else None
+    if ranked:  # for a live call, speed matters: the fastest brain within one test call of the best
+        top = RESULTS["text_test"][ranked[0]]["all"]["passed"]
+        quick = [m for m in ranked if RESULTS["text_test"][m]["all"]["passed"] >= top - 1
+                 and (RESULTS["text_test"][m]["model_seconds_avg"] or 99) <= 3]
+        RESULTS["live_brain"] = min(quick, key=lambda m: RESULTS["text_test"][m]["model_seconds_avg"]) if quick else None
 else:
     RESULTS["best_brain"] = READY[0] if READY else None
 print("Brain for the rest:", RESULTS["best_brain"] or "none (rules only)")
@@ -366,6 +375,8 @@ save_results()
 """
 
 SPOKEN = """
+from voicebot.speech_text import for_voice
+
 PERSON_MOUTH = next((MOUTHS[b] for b in ("parler", "kokoro", "mms") if b in MOUTHS), None)  # the most varied voices
 BOT_MOUTH = next(iter(MOUTHS.values()), None)
 VOICES = itertools.cycle(["person", "person2", "person3"])
@@ -382,7 +393,11 @@ def spoken_test(label, use_prompt, demo=False):
 
         def say_and_hear(line, call):
             lang = detect(line, default=call.lang)[0]
-            audio, rate, t_say = PERSON_MOUTH.say(line, lang, voice)
+            try:
+                audio, rate, t_say = PERSON_MOUTH.say(for_voice(line, lang), lang, voice)
+            except Exception as e:  # this line can't be spoken: the bot reads it as typed (counted)
+                heard_log.append({"id": scenario["id"], "said": line, "heard": line, "seconds": 0, "unspoken": repr(e)[:200]})
+                return line, 0.0
             audio = phone_line(resample(audio, rate, 16000), seed=len(heard_log))
             bot = [t.text for t in call.turns if t.who == "bot"]
             heard, _, seconds = ears.hear(audio, hint=call.lang, allowed=call.task.languages,
@@ -403,13 +418,23 @@ def spoken_test(label, use_prompt, demo=False):
         return result
 
     started = time.time()
-    results = [run(s) for s in rows]
+    results = []
+    for s in rows:
+        try:
+            results.append(run(s))
+        except Exception as e:  # one broken call must not stop the test: it counts as failed
+            failed(f"spoken test {label}: {s['id']}", e)
+            results.append({"id": s["id"], "task": s["task"], "tags": s.get("tags", []), "wrong": [f"crashed: {e!r}"[:200]],
+                            "lines": [], "model_calls": 0, "model_errors": 0, "turns": []})
     lines = evaluate.summary_lines(results, f"Spoken ({label}): ")
     print("\\n".join(lines))
-    misheard = [h for h in heard_log if norm(h["said"]) != norm(h["heard"])]
+    misheard = [h for h in heard_log if norm(h["said"]) != norm(h["heard"]) and not h.get("unspoken")]
+    unspoken = sum(bool(h.get("unspoken")) for h in heard_log)
     RESULTS["spoken_test"][label] = {**evaluate.summary(results), "lines": lines,
                                      "minutes": round((time.time() - started) / 60, 1),
-                                     "lines_heard_exactly": f"{len(heard_log) - len(misheard)} of {len(heard_log)}",
+                                     "lines_heard_exactly": f"{len(heard_log) - len(misheard) - unspoken} of "
+                                                            f"{len(heard_log) - unspoken}",
+                                     "lines_not_spoken": unspoken,
                                      "misheard": misheard[:40],
                                      "failed": [{"id": r["id"], "wrong": r["wrong"], "turns": evaluate.transcript(r)}
                                                 for r in results if r["wrong"]]}
@@ -434,8 +459,6 @@ SAMPLES = {"hi": "ठीक है। तो मैंने नोट किय
            "mr": "ठीक आहे. तर मी नोंद केलं: 16A MCB आहे, किंमत ₹220, डिलिव्हरी नाही. बरोबर आहे का?",
            "en": "Okay. So I have: 16A MCB is in stock, price ₹250, you deliver. Is that right?"}
 if MODE == "eval":
-    from voicebot.speech_text import for_voice
-
     for backend, mouth in MOUTHS.items():
         for lang, line in SAMPLES.items():
             try:
@@ -458,7 +481,8 @@ def summary_lines():
         speed = f", {r['model_seconds_avg']} s per model call" if r.get("model_seconds_avg") else ""
         lines.append(f"Test calls, typed, {name}: {a['passed']}/{a['total']}{speed}")
     if RESULTS["best_brain"]:
-        lines.append(f"Best brain: {RESULTS['best_brain']}")
+        lines.append(f"Best brain: {RESULTS['best_brain']}; for live calls (fast, within one test call): "
+                     f"{RESULTS.get('live_brain') or 'none fast enough'}")
     for name, r in RESULTS["asr"]["bench"].items():
         if isinstance(r, dict):
             lines.append(f"Speech to text, {name}: " + "; ".join(

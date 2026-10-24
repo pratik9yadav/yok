@@ -27,9 +27,13 @@ ASR_INFO = {
                         "token": True},
 }
 TTS_INFO = {
-    "kokoro": {"model": "hexgrad/Kokoro-82M", "licence": "Apache-2.0", "business": True},
+    "kokoro": {"model": "hexgrad/Kokoro-82M (kokoro-onnx)", "licence": "Apache-2.0", "business": True},
     "parler": {"model": "ai4bharat/indic-parler-tts", "licence": "Apache-2.0", "business": True, "token": True},
     "mms": {"model": "facebook/mms-tts-hin, facebook/mms-tts-mar", "licence": "CC-BY-NC-4.0", "business": False},
+}
+KOKORO_FILES = {  # Kokoro-82M as ONNX, from the kokoro-onnx project's release
+    "kokoro-v1.0.onnx": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
+    "voices-v1.0.bin": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin",
 }
 # Voices: the bot is one calm woman's voice; test callers use other voices.
 KOKORO_VOICES = {"bot": "hf_alpha", "person": "hm_omega", "person2": "hf_beta", "person3": "hm_psi"}
@@ -45,6 +49,15 @@ PARLER_STYLE = {
     "person": "speaks quickly in a casual tone. The recording is close, with a little background noise.",
 }
 LANG_NAMES = {"hi": "Hindi", "mr": "Marathi", "en": "English"}
+
+
+def download(url: str, path: str) -> None:
+    import urllib.request
+
+    part = path + ".part"
+    with urllib.request.urlopen(url, timeout=600) as resp, open(part, "wb") as fh:
+        shutil.copyfileobj(resp, fh)
+    os.replace(part, path)
 
 
 def ffmpeg_read(path: str):
@@ -172,7 +185,8 @@ class Ears:
             from transformers import pipeline
 
             asr = pipeline("automatic-speech-recognition", model=ASR_INFO[backend]["model"],
-                           device="cuda:0" if gpu else "cpu", torch_dtype=torch.float16 if gpu else torch.float32)
+                           device="cuda:0" if gpu else "cpu", torch_dtype=torch.float16 if gpu else torch.float32,
+                           chunk_length_s=30)  # clips over 30 s too
 
             def run(audio, lang, prompt):
                 options = {"task": "transcribe", **({"language": lang} if lang else {})}
@@ -226,23 +240,33 @@ class Mouth:
         gpu = torch.cuda.is_available()
         device = "cuda:0" if gpu else "cpu"
         if backend == "kokoro":
-            from kokoro import KPipeline
+            # kokoro-onnx: the same Kokoro-82M voices, run by onnxruntime (the "kokoro" package needs Python < 3.13,
+            # Kaggle has 3.13). Pronunciation by espeak-ng: Hindi rules for Hindi and Marathi (same letters).
+            from kokoro_onnx import Kokoro
 
-            pipes = {}
+            files = {}
+            for name, url in KOKORO_FILES.items():
+                files[name] = os.path.join(tempfile.gettempdir(), name)
+                if not os.path.exists(files[name]):
+                    download(url, files[name])
+            import onnxruntime as ort
 
-            def pipe(code):
-                if code not in pipes:
-                    pipes[code] = KPipeline(lang_code=code, repo_id="hexgrad/Kokoro-82M", device=device)
-                return pipes[code]
+            on = "CPU (onnxruntime)"
+            if "CUDAExecutionProvider" in ort.get_available_providers():
+                session = ort.InferenceSession(files["kokoro-v1.0.onnx"],
+                                               providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+                net = Kokoro.from_session(session, files["voices-v1.0.bin"])
+                on = "GPU (onnxruntime)" if "CUDAExecutionProvider" in session.get_providers() else on
+            else:
+                net = Kokoro(files["kokoro-v1.0.onnx"], files["voices-v1.0.bin"])
 
             def run(text, lang, voice):
-                code, voices = ("a", KOKORO_EN) if lang == "en" else ("h", KOKORO_VOICES)  # Marathi: the Hindi voice
-                chunks = [np.asarray(a, dtype=np.float32) for _, _, a in pipe(code)(text, voice=voices.get(voice,
-                                                                                                         voices["bot"]))]
-                return np.concatenate(chunks) if chunks else np.zeros(0, np.float32)
+                voices, code = (KOKORO_EN, "en-us") if lang == "en" else (KOKORO_VOICES, "hi")
+                audio, _ = net.create(text, voice=voices.get(voice, voices["bot"]), speed=1.0, lang=code)
+                return np.asarray(audio, dtype=np.float32)
 
-            run("नमस्ते", "hi", "bot")  # the first call downloads and warms up
-            return cls(backend, run, 24000, device)
+            run("नमस्ते", "hi", "bot")  # some problems only show on the first use
+            return cls(backend, run, 24000, on)
         if backend == "parler":
             from parler_tts import ParlerTTSForConditionalGeneration
             from transformers import AutoTokenizer

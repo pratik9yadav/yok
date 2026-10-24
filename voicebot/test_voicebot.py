@@ -448,3 +448,58 @@ def test_scripts_start_as_scripts(script, tmp_path):
     assert done.returncode == 0, done.stderr[-2000:]
     clash = [p.name for p in HERE.glob("*.py") if p.stem in sys.stdlib_module_names]
     assert not clash, f"rename: {clash} hide standard modules"
+
+
+# What the small models really answered in the first Kaggle run (2026-10-24), and what must come out of it.
+def blank(task, **values):
+    return {"intent": "answer", "fact": None, **{n: None for n in task.slot}, **values}
+
+
+@pytest.mark.parametrize("task_id, pending, known, said, reply, want_intent, want", [
+    # qwen3 4B repeated every known value and garbled the phone
+    ("clinic_booking", "reason", {"patient_name": "पूजा", "phone": "9123456780"}, "पेट दर्द",
+     {"patient_name": "पूजा", "phone": "9123406780", "reason": "पेट दर्द"}, "answer", {"reason": "पेट दर्द"}),
+    # qwen3 4B: "कल" is not the day after tomorrow
+    ("clinic_booking", "patient_name", {}, "नाम अमित कुमार है, कल शाम पाँच बजे आना है",
+     {"patient_name": "अमित कुमार", "day": "day_after", "time": "17:00"}, "answer",
+     {"patient_name": "अमित कुमार", "day": "tomorrow", "time": "17:00"}),
+    # qwen3 4B called a name a question
+    ("clinic_booking", "patient_name", {}, "mera naam Vikas hai", {"intent": "question", "patient_name": "Vikas"},
+     "answer", {"patient_name": "Vikas"}),
+    # gemma3 12B and qwen3 4B flipped "not in stock" while the other brand was asked
+    ("shop_stock", "alternative", {"in_stock": False}, "लेग्रैंड का सोलह ए वाला है",
+     {"in_stock": True, "alternative": "लेग्रैंड का सोलह ए वाला"}, "answer", {"alternative": "लेग्रैंड का सोलह ए वाला"}),
+    # qwen3 4B heard "busy, call later" as "hold on"
+    ("shop_stock", "in_stock", {}, "अभी बिज़ी हूँ, बाद में कॉल करना", {"intent": "hold"}, "busy", {}),
+    # gemma3 4B put the phone number into the reason too
+    ("clinic_booking", "phone", {}, "नौ आठ सात छह पाँच चार तीन दो एक शून्य",
+     {"intent": "repeat", "phone": "9876543210", "reason": "नौ आठ सात छह पाँच चार तीन दो एक शून्य"}, "answer",
+     {"phone": "9876543210"}),
+    # gemma3 4B took a question about UPI as a "no"
+    ("order_confirm", "confirmed", {}, "यूपीआई से पेमेंट कर सकते हैं क्या?",
+     {"intent": "question", "fact": "pay_online", "confirmed": False}, "question", {}),
+    # gemma3 4B: "busy" became a cancelled order
+    ("order_confirm", "confirmed", {}, "अभी मीटिंग में हूँ, बाद में कॉल करो",
+     {"intent": "busy", "confirmed": False, "cancel_reason": "अभी मीटिंग में हूँ, बाद में कॉल करो"}, "busy", {}),
+    # gemma3 4B: "it's finished" is not another brand
+    ("shop_stock", "in_stock", {}, "नहीं भाई, वो वाला खत्म हो गया", {"in_stock": False, "alternative": "खत्म हो गया"},
+     "answer", {"in_stock": False}),
+    ("shop_stock", "alternative", {"in_stock": False}, "नहीं, कुछ नहीं है",
+     {"in_stock": False, "alternative": "नहीं, कुछ नहीं है"}, "answer", {}),
+    # gemma3 4B: "don't know" made up a "no delivery"
+    ("shop_stock", "price_inr", {"in_stock": True}, "पता नहीं, मालिक से पूछना पड़ेगा",
+     {"intent": "dont_know", "in_stock": True, "delivery": False, "alternative": "पता नहीं, मालिक से पूछना पड़ेगा"},
+     "dont_know", {}),
+])
+def test_real_model_slips_are_caught(task_id, pending, known, said, reply, want_intent, want):
+    task = tasks.load(task_id)
+    u = understand(said, task, View(pending=pending, values=known), FakeModel(blank(task, **reply)))
+    assert u.intent == want_intent
+    assert {k: v for k, v in u.values.items() if known.get(k) != v} == want
+
+
+def test_a_model_question_with_an_answer_is_not_left_unanswered():
+    task = tasks.load("clinic_booking")
+    _, replies = talk("clinic_booking", ["mera naam Vikas hai"],
+                      llm=FakeModel(blank(task, intent="question", patient_name="Vikas")))
+    assert "पता नहीं" not in replies[1].text and "किस दिन" in replies[1].text

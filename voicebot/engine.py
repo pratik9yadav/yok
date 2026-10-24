@@ -319,9 +319,11 @@ class Call:
         if invalid:
             return self._reply([invalid, self._ask(self.pending)], started=started)
         pieces = []
-        if u.intent == "question" or (u.fact and not changed):
-            fact = self.task.facts.get(u.fact) if u.fact else None
-            pieces.append(self._say(fact["answer"]) if fact else self._phrase("unknown_fact"))
+        fact = self.task.facts.get(u.fact) if u.fact else None
+        if fact:
+            pieces.append(self._say(fact["answer"]))
+        elif u.intent == "question" and not changed:
+            pieces.append(self._phrase("unknown_fact"))
         if pending in ("confirm", "fix"):
             if changed:
                 self.readbacks = min(self.readbacks, MAX_READBACKS - 1)

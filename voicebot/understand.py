@@ -45,6 +45,8 @@ YES = {"हाँ", "हां", "हा", "जी", "हांजी", "हा�
 NO = {"नहीं", "नही", "ना", "न", "नाही", "नाहीये", "नाहीत", "नको", "no", "nope", "nahi", "nahin", "nai", "naa", "नई",
       "नहीँ", "गलत", "ग़लत", "चुकीचं", "चुकीचे", "चूक", "wrong", "खत्म", "ख़त्म", "संपलं", "संपला", "संपले", "आउट",
       "galat", "nako", "nahiye", "नॉट", "not", "khatam", "sampla"}
+STRONG_YES = {"हाँ", "हां", "हो", "होय", "जी", "yes", "yeah", "haan", "han", "ji", "hoy", "बिल्कुल", "बिलकुल", "ओके", "ok",
+              "okay", "यस", "हाँजी", "हांजी"}
 FILLER = {"जी", "भाई", "भैया", "साहब", "सर", "मैडम", "तो", "अरे", "हाँ", "बस", "ji", "bhai", "bhaiya", "sir", "madam", "toh",
           "to", "arre", "are", "please", "प्लीज़", "प्लीज", "बरं", "ना", "न", "है", "हैं", "आहे", "का", "की", "वो", "वाला",
           "बोलिए", "बोलो", "बताइए", "बताइये", "बताओ", "हैलो", "हेलो", "hello", "बोला", "सांगा", "हां", "हाँजी", "bolo",
@@ -248,6 +250,9 @@ def by_rules(text: str, task: Task, view: View) -> Understood:
     if u.intent == "other" and has(text, DONT_KNOW):
         u.intent = "dont_know"
     answer = yes_no(text)
+    asking = "?" in (text or "") or any(w in QUESTION_WORDS for w in ws)
+    if asking and answer is True and not any(w in STRONG_YES for w in ws):
+        answer = None  # "यूपीआई से पेमेंट कर सकते हैं क्या?" is a question, not a yes
     u.said_no = answer is False
     pending = task.slot.get(view.pending) if view.pending not in (None, "confirm") else None
     if view.pending == "confirm" and u.intent == "other" and answer is not None:
@@ -395,34 +400,66 @@ def from_model(raw: str, task: Task) -> Understood:
     return u
 
 
+TYPED = ("money", "number", "day", "time", "phone")  # the number reader decides these when it finds one
+SOFT_INTENTS = ("busy", "hold", "repeat", "who_are_you", "bye", "dont_know")  # a clear phrase beats the model's guess
+QUIET_INTENTS = SOFT_INTENTS + STRONG_INTENTS + ("question",)  # no new values without the rules' support
+NOTHING = {"कुछ", "कोई", "काही", "काहीच", "kuch", "koi", "nothing", "नथिंग", "भी", "bhi", "पण"}
+
+
+def junk_text(value: str, text: str) -> bool:
+    """A text value that says nothing: "नहीं, कुछ नहीं है", "खत्म हो गया", or a "पता नहीं" line."""
+    rest = [w for w in content_words(value) if w not in NOTHING]
+    return not rest or has(value, DONT_KNOW) or yes_no(value) is False and len(rest) <= 3
+
+
 def reconcile(model: Understood, rules: Understood, text: str, task: Task, view: View) -> Understood:
-    """The model's understanding, corrected by the rules where the rules are surer."""
+    """The model's understanding, checked against the words and the rules. Small models repeat every value they
+    were shown (and garble a phone number while at it), flip a yes they were not asked about, and put the whole
+    line into a text field; so a value is kept only with evidence:
+    - prices, numbers, days, times and phones: the number reader's value when it found one; a number nobody said
+      or a phone it can't find is dropped;
+    - a value already known changes only when it is the question asked, during the read-back, or clearly said;
+    - text (e.g. the other brand) only for the question asked, and not when it is only a no or "पता नहीं";
+    - a question, "बाद में कॉल करो", "पता नहीं"...: only what the rules also found."""
     u = model
     u.said_no = rules.said_no
-    if rules.intent in STRONG_INTENTS:
+    if rules.intent in STRONG_INTENTS or (rules.intent in SOFT_INTENTS and view.pending not in u.values):
         u.intent = rules.intent
-    spans = numerals.find_numbers(text, colloquial=True) + numerals.find_numbers(text)
-    said = {s.value for s in spans}
+    said = {s.value for s in numerals.find_numbers(text, colloquial=True) + numerals.find_numbers(text)}
+    correcting = view.pending in ("confirm", "fix")
     for slot in task.slots:
         name, kind = slot["name"], slot["type"]
-        mine, theirs = u.values.get(name), rules.values.get(name)
-        if kind in ("money", "number") and mine is not None:
-            if not said:  # a number the person never said
-                del u.values[name]
+        mine, theirs, known = u.values.get(name), rules.values.get(name), view.values.get(name)
+        asked = name == view.pending
+        if mine is not None:
+            if kind in TYPED and theirs is not None:
+                mine = theirs
+            elif kind in ("money", "number") and mine not in said:
+                mine = None  # a number the person never said
+            elif kind == "phone" or (kind in ("day", "time") and not asked and not correcting):
                 mine = None
-            elif theirs is not None and mine != theirs and mine not in said:
-                u.values[name] = theirs
-                u.source = "model+rules"
-        free_text = kind in ("text", "name")
-        if mine is None and theirs is not None and (not free_text or (name == view.pending and u.intent == "answer")):
-            if kind == "bool" and name != view.pending:
-                continue
-            u.values[name] = theirs
+            if kind == "text" and (not asked or junk_text(mine, text)):
+                mine = None
+            if kind == "name" and not asked and theirs is None:
+                mine = None
+            if known is not None and mine != known and not asked and not correcting and theirs is None:
+                mine = None  # a known value changes only when asked, at the read-back, or clearly said
+            if u.intent in QUIET_INTENTS and theirs is None:
+                mine = None
+            if (kind == "bool" and mine is True and theirs is False and asked and rules.said_no
+                    and len(words(text)) <= 3):  # a short "नहीं" can't be a yes
+                mine = False
+        elif theirs is not None and not (kind == "bool" and not asked):
+            if kind not in ("text", "name") or (asked and u.intent == "answer"):
+                mine = theirs
+        if mine != u.values.get(name):
             u.source = "model+rules"
-        if (kind == "bool" and mine is True and theirs is False and name == view.pending and rules.said_no
-                and len(words(text)) <= 3):  # a short "नहीं" can't be a yes
-            u.values[name] = False
-            u.source = "model+rules"
+        if mine is None:
+            u.values.pop(name, None)
+        else:
+            u.values[name] = mine
+    if view.pending in u.values and u.intent not in STRONG_INTENTS and not u.fact:
+        u.intent = "answer"  # it answers what was asked, whatever the model called it
     if u.intent == "other" and u.values:
         u.intent = "answer"
     if view.pending == "confirm" and u.intent == "answer" and not u.values and rules.intent in ("confirm_yes",
