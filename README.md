@@ -129,6 +129,41 @@ Five ways to ask it:
         "prompt": "Product: 16A MCB\nShopkeeper: haan hai, 220 ka, delivery nahi"}'
       ```
 
+## Free web page (Hugging Face)
+A web page for the phone: type the product and what the shopkeeper said, tap **Ask**, get the 4 answers in plain
+words (and the raw JSON, and the seconds it took). No Kaggle needed to use it. It is a free Hugging Face Space
+(Gradio, 2 CPUs, 16 GB) running the trained model file (`.Q4_K_M.gguf`) with llama.cpp, with exactly the training
+prompt (`score.SYSTEM` and `score.user_message`; the deploy copies `score.py` into the Space).
+
+Put it there (once, and again after each new training run):
+1. The repository secret `HF_TOKEN` must be a Hugging Face token with **write** access
+   (https://huggingface.co/settings/tokens; save it at https://github.com/pratik9yadav/yok/settings/secrets/actions/new).
+   `KAGGLE_API_TOKEN` is needed too (the model file comes from the training run's Kaggle output).
+2. **Actions → Put the model on Hugging Face (free web page) → Run workflow** (model: v4, visibility: private).
+   About 10–25 minutes: it downloads the model file from Kaggle (2.5 GB), uploads it to your **private** model repo
+   `<your HF name>/wimb-shop-model-v4` (with the repo's `Modelfile` and a model card), makes or updates the Space
+   `<your HF name>/wimb-shop-model`, waits until it runs and prints its link at the end of the job log.
+   From a terminal: `python space/deploy.py` (`--model v2`, `--public`, `--skip-upload-model`).
+
+Open it on the phone: log in to huggingface.co (the Space is private: only you can open it), then open
+`https://huggingface.co/spaces/<your HF name>/wimb-shop-model`. The first start after a deploy downloads and
+loads the model: the page says "Loading the model" for 1–2 minutes. A free Space goes to sleep after 48 hours
+without visits; opening the link wakes it (a few minutes).
+
+Speed: on the free 2 CPUs expect **roughly 10–20 seconds per answer** (an estimate from the 10 s per answer that
+Ollama took on Kaggle's CPU; not measured on the Space yet). One question at a time.
+
+Private by default because the training data includes CC BY-SA 4.0, ODC-By and CDLA-Sharing-1.0 material (see
+`data/TRAIN_NOTICE.md`); whether share-alike reaches a trained model is not settled. visibility = public makes only
+the page public; the model file stays in the private model repo. A new Space gets the deploy's token as its secret
+`HF_TOKEN` (to read the model repo); safer: replace it with a **read** token (Space → Settings → Variables and
+secrets). Later deploys keep it (`--set-space-token` puts the deploy's token back).
+
+Switch to v2: run the workflow with model = v2 (it uses the model repo `wimb-shop-model-v2` and points the page at
+it); model = v4 switches back. Files: `space/app.py` (the page), `space/deploy.py`, `space/requirements.txt`
+(pinned: gradio 6.29.1, huggingface_hub 2.1.1, llama-cpp-python 0.3.36 from its prebuilt CPU wheels),
+`space/README.md` (the Space's settings), `space/test_space.py`.
+
 ## Voice v0 (speech to speech)
 A first spoken shop call, all free open models on Kaggle's free T4. The AI asks 3 questions in Hindi by voice
 (is the 16A MCB in stock? the price? delivery?). Each spoken answer goes through three models, one after the other
@@ -407,7 +442,8 @@ it is there.
 
 IndicVoices needs a one-time click: log in to Hugging Face, open
 https://huggingface.co/datasets/ai4bharat/IndicVoices and accept the terms, then create a **Read**
-token (Settings → Access Tokens) and save it as the repository secret `HF_TOKEN`:
+token (Settings → Access Tokens; a write token works too, and the free web page needs one) and save it as the
+repository secret `HF_TOKEN`:
 https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 
 ## Files
@@ -430,6 +466,7 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `test_training.py` | Checks the data and scoring: `python -m pytest` |
 | `test_try.py` | Checks `try_model.ipynb` and `try_on_kaggle.py` with a fake Ollama. |
 | `test_ask.py` | Checks `ask_model.ipynb` (with a fake Ollama and ipywidgets) and `try_on_kaggle.py --make-ask-notebook`. |
+| `space/` | The free web page on Hugging Face: `app.py` (Gradio + llama.cpp), `deploy.py` (puts the model and the page there; workflow `hf_space.yml`), `test_space.py`. |
 | `voice/` | Voice v0 (speech to speech): `voice_v0.ipynb` (built by `voice/build_voice.py` from `voice/voicecall.py`), `run_voice.py` (runs it on Kaggle), `test_voice.py`. |
 
 ## Use real data

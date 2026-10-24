@@ -1,0 +1,74 @@
+# Put the trained shop model on Hugging Face as a free web page (Actions → Put the model on Hugging Face → Run workflow).
+# Downloads the model file from the training notebook's Kaggle output, uploads it to your private model repo
+# <you>/wimb-shop-model-<v4|v2>, makes or updates your Space <you>/wimb-shop-model (free CPU) and prints its link.
+# Runs space/deploy.py. Needs the repository secrets KAGGLE_API_TOKEN and HF_TOKEN (a Hugging Face token with write
+# access) and one finished training run (Train on Kaggle; v4: train_set v4).
+name: Put the model on Hugging Face (free web page)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Which trained model: v4 (newest) or v2"
+        type: choice
+        options: [v4, v2]
+        default: v4
+      visibility:
+        description: "private = only you, logged in to Hugging Face (the training data's licence); public = anyone with the link"
+        type: choice
+        options: [private, public]
+        default: private
+
+permissions:
+  contents: read
+
+# One deploy at a time: every run writes the same Space.
+concurrency:
+  group: hf-space
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt huggingface_hub==2.1.1
+      - run: python -m pytest -q
+      - name: Check the Kaggle and Hugging Face tokens
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          missing=0
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            missing=1
+          fi
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::Add the secret HF_TOKEN (a Hugging Face token with write access, https://huggingface.co/settings/tokens): https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            missing=1
+          fi
+          exit $missing
+      - name: Make room for the model file (about 2.5 GB)
+        run: |
+          df -h .
+          free_gb=$(df --output=avail -BG . | tail -1 | tr -dc '0-9')
+          if [ "$free_gb" -lt 8 ]; then
+            sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+            df -h .
+          fi
+      - name: Put the model and the web page on Hugging Face (about 10–25 minutes)
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          # Inputs reach the script only as environment variables (never pasted into it).
+          MODEL: ${{ inputs.model }}
+          VISIBILITY: ${{ inputs.visibility }}
+        run: |
+          ARGS=(--model "$MODEL")
+          if [ "$VISIBILITY" = "public" ]; then ARGS+=(--public); else ARGS+=(--private); fi
+          python space/deploy.py "${ARGS[@]}"

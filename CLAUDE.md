@@ -51,6 +51,8 @@ To make or refresh the owner's own notebook for asking many questions (`ask_mode
 box), run `ask.yml` with `run` = notebook (about 5 minutes; from here: `python try_on_kaggle.py --make-ask-notebook`),
 then give the link `https://www.kaggle.com/code/<Kaggle user>/wimb-shop-model-ask` (the job log prints it).
 After each new training run, run `ask.yml` with `run` = notebook again, so the notebook uses the new model.
+"Put the model on Hugging Face" / "free web page": run `.github/workflows/hf_space.yml` (inputs `model` v4|v2, `visibility`
+private|public; ~10–25 min; secrets HF_TOKEN (write) + KAGGLE_API_TOKEN), give the Space link from the job log. Edit `space/app.py` or `space/deploy.py`; tests: `space/test_space.py`.
 "Run voice v0" (speech to speech, `voice/`): run `.github/workflows/voice.yml` (`clips_dataset` optional; ~20–40 min), report the per-clip lines, times and TTS licence from the job log; .wav files: artifact `kaggle-output-voice`.
 Notebook: edit `voice/build_voice.py` or `voice/voicecall.py`, then `python voice/build_voice.py` and `python -m pytest`; never edit `voice/voice_v0.ipynb` by hand.
 
