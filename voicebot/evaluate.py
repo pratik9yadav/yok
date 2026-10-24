@@ -81,18 +81,23 @@ def matches(scenario: dict, result: dict) -> list[str]:
     return wrong
 
 
-def play(scenario: dict, llm=None, say_and_hear=None, max_lines: int = 20) -> dict:
-    """One test call. say_and_hear(line, lang) -> (what speech to text heard, seconds): the spoken test; None: the
-    bot reads the person's line as typed."""
+def play(scenario: dict, llm=None, say_and_hear=None, on_bot=None, max_lines: int = 20) -> dict:
+    """One test call. say_and_hear(line, call) -> (what speech to text heard, seconds): the spoken test (call.lang,
+    call.turns: the bot's language and what it said); None: the bot reads the person's line as typed.
+    on_bot(reply): called with each thing the bot says (to make its audio)."""
     task = load(scenario["task"], scenario.get("context"))
     call = Call(task, lang=scenario.get("lang"), llm=llm)
     person = Person(scenario)
     started = time.perf_counter()
     reply = call.start()
     lines = []
-    while not reply.done and len(lines) < max_lines:
+    while True:
+        if on_bot is not None:
+            on_bot(reply)
+        if reply.done or len(lines) >= max_lines:
+            break
         said = person.line(call.pending)
-        heard, seconds = (said, 0.0) if say_and_hear is None or not said else say_and_hear(said, call.lang)
+        heard, seconds = (said, 0.0) if say_and_hear is None or not said else say_and_hear(said, call)
         lines.append({"said": said, "heard": heard})
         reply = call.hear(heard, seconds)
     result = call.result()

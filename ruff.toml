@@ -1,7 +1,7 @@
 line-length = 120
 extend-exclude = [  # generated notebooks: build_notebook.py, coder/build.py and voice/build_voice.py write them
     "train_colab.ipynb", "try_model.ipynb", "ask_model.ipynb", "coder/coder_eval.ipynb", "coder/coder_train.ipynb",
-    "coder/coder_agent.ipynb", "coder/exam/exam.ipynb", "voice/voice_v0.ipynb",
+    "coder/coder_agent.ipynb", "coder/exam/exam.ipynb", "voice/voice_v0.ipynb", "voicebot/voicebot.ipynb",
     # exam tasks are test material (starter code may be bad on purpose); coder/exam/grade.py lints model replies
     "coder/exam/tasks", "coder/exam/sample_tasks",
 ]

@@ -305,10 +305,132 @@ def test_the_rules_only_baseline_passes_most_test_calls():
 def test_the_spoken_test_goes_through_say_and_hear():
     heard = []
 
-    def say_and_hear(line, lang):
-        heard.append((line, lang))
+    bot = []
+
+    def say_and_hear(line, call):
+        heard.append((line, call.lang))
         return line, 0.5
 
     row = next(s for s in evaluate.scenarios() if s["id"] == "shop-hi-basic")
-    result = evaluate.play(row, say_and_hear=say_and_hear)
+    result = evaluate.play(row, say_and_hear=say_and_hear, on_bot=bot.append)
     assert not result["wrong"] and heard[0] == ("हाँ जी, है", "hi")
+    assert len(bot) == len(heard) + 1 and bot[-1].done
+
+
+# --- the Kaggle notebook and its runner ------------------------------------------------------------------------
+from voicebot import build_voicebot, run_voicebot
+
+
+def nb_cell(nb: dict, title: str) -> str:
+    return "".join(next(c for c in nb["cells"] if "".join(c["source"]).startswith(f"#@title {title}"))["source"])
+
+
+def test_notebook_is_up_to_date():
+    saved = (HERE / build_voicebot.NOTEBOOK).read_text(encoding="utf-8")
+    assert saved == build_voicebot.text(build_voicebot.notebook()), "run: python voicebot/build_voicebot.py"
+
+
+def test_notebook_carries_the_whole_package():
+    files = build_voicebot.package_files()
+    assert {"engine.py", "understand.py", "numbers.py", "audio.py", "live.py", "tasks/shop_stock.json",
+            "scenarios/shop_stock.jsonl"} <= set(files)
+    for name, body in files.items():
+        assert body == (HERE / name).read_text(encoding="utf-8")
+    assert not any(n.startswith(("test_", "build_", "run_")) for n in files)
+
+
+def test_every_code_cell_is_python():
+    import ast
+
+    nb = json.loads((HERE / build_voicebot.NOTEBOOK).read_text(encoding="utf-8"))
+    for c in nb["cells"]:
+        if c["cell_type"] == "code":
+            ast.parse("".join(c["source"]))
+
+
+def test_runner_sets_the_settings():
+    nb = run_voicebot.notebook_with({"MODE": "live", "BRAINS": ["gemma3:4b"], "LIVE_MINUTES": 30,
+                                     "LIVE_PASSWORD": 'pa"ss', "NOTIFY_TOPIC": "wimb-abc"})
+    settings = nb_cell(nb, build_voicebot.SETTINGS_TITLE)
+    space: dict = {}
+    exec(compile(settings, "settings", "exec"), space)  # noqa: S102 - our own notebook cell
+    assert space["MODE"] == "live" and space["BRAINS"] == ["gemma3:4b"] and space["LIVE_PASSWORD"] == 'pa"ss'
+    assert space["LIVE_MINUTES"] == 30 and space["NOTIFY_TOPIC"] == "wimb-abc"
+    with pytest.raises(KeyError):
+        run_voicebot.notebook_with({"NOPE": 1})
+
+
+def test_brain_names_are_checked():
+    assert run_voicebot.brains_from("gemma3:4b, qwen3:4b-instruct-2507-q4_K_M") == [
+        "gemma3:4b", "qwen3:4b-instruct-2507-q4_K_M"]
+    assert run_voicebot.brains_from("  ") is None
+    with pytest.raises(ValueError):
+        run_voicebot.brains_from("gemma3:4b; rm -rf /")
+
+
+def test_the_link_comes_back_through_ntfy(monkeypatch):
+    class Resp:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return self.body.encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    bodies = ['{"event":"open"}\n',
+              ('{"event":"message","message":"https://evil.example.com"}\n'
+               '{"event":"message","message":"https://abc123def.gradio.live"}\n')]
+    monkeypatch.setattr(run_voicebot.urllib.request, "urlopen", lambda url, timeout: Resp(bodies.pop(0)))
+    monkeypatch.setattr(run_voicebot.time, "sleep", lambda s: None)
+    assert run_voicebot.wait_for_link("wimb-x", minutes=1) == "https://abc123def.gradio.live"
+
+
+def test_live_needs_a_password(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["run_voicebot.py", "--live", "30"])
+    monkeypatch.delenv("VOICEBOT_PASSWORD", raising=False)
+    with pytest.raises(SystemExit) as stop:
+        run_voicebot.main()
+    assert "VOICEBOT_PASSWORD" in str(stop.value)
+
+
+def test_notebook_glue_runs_with_a_fake_brain(tmp_path, monkeypatch):
+    """The helper cell writes and imports the package; the typed test cell plays every test call with a brain."""
+    nb = json.loads((HERE / build_voicebot.NOTEBOOK).read_text(encoding="utf-8"))
+    space: dict = {}
+    settings = nb_cell(nb, build_voicebot.SETTINGS_TITLE).replace('"/kaggle/working/voicebot"', repr(str(tmp_path)))
+    exec(compile(settings, "settings", "exec"), space)  # noqa: S102
+    helpers = nb_cell(nb, "2. Helpers").replace('"/tmp/voicebot_src"', repr(str(tmp_path / "src")))
+    saved_modules = {k: v for k, v in sys.modules.items() if k == "voicebot" or k.startswith("voicebot.")}
+    try:
+        for k in saved_modules:
+            del sys.modules[k]
+        exec(compile(helpers, "helpers", "exec"), space)  # noqa: S102
+        assert (tmp_path / "src" / "voicebot" / "engine.py").exists()
+
+        def make_llm(model):
+            space["LLM_SECONDS"].setdefault(model, [])
+
+            def llm(prompt_text, form):
+                space["LLM_SECONDS"][model].append(0.5)
+                return json.dumps({k: None for k in form["properties"]} | {"intent": "other"})
+
+            return llm
+
+        space.update(READY=["fake:1b"], LLM_SECONDS={}, make_llm=make_llm)
+        source = nb_cell(nb, "5. Test calls, typed")
+        source = source[source.index("\n") + 1:]  # without the title line
+        source = source.replace("def text_test", "def _unused_text_test", 0)
+        exec(compile(source.replace("def make_llm", "def _x"), "text test", "exec"), space)  # noqa: S102
+        r = space["RESULTS"]
+        assert set(r["text_test"]) == {"rules only", "fake:1b"} and r["best_brain"] == "fake:1b"
+        assert r["text_test"]["fake:1b"]["model_seconds_avg"] == 0.5
+        assert (tmp_path / build_voicebot.RESULTS_FILE).exists()
+    finally:
+        for k in [k for k in sys.modules if k == "voicebot" or k.startswith("voicebot.")]:
+            del sys.modules[k]
+        sys.modules.update(saved_modules)

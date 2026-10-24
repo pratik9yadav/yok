@@ -1,0 +1,76 @@
+# The voice bot on Kaggle's free GPU (Actions → Voice bot → Run workflow). Runs voicebot/run_voicebot.py.
+# mode eval: measures every part (brains, speech to text on real speech, test calls spoken over a phone line, voices)
+#   and prints the scores; the demo calls (.wav) are in the artifact kaggle-output-voicebot.
+# mode live: opens the web page to talk to the bot for "minutes"; its link is printed in this job's log.
+#   The page needs the repository secret VOICEBOT_PASSWORD (user name: wimb). Live calls stay on Kaggle (private).
+# Needs the repository secret KAGGLE_API_TOKEN. Optional Kaggle secret HF_TOKEN: better Indian voices and accents.
+name: Voice bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "eval: measure everything (about 60–90 min). live: the web page to talk to the bot"
+        type: choice
+        options: [eval, live]
+        default: eval
+      minutes:
+        description: "live: how long the page stays open (10–300)"
+        type: string
+        default: "90"
+      brains:
+        description: "Optional: Ollama models to try, comma-separated (empty: the notebook's list)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kaggle-voicebot-${{ inputs.mode }}
+  cancel-in-progress: false
+
+jobs:
+  voicebot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Check the secrets
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          VOICEBOT_PASSWORD: ${{ secrets.VOICEBOT_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+          if [ "$MODE" = "live" ] && [ -z "$VOICEBOT_PASSWORD" ]; then
+            echo "::error::The live page needs a password: add the secret VOICEBOT_PASSWORD (6+ characters, your choice): https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: Run the voice bot on Kaggle
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          VOICEBOT_PASSWORD: ${{ secrets.VOICEBOT_PASSWORD }}
+          # Inputs reach the script only as environment variables (never pasted into it).
+          MODE: ${{ inputs.mode }}
+          MINUTES: ${{ inputs.minutes }}
+          BRAINS: ${{ inputs.brains }}
+        run: |
+          ARGS=()
+          if [ "$MODE" = "live" ]; then ARGS+=(--live "$MINUTES"); fi
+          if [ -n "$BRAINS" ]; then ARGS+=(--brains "$BRAINS"); fi
+          python voicebot/run_voicebot.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.mode == 'eval'
+        with:
+          name: kaggle-output-voicebot
+          path: kaggle_output_voicebot/
+          if-no-files-found: ignore
