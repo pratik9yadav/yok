@@ -1,6 +1,6 @@
 import datetime
 
-from bench.orders import calc_total
+from bench.orders import order_total
 from bench.prices import parse_price
 from bench.report import order_lines
 
@@ -10,7 +10,7 @@ def test_parse_plain_price() -> None:
 
 
 def test_total() -> None:
-    assert calc_total({"item": "MCB", "qty": 2, "price": 220.0, "day": datetime.date(2026, 10, 12)}) == 440.0
+    assert order_total({"item": "MCB", "qty": 2, "price": 220.0, "day": datetime.date(2026, 10, 12)}) == 440.0
 
 
 def test_lines() -> None:
