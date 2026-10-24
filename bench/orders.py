@@ -18,5 +18,5 @@ def weekly_totals(orders: list[dict]) -> dict[str, float]:
     totals = {name: 0.0 for name in names}
     for order in orders:
         day: datetime.date = order["day"]
-        totals[names[day.isoweekday() % 7]] += calc_total(order)
+        totals[names[day.isoweekday() - 1]] += calc_total(order)
     return totals
