@@ -36,6 +36,21 @@ The model files end up in the run's **Output** tab on kaggle.com.
    https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 2. Ask Claude to "train the model", or tap **Actions → Train on Kaggle → Run workflow**.
 
+## Results: v4 (run 11, 2026-10-22: 6,151 rows, 2 epochs, 1 h 55 min on Kaggle)
+
+| set | before training | v2 after | **v4 after** | v4 exported Q4_K_M file |
+|---|---|---|---|---|
+| test (30) | 63% | 97% | **100%** | 100% |
+| hard (56) | 27% | 84% | **77%** | 80% |
+| fresh (60, blind) | 45% | 77% | **82%** | 78% |
+| asr (60, blind, speech-to-text style) | 25% | not measured | **95%** | 93% (56 of 60 done) |
+
+v4 is better on fresh (+5) and test, and reads speech-to-text Devanagari very well (asr 95%), but is worse on
+hard (−7, 4 calls). Most of its misses are `alternative` wording: v4 learned "brand + size + item" without
+"wala"/"ka", while the hard and fresh answer keys use other forms ("फिलिप्स वाला", "Dewalt 13 mm drill"). Real
+misreads left: a price after "पचासी नहीं पंचानवे" (95 → 590), unit vs pack price, "aake le lo" (no delivery) and
+one Marathi row read as in stock. v2 has not been scored on the asr set yet.
+
 ## Results (Kaggle T4, Qwen3-4B-Instruct-2507, 2 epochs, runs 9 and 10)
 Share of calls where all four fields are exactly right. Three held-out sets, never trained on:
 `test` = 30 hand-written calls, `hard` = 56 calls in harder styles, `fresh` = 60 calls written blind
@@ -114,6 +129,94 @@ Five ways to ask it:
         "prompt": "Product: 16A MCB\nShopkeeper: haan hai, 220 ka, delivery nahi"}'
       ```
 
+## Free web page (Hugging Face)
+A web page for the phone: type the product and what the shopkeeper said, tap **Ask**, get the 4 answers in plain
+words (and the raw JSON, and the seconds it took). No Kaggle needed to use it. It is a free Hugging Face Space
+(Gradio, 2 CPUs, 16 GB) running the trained model file (`.Q4_K_M.gguf`) with llama.cpp, with exactly the training
+prompt (`score.SYSTEM` and `score.user_message`; the deploy copies `score.py` into the Space).
+
+Put it there (once, and again after each new training run):
+1. The repository secret `HF_TOKEN` must be a Hugging Face token with **write** access
+   (https://huggingface.co/settings/tokens; save it at https://github.com/pratik9yadav/yok/settings/secrets/actions/new).
+   `KAGGLE_API_TOKEN` is needed too (the model file comes from the training run's Kaggle output).
+2. **Actions → Put the model on Hugging Face (free web page) → Run workflow** (model: v4, visibility: private).
+   About 10–25 minutes: it downloads the model file from Kaggle (2.5 GB), uploads it to your **private** model repo
+   `<your HF name>/wimb-shop-model-v4` (with the repo's `Modelfile` and a model card), makes or updates the Space
+   `<your HF name>/wimb-shop-model`, waits until it runs and prints its link at the end of the job log.
+   From a terminal: `python space/deploy.py` (`--model v2`, `--public`, `--skip-upload-model`).
+
+Open it on the phone: log in to huggingface.co (the Space is private: only you can open it), then open
+`https://huggingface.co/spaces/<your HF name>/wimb-shop-model`. The first start after a deploy downloads and
+loads the model: the page says "Loading the model" for 1–2 minutes. A free Space goes to sleep after 48 hours
+without visits; opening the link wakes it (a few minutes).
+
+Speed: on the free 2 CPUs expect **roughly 10–20 seconds per answer** (an estimate from the 10 s per answer that
+Ollama took on Kaggle's CPU; not measured on the Space yet). One question at a time.
+
+Private by default because the training data includes CC BY-SA 4.0, ODC-By and CDLA-Sharing-1.0 material (see
+`data/TRAIN_NOTICE.md`); whether share-alike reaches a trained model is not settled. visibility = public makes only
+the page public; the model file stays in the private model repo. A new Space gets the deploy's token as its secret
+`HF_TOKEN` (to read the model repo); safer: replace it with a **read** token (Space → Settings → Variables and
+secrets). Later deploys keep it (`--set-space-token` puts the deploy's token back).
+
+Switch to v2: run the workflow with model = v2 (it uses the model repo `wimb-shop-model-v2` and points the page at
+it); model = v4 switches back. Files: `space/app.py` (the page), `space/deploy.py`, `space/requirements.txt`
+(pinned: gradio 6.29.1, huggingface_hub 2.1.1, llama-cpp-python 0.3.36 from its prebuilt CPU wheels),
+`space/README.md` (the Space's settings), `space/test_space.py`.
+
+## Voice v0 (speech to speech)
+A first spoken shop call, all free open models on Kaggle's free T4. The AI asks 3 questions in Hindi by voice
+(is the 16A MCB in stock? the price? delivery?). Each spoken answer goes through three models, one after the other
+(a cascade):
+1. **Ears**: Whisper large-v3 turbo turns the speech into Hindi text.
+2. **Brain**: the trained shop model (Ollama, the repo's `Modelfile`, exactly as in "Try the model") gives the
+   4 fields; a small template writes a short polite reply in Hindi, e.g. "ठीक है, 16A MCB ₹220 में है, डिलीवरी नहीं।
+   धन्यवाद!". Not in stock with another product, price not said, or nothing understood (it asks again politely)
+   each get their own reply.
+3. **Mouth**: a text-to-speech model says the questions and the replies.
+
+Every step is timed (seconds for ears, brain, mouth, total). It needs one finished training run. Not tested on
+Kaggle yet.
+
+**Run it:** **Actions → Voice v0 (speech to speech) → Run workflow** (about 20–40 minutes), or ask Claude
+"run voice v0". From a terminal: `python voice/run_voice.py`.
+
+**Listen:** on the GitHub run's page, at the bottom, **Artifacts → kaggle-output-voice** (a zip with the .wav
+files); or on kaggle.com, your notebook `wimb-voice-v0` → **Output** tab → folder `voice/`: `q1.wav`–`q3.wav`
+(the questions), `synthetic_1.wav`… (the test answers), `reply_1.wav`… (the replies) and `voice_results.json`
+(what was heard, understood and replied, and the times).
+
+**Test answers:** every run makes 6 made-up shopkeeper answers with the TTS voice (yes with the price in words
+"दो सौ बीस", no + another brand, delivery yes and no, Hinglish written in Hindi letters, "पता नहीं, बाद में कॉल करो"),
+so it runs end to end without your recordings. They check the plumbing, not real accents.
+
+**Add your own recordings (from a phone):**
+1. Record each answer as a shopkeeper would say it (a recorder app, or a WhatsApp voice note sent to yourself
+   and saved). Name each file by the question it answers: `q1_…` (in stock?), `q2_…` (price?), `q3_…`
+   (delivery?), e.g. `q2_rate.m4a`. .m4a, .mp3, .ogg, .opus and .wav all work. Only record people who agreed.
+2. kaggle.com → **Datasets** → **New Dataset** → upload the files → title `wimb-voice-clips` → keep it
+   **Private** → **Create**.
+3. **Actions → Voice v0 → Run workflow** → `clips_dataset`: `<your Kaggle name>/wimb-voice-clips` (the end of the
+   dataset's link) → **Run workflow**. Your clips are processed first, then the 6 made-up ones.
+
+**The better Hindi voice (optional):** Indic Parler-TTS needs a free Hugging Face token. Log in to
+huggingface.co, open https://huggingface.co/ai4bharat/indic-parler-tts and accept its terms, make a **Read** token
+(Settings → Access Tokens). Then on kaggle.com open your notebook `wimb-voice-v0` (made by the first run) →
+**Edit** → **Add-ons → Secrets** → add `HF_TOKEN` with the token, switch it on for this notebook. Without it the
+fallback voice (MMS-TTS) is used.
+
+**Models and licences** (the run records which voice it used and its licence):
+
+| Part | Model | Licence |
+|---|---|---|
+| Ears | `openai/whisper-large-v3-turbo` | MIT |
+| Brain | the shop model: Qwen3-4B-Instruct-2507 + our LoRA, in Ollama | Apache-2.0 (Ollama: MIT) |
+| Mouth, first choice | `ai4bharat/indic-parler-tts` (library `parler-tts` 0.2.3) | Apache-2.0 |
+| Mouth, fallback | `facebook/mms-tts-hin` | CC-BY-NC-4.0: **for this internal test only, not for business use** (the results say so) |
+
+This cascade is the start. The goal is a direct speech-to-speech model, trained on real shop calls recorded with
+the shopkeepers' consent.
+
 ## Coder model (phase 1: measure)
 **First full run (2026-10-15, Kaggle 2× T4, Ollama 0.40.4, 58 minutes):** bugs fixed of 164, one try each.
 
@@ -183,6 +286,21 @@ notebooks); `coder/fixtrain.py` holds the data filters, decontamination, prompt 
 `coder/run_train.py` starts it on Kaggle; `coder/test_train.py` checks it all offline.
 
 ## Coder model (phase 3: the coding agent)
+**Capability test (2026-10-16, branch `bench/agent-1`: a small orders module with planted bugs; each result checked
+with hidden tests): 4 of 6 solved.**
+
+| task | result |
+|---|---|
+| 1. crash: `parse_price("₹1,250.50")` | ✅ right fix; left a stray `test_fix.py` and a duplicated test |
+| 2. wrong maths: 10% off 1000 gave 100 | ✅ clean one-line fix and 4 tests (one import-order lint) |
+| 3. vague report: "3 in stock, but one has 0" | ✅ found `>= 0`, fixed, good edge-case tests |
+| 4. Monday's sales shown under Tuesday | ❌ looped on `ls` for 30 steps, no change |
+| 5. new feature: Indian money format `₹12,50,000` | ❌ said "done, all tests pass" but changed no file |
+| 6. rename `calc_total` → `order_total` in 3 files | ✅ complete and correct |
+
+Each run took 3–18 minutes on Kaggle's free T4s. The two failures are the loop's weak spots, not only the model's:
+it repeats a command forever, and it can still claim "done" with nothing changed after being sent back twice.
+
 A free "junior engineer": you give it a task in plain words, it works on a copy of this repository on Kaggle's free
 GPU with **qwen3-coder:30b** (phase 1's best: 73%, used as it is), and its change comes back as a **pull request**
 for you to review.
@@ -208,7 +326,7 @@ minutes: read every pull request before merging; when tests fail on the runner, 
 
 Safety: it runs on a throwaway Kaggle machine that holds no secrets (no GitHub or Kaggle token; the repository must
 be public); it never commits or pushes: only its patch comes back. The patch is refused if it touches `.github/`
-or is larger than 200 KB. The change only ever goes to a new branch `agent/run-<id>` with a pull request; nothing
+or is larger than 200 KB. The change only ever goes to a new branch `agent/run-<id>-<attempt>` with a pull request; nothing
 is pushed to main and nothing is merged. The job that runs the agent's code on GitHub can't write to the
 repository; the job that opens the pull request never runs it.
 
@@ -226,6 +344,72 @@ later); `coder/build_agent.py` writes `coder/coder_agent.ipynb` (`python coder/b
 pull request text; `.github/workflows/agent.yml` is the workflow; `coder/test_agent.py` checks it all offline with
 a scripted fake model.
 
+## Coder model (phase 4: the engineer exam)
+**First run (2026-10-21, regraded with the fixed reader; 30 tasks, no checklist in the prompt):**
+
+| model | total | solved | hidden tests | own tests | lint | security | explains |
+|---|---|---|---|---|---|---|---|
+| gpt-oss:20b (think medium) | 60.9 | 8/30 | 75% | 0% | 41% | 87% | 67% |
+| qwen2.5-coder:14b | 61.6 | 1/30 | 63% | 3% | 67% | 95% | 100% |
+| qwen3-coder:30b | 59.2 | 2/30 | 72% | 0% | 39% | 95% | 63% |
+
+None of them writes tests unless asked, most handle the main path but miss bad input and edge cases, and the
+code is often not lint-clean. gpt-oss was cut off on 4 long tasks (that run had num_predict 6144).
+
+Results: none yet (run it: **Actions → Coder model on Kaggle → Run workflow → action `exam`**).
+
+Phase 1 measured whether a model can fix a small function. This asks a different question: **does a free coding
+model work like an engineer on its own, with no style guide or checklist in the prompt?** Each model gets ~30
+real-world tasks written the way a user writes them (a shop owner asking for a stock ledger, a bug report, "review
+this", "clean this up"), plus the project's files when there are some, and one neutral line on how to send files
+back. No system prompt, nothing about tests, error handling or security: what it adds by itself is what is measured.
+
+Tasks (`coder/exam/tasks/<NN-name>/`): `task.md` (the request), `meta.json` (`kind`: build / bugfix / review /
+refactor, `difficulty` 1-3, the expected `files`, a test `timeout`), `starter/` (files the model is shown, if any),
+`hidden/test_hidden.py` (pytest tests the model never sees, with edge cases and bad input) and `reference/` (a
+solution, never shown). Standard library only.
+
+How a reply is graded (`coder/exam/grade.py`), 0-100:
+
+| part | points | how |
+|---|---|---|
+| hidden tests | 55 | share of the hidden tests that pass (all pass = **solved**) |
+| its own tests | 15 | none: 0; written but failing: half; written and passing: all |
+| lint | 10 | ruff with a fixed rule set (E, F, W, B, UP, SIM, pylint errors/warnings/complexity; line length 120): 1 point off per issue |
+| security | 10 | bandit on its code: no findings 10, only low ones 5, medium or high 0 (left out of the total if bandit is missing) |
+| explanation | 10 | more than 40 words outside the code |
+| stray files | -5 | files nothing needs (a scratch script, notes): not an expected file, test, README or a module it imports |
+
+Files are read from the reply's fenced blocks named by a path (```` ```inventory.py ````, `# inventory.py` as the
+first line, or `inventory.py:` / `File inventory.py` just before the block). Only when no block names a path, a fixed
+fallback places its Python blocks (a block of tests → `test_<file>.py`; one expected file ← the code block, or the code
+blocks joined; several expected files ← matched by the names they define; else nothing), and the report counts how
+many replies needed it. Each reply is tested in a fresh folder; the hidden tests run with the model's pytest config and conftest.py ignored,
+and every test run is stopped at the task's timeout (with anything it started). The report gives, per model: the
+average total, tasks solved, each part, the scores by kind of task, seconds per task, and its 5 weakest tasks
+(with why). `exam.json` keeps every reply and every grade with the raw test, lint and bandit output.
+
+How to run: **Actions → Coder model on Kaggle → Run workflow → action `exam`** (`models`, `limit` as in phase 1;
+`limit` = 3 is a quick check), or ask Claude "give the coding models the engineer exam". Each model stops after 60
+minutes (download included), so about 4½ hours for the 4 default models (qwen3-coder:30b, qwen2.5-coder:14b,
+gpt-oss:20b with `think` medium, qwen2.5-coder:7b); greedy (temperature 0), num_ctx 16384, up to 8,192 tokens per
+reply (12,288 for a thinking model: its thinking and its answer). If the job ends with "still running", run it again
+with action **`fetch-exam`**. Action **`regrade-exam`** (no GPU, a few minutes) fetches the last run and grades every
+saved reply again with the current grader (`kaggle_output_exam/exam_regraded.json`; the log shows each model's scores
+before → after, and the start of every reply that still has no files). Before any model, the notebook
+checks every reference solution passes on Kaggle and leaves out a task whose reference fails there. From a terminal:
+`python coder/exam/run_exam.py` (`--models a,b`, `--limit N`, `--wait`, `--regrade`); files land in `kaggle_output_exam/`.
+
+Writing a task: add the folder, then `python -m coder.exam.grade --check-references` (each reference must pass all its
+hidden tests, and the starter alone must not), then `python coder/build.py` (the tasks are copied into the
+notebook, so Kaggle needs no access to this repository) and `python -m pytest` (it runs the same check).
+
+Files: `coder/exam/grade.py` (task format, prompt, reading files out of a reply, grading, the reference check);
+`coder/exam/exam.py` (one model takes the exam through Ollama; the report); `coder/exam/build_exam.py` writes
+`coder/exam/exam.ipynb` (`python coder/build.py`; don't edit it by hand); `coder/exam/run_exam.py` starts it on
+Kaggle; `coder/exam/test_exam.py` checks it all offline with a fake Ollama and the 2 tiny tasks in
+`coder/exam/sample_tasks/`.
+
 ## Real data
 Training set v2 (`data/train.jsonl`, 1,300 rows) is generated by `make_data.py` from real material,
 and the 151 real Hindi answers in `data/real/xpqa_hi_examples.jsonl` are added at training time.
@@ -237,9 +421,29 @@ datasets (licences checked; details and attribution in `data/real/NOTICE.md`):
 Run it from **Actions → Fetch real data → Run workflow**. Results land on a `real-data/run-…` branch
 for review, never straight on `main`.
 
+### Training set v4 (for the speech-to-speech pipeline)
+`data/train_v4.jsonl` (6,000 rows, `python make_data.py`; the same file every time, and `train.jsonl` does not
+change) is built like v2, from the same real products, prices, number words and spellings, but written the way
+Whisper writes a shopkeeper's speech: Hindi in Devanagari 25%, Hinglish in Devanagari 25% ("हाँ सर, अवेलेबल है,
+प्राइस 220"), Hinglish in Latin letters 20%, Marathi in Devanagari 20%, Marathi in Latin letters 10%. 30% of the
+Devanagari rows have speech-to-text errors (a dropped, merged, split or repeated word, filler words like अं / हाँ
+जी, missing nukta or chandrabindu, digits written another way, no punctuation), never in the price, the yes / no,
+the delivery phrase or the alternative's name. It has many more spoken prices (पौने सत्रह सौ = 1675, साडेचारशे,
+सवा पाँच हज़ार, also off price_words.json's grid), discounts ("MRP 500 है पर 450 लगा देंगे" → 450), unit vs box,
+corrections, delivery said in many ways ("ladka ghar pe de jayega", "पोरगा घरी आणून देईल" → true; "aake le jao" →
+false; not said → null), and one rule for `alternative`: brand + size/type + item, exactly as the shopkeeper said
+it, in the script used ("Schneider 32 एम्पियर एमसीबी"). Unclear, call-back and wrong-number replies (8%) are all
+null. `score.SYSTEM` (the prompt and the Modelfile) is unchanged. Train it with **Actions → Train on Kaggle →
+train_set: v4** (`python run_on_kaggle.py --train-set v4`): 6,151 rows with the 151 xPQA answers, 2 epochs, about
+1 hour of training and 2–2.5 hours in all, in its own Kaggle notebook `wimb-shop-model-training-v4`, so the v2
+model that the try, ask and voice notebooks use is not replaced. The notebook's default stays v2 until v4 is
+measured. Every run is also scored on `data/asr_test.jsonl` (written blind, as speech-to-text writes calls) when
+it is there.
+
 IndicVoices needs a one-time click: log in to Hugging Face, open
 https://huggingface.co/datasets/ai4bharat/IndicVoices and accept the terms, then create a **Read**
-token (Settings → Access Tokens) and save it as the repository secret `HF_TOKEN`:
+token (Settings → Access Tokens; a write token works too, and the free web page needs one) and save it as the
+repository secret `HF_TOKEN`:
 https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 
 ## Files
@@ -252,6 +456,7 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `ask_model.ipynb` | "Ask the shop model": run the model once on Kaggle, then ask it many questions in an ask box. Built by `build_notebook.py`. |
 | `data/train.jsonl` | Training set v2: 1,300 examples generated by `make_data.py` from real products, MRP/prices, spoken number words and spellings (CC BY-SA 4.0, see `data/TRAIN_NOTICE.md`). |
 | `data/train_v1.jsonl` | The first 400 made-up examples, kept to compare against (`TRAIN_SET = "v1"`). |
+| `data/train_v4.jsonl` | Training set v4: 6,000 rows as speech-to-text writes them (`TRAIN_SET = "v4"`; see "Training set v4"). |
 | `data/test.jsonl` | 30 hand-written test calls, never used for training. |
 | `data/hard_test.jsonl` | 56 harder calls in styles the training data does not have. |
 | `data/fresh_test.jsonl` | 60 calls written blind (the writer never saw the training data), checked by a second labeller. |
@@ -261,6 +466,8 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `test_training.py` | Checks the data and scoring: `python -m pytest` |
 | `test_try.py` | Checks `try_model.ipynb` and `try_on_kaggle.py` with a fake Ollama. |
 | `test_ask.py` | Checks `ask_model.ipynb` (with a fake Ollama and ipywidgets) and `try_on_kaggle.py --make-ask-notebook`. |
+| `space/` | The free web page on Hugging Face: `app.py` (Gradio + llama.cpp), `deploy.py` (puts the model and the page there; workflow `hf_space.yml`), `test_space.py`. |
+| `voice/` | Voice v0 (speech to speech): `voice_v0.ipynb` (built by `voice/build_voice.py` from `voice/voicecall.py`), `run_voice.py` (runs it on Kaggle), `test_voice.py`. |
 
 ## Use real data
 Real call transcripts beat everything else. Put them in a new file in `data/` (same format, one per

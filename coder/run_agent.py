@@ -5,9 +5,11 @@ qwen3-coder:30b in Ollama) and its change comes back as kaggle_output_agent/chan
     python coder/run_agent.py --task-file task.txt --commit 1a2b3c4   the task from a file; start from that commit
     python coder/run_agent.py --wait                                  wait for the run already going, then print it
 
-It prints the agent's status (done / question / stopped / error), its summary, the steps, the tests before and after
-and the files changed. Exit 1 when there is no result, or when the change touches .github/ or is larger than 200 KB
-(never applied then); otherwise exit 0. The workflow .github/workflows/agent.yml turns the change into a pull request.
+It prints the agent's status (done / question / stopped / stuck / no_change / error), its summary, the steps, the
+tests before and after and the files changed. stuck: it kept repeating commands and was stopped; no_change: it said
+done but changed no file (no pull request for either). Exit 1 when there is no result, or when the change touches
+.github/ or is larger than 200 KB (never applied then); otherwise exit 0. The workflow .github/workflows/agent.yml
+turns the change into a pull request.
 Needs what run_on_kaggle.py needs (KAGGLE_API_TOKEN, pip install kaggle). The repository must be public.
 """
 
@@ -41,6 +43,9 @@ SHA = re.compile(r"^[0-9a-f]{7,40}$")
 # The lines of a patch that name a file.
 PATH_LINE = re.compile(r"^(?:diff --git |--- |\+\+\+ |rename from |rename to |copy from |copy to )(.*)$", re.MULTILINE)
 GITHUB_DIR = re.compile(r'(?:^|[\s"/])\.github(?:[/"\s]|$)')
+# Statuses that never become a pull request, and why (in plain words).
+NO_PR = {"stuck": "the agent got stuck repeating the same commands, so it was stopped",
+         "no_change": "the agent said it was done, but it changed no file"}
 
 
 def task_from(text: str) -> str:
@@ -172,6 +177,9 @@ def print_steps(log: dict) -> None:
         more = f" (+{len(command) - 1} lines)" if len(command) > 1 else ""
         note = f"  [{step['note']}]" if step.get("note") else ""
         print(f"   {step.get('step')}. $ {command[0][:110]}{more} -> exit {step.get('exit_code')}{note}")
+    if log.get("tests_at_done"):
+        print(f"Self-check when it said done: tests {tests_line(log['tests_at_done'])}; files changed: "
+              f"{', '.join(log.get('files_at_done') or []) or 'none'}")
 
 
 def report(r: dict, patch: str | None) -> None:
@@ -249,6 +257,8 @@ def main() -> None:
         print("\nThis change will NOT be used: " + "; ".join(problems))
         sys.exit(1)
     print(f"\nStatus: {r.get('status')}." + ("" if patch.strip() else " No change was made."))
+    if r.get("status") in NO_PR:
+        print(f"No pull request: {NO_PR[r['status']]}.")
     sys.exit(0)
 
 

@@ -1,0 +1,2 @@
+`shipping.py` works, but every time the courier changes a rate someone has to dig through that big if/else in `shipping_fee(order)`, and we keep making mistakes. Please clean it up so that adding or changing a zone is easy, without changing any fee it calculates today (same function, same inputs, same errors).
+While you're in there, add our new zone `"northeast"`: ₹120 for the first kg, ₹35 for each further kg up to 5 kg, then ₹30 per kg above 5 kg, and free shipping from a subtotal of ₹1,999. Otherwise it works like the other zones (COD charge, weight limits and so on).

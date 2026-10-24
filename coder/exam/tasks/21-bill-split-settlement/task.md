@@ -1,0 +1,5 @@
+Three brothers run our shop together and keep paying supplier bills from their own pockets, so we need a small settlement helper in `splitpay.py`. All amounts are integer paise.
+`split_bill(total_paise: int, weights: list[int]) -> list[int]` splits a bill by whole-number weights (e.g. `[1, 1, 2]` when one person's share is double). The parts must add up to exactly the total, nobody may be off from their exact share by a paisa or more, and the leftover paise go to the people whose exact share was cut the most, with ties going to whoever comes first in the list.
+`settle(balances: dict[str, int]) -> list[tuple[str, str, int]]` takes each person's net balance (positive means the others owe them, negative means they owe) and returns the payments `(payer, payee, amount_paise)` that make everyone even, using as few payments as you reasonably can.
+Balances that don't add up to zero are a data-entry mistake and should raise `ValueError`.
+We print the settlement sheet every month, so the same balances must always give the same list.

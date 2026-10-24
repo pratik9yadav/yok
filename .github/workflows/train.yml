@@ -11,9 +11,9 @@ on:
         options: [train, fetch]
         default: train
       train_set:
-        description: "v2 = real-data training set (main model); v1 = the first 400 made-up examples (comparison)"
+        description: "v2 = real-data training set (main model); v1 = the first 400 made-up examples (comparison); v4 = 6,000 rows as speech-to-text writes them (own notebook wimb-shop-model-training-v4, about 2-2.5 h)"
         type: choice
-        options: [v2, v1]
+        options: [v2, v1, v4]
         default: v2
       export_gguf:
         description: "Export and test the Ollama file (not needed for a comparison run)"
@@ -32,7 +32,8 @@ concurrency:
 jobs:
   train:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # v4 trains about 1 hour (6,151 rows, 2 epochs): the whole run takes about 2-2.5 hours
+    timeout-minutes: ${{ inputs.train_set == 'v4' && 330 || 150 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -48,7 +49,7 @@ jobs:
             echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
             exit 1
           fi
-      - name: Train on Kaggle (about 45 minutes) or collect the last run
+      - name: Train on Kaggle (about 45 minutes; v4 about 2-2.5 hours) or collect the last run
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           ACTION: ${{ inputs.action }}

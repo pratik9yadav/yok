@@ -7,9 +7,13 @@ Needs, once:
 
     python run_on_kaggle.py           start a run, wait (about 40 min), print the results
     python run_on_kaggle.py --wait    wait for the run already going, then print the results
+    python run_on_kaggle.py --train-set v4    train on set v4 (its own notebook, wimb-shop-model-training-v4,
+                                              so the v2 model the try/ask/voice notebooks use is not overwritten)
 """
 
 import argparse
+import base64
+import gzip
 import json
 import re
 import sys
@@ -21,10 +25,18 @@ HERE = Path(__file__).parent
 SLUG = "wimb-shop-model-training"
 OUT = HERE / "kaggle_output"
 DONE = {"COMPLETE": True, "ERROR": False, "CANCEL_REQUESTED": False, "CANCEL_ACKNOWLEDGED": False}
+TRAIN_SETS = ["v2", "v1", "v4"]
+# How long a whole run may take (minutes) and the GPU hours it needs. v4 has 6,151 rows (v2: 1,451): about
+# 1 hour of training for 2 epochs, so about 2-2.5 hours in all with the tests and the GGUF export.
+WAIT_MIN = {"v4": 300}
+NEED_HOURS = {"v4": 3}
 
 
-def slug_for(train_set: str) -> str:
-    """v2 keeps the main notebook (its Output tab holds the model); other sets get their own."""
+def slug_for(train_set: str, slug: str | None = None) -> str:
+    """v2 keeps the main notebook (its Output tab holds the model); other sets get their own
+    (v4: wimb-shop-model-training-v4). slug: a notebook name of your own instead."""
+    if slug:
+        return slug
     return SLUG if train_set == "v2" else f"{SLUG}-{train_set}"
 
 
@@ -57,6 +69,13 @@ def check_gpu(api, need_hours: float = 1) -> None:
         sys.exit(f"Less than {need_hours:g} hour of Kaggle GPU time left this week. It resets weekly.")
 
 
+def packed_block(name: str, text: str) -> str:
+    """A data line like build_notebook.block(), but gzip + base64 on one line, to keep the notebook small for Kaggle."""
+    packed = base64.b64encode(gzip.compress(text.encode("utf-8"), mtime=0)).decode("ascii")
+    return (f'{name} = [json.loads(line) for line in __import__("gzip").decompress(__import__("base64").b64decode('
+            f'"{packed}")).decode("utf-8").splitlines()]\n')
+
+
 def notebook_for(train_set: str, gguf: bool) -> dict:
     """The notebook with its settings cell set to this training set and export choice."""
     nb = json.loads((HERE / "train_colab.ipynb").read_text(encoding="utf-8"))
@@ -66,6 +85,17 @@ def notebook_for(train_set: str, gguf: bool) -> dict:
             source = re.sub(r'^TRAIN_SET = "\w+"', f'TRAIN_SET = "{train_set}"', source, flags=re.MULTILINE)
             source = re.sub(r"^MAKE_OLLAMA_FILE = \w+", f"MAKE_OLLAMA_FILE = {gguf}", source, flags=re.MULTILINE)
             cell["source"] = source.splitlines(keepends=True)
+        elif source.startswith("#@title 4."):  # only the chosen training set: all of them make the notebook too big
+            for name in {"v4": ("TRAIN_V2", "TRAIN_V1"), "v2": ("TRAIN_V4", "TRAIN_V1"), "v1": ("TRAIN_V4", "TRAIN_V2")}[train_set]:
+                source, n = re.subn(rf"^{name} = .*?splitlines\(\)\]\n", f"{name} = []  # not this run\n", source,
+                                    count=1, flags=re.MULTILINE | re.DOTALL)
+                assert n == 1, name
+            if train_set == "v4":  # 6,000 rows written out make the notebook too big for Kaggle: send them packed
+                match = re.search(r"^TRAIN_V4 = \[json\.loads\(line\) for line in r'''\n(.*?)\n'''\.strip\(\)"
+                                  r"\.splitlines\(\)\]\n", source, flags=re.MULTILINE | re.DOTALL)
+                assert match, "TRAIN_V4"
+                source = source.replace(match.group(0), packed_block("TRAIN_V4", match.group(1)))
+            cell["source"] = source.splitlines(keepends=True)
     return nb
 
 
@@ -73,10 +103,12 @@ def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
     push_notebook(api, kernel, notebook_for(train_set, gguf), "train_colab.ipynb")
 
 
-def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None) -> None:
+def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None,
+                  dataset_sources: list[str] | None = None) -> None:
     """Start a run of this notebook on Kaggle: private, T4 GPU, internet on.
 
     kernel_sources: other notebooks whose output is attached as input (under /kaggle/input).
+    dataset_sources: Kaggle datasets ("owner/slug") attached as input (under /kaggle/input too).
     """
     folder = Path(tempfile.mkdtemp())
     (folder / code_file).write_text(json.dumps(nb, ensure_ascii=False), encoding="utf-8")
@@ -84,7 +116,8 @@ def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: li
         "id": kernel, "title": kernel.split("/", 1)[1], "code_file": code_file,
         "language": "python", "kernel_type": "notebook", "is_private": True,
         "enable_gpu": True, "enable_internet": True,
-        "dataset_sources": [], "competition_sources": [], "kernel_sources": kernel_sources or [], "model_sources": [],
+        "dataset_sources": dataset_sources or [], "competition_sources": [], "kernel_sources": kernel_sources or [],
+        "model_sources": [],
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     # T4: the older P100 is too old for the training library.
@@ -96,12 +129,17 @@ def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: li
     if bad:  # Kaggle still starts the run, without that input
         sys.exit(f"Kaggle could not attach {bad} as input (no such notebook, or no access). "
                  "Run the training first (Actions → Train on Kaggle).")
+    bad = getattr(resp, "invalid_dataset_sources", None)
+    if bad:
+        sys.exit(f"Kaggle could not attach the dataset {bad} as input (no such dataset, or no access). "
+                 "Check its name: owner/slug, as in its kaggle.com/datasets/owner/slug link.")
     print("Started:", getattr(resp, "url", None) or f"https://www.kaggle.com/code/{kernel}", flush=True)
     try:  # what Kaggle saved for this run: shows whether the GPU request arrived
         saved = Path(tempfile.mkdtemp())
         api.kernels_pull(kernel, str(saved), metadata=True)
         server = json.loads((saved / "kernel-metadata.json").read_text())
-        keys = ("enable_gpu", "machine_shape", "enable_internet") + (("kernel_sources",) if kernel_sources else ())
+        keys = (("enable_gpu", "machine_shape", "enable_internet") + (("kernel_sources",) if kernel_sources else ())
+                + (("dataset_sources",) if dataset_sources else ()))
         print("Kaggle saved:", {k: server.get(k) for k in keys}, flush=True)
     except Exception as e:  # noqa: BLE001 - diagnostics only
         print("Could not read back the run settings:", e, flush=True)
@@ -188,15 +226,16 @@ def fetch(api, kernel: str) -> None:
 def main() -> None:
     args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
-    args.add_argument("--train-set", choices=["v2", "v1"], default="v2", help="training data to use (default v2)")
+    args.add_argument("--train-set", choices=TRAIN_SETS, default="v2", help="training data to use (default v2)")
+    args.add_argument("--slug", help="Kaggle notebook name to use instead of the one for the training set")
     args.add_argument("--no-gguf", action="store_true", help="skip exporting and testing the Ollama file")
     opts = args.parse_args()
-    api, kernel = connect(slug_for(opts.train_set))
+    api, kernel = connect(slug_for(opts.train_set, opts.slug))
     if not opts.wait:
-        check_gpu(api)
+        check_gpu(api, NEED_HOURS.get(opts.train_set, 1))
         push(api, kernel, opts.train_set, gguf=not opts.no_gguf)
         time.sleep(30)
-    ok = wait(api, kernel)
+    ok = wait(api, kernel, WAIT_MIN.get(opts.train_set, 120))
     fetch(api, kernel)
     sys.exit(0 if ok else 1)
 

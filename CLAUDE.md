@@ -11,6 +11,10 @@ WIMB project (pratik9yadav/WIMB). `data/train.jsonl` (training set v2, 1,300 row
 time; `data/train_v1.jsonl` is the first 400 made-up rows (for comparison). Held-out sets, never
 trained on: `data/test.jsonl` (30), `data/hard_test.jsonl` (56), `data/fresh_test.jsonl` (60, blind).
 Never use held-out rows for ideas or phrasing when changing `make_data.py`; tests check for leakage.
+`data/train_v4.jsonl` (v4, 6,000 rows, Whisper-style Devanagari/Latin Hindi, Hinglish, Marathi with ASR noise) is made by
+`make_data.py` too (README "Training set v4"); train it with `train.yml` `train_set` v4 (own notebook `-v4`, ~2–2.5 h).
+Run 11 (v4): test 100% / hard 77% / fresh 82% / asr 95% (GGUF 100/80/78/93); v2 hard 84%, asr not measured.
+Held-out too: `data/asr_test.jsonl` (blind, scored as set "asr"); never read it or the other held-out sets for ideas.
 
 `train_colab.ipynb`, `try_model.ipynb` and `ask_model.ipynb` are generated: edit `build_notebook.py`, `score.py`
 or `data/`, then run `python build_notebook.py` and `python -m pytest`. Never edit the notebooks by hand.
@@ -47,6 +51,10 @@ To make or refresh the owner's own notebook for asking many questions (`ask_mode
 box), run `ask.yml` with `run` = notebook (about 5 minutes; from here: `python try_on_kaggle.py --make-ask-notebook`),
 then give the link `https://www.kaggle.com/code/<Kaggle user>/wimb-shop-model-ask` (the job log prints it).
 After each new training run, run `ask.yml` with `run` = notebook again, so the notebook uses the new model.
+"Put the model on Hugging Face" / "free web page": run `.github/workflows/hf_space.yml` (inputs `model` v4|v2, `visibility`
+private|public; ~10–25 min; secrets HF_TOKEN (write) + KAGGLE_API_TOKEN), give the Space link from the job log. Edit `space/app.py` or `space/deploy.py`; tests: `space/test_space.py`.
+"Run voice v0" (speech to speech, `voice/`): run `.github/workflows/voice.yml` (`clips_dataset` optional; ~20–40 min), report the per-clip lines, times and TTS licence from the job log; .wav files: artifact `kaggle-output-voice`.
+Notebook: edit `voice/build_voice.py` or `voice/voicecall.py`, then `python voice/build_voice.py` and `python -m pytest`; never edit `voice/voice_v0.ipynb` by hand.
 
 ## Using real data
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:
@@ -73,5 +81,7 @@ First full run: qwen3-coder:30b 73% (120/164), qwen2.5-coder:14b 64%, 7b 57%, gp
 "still running" job is normal: run `action` fetch-train. Edit `coder/build_train.py`/`coder/fixtrain.py`, then `python coder/build.py`.
 Phase 2 full run: 14B 65% → 61% after QLoRA on 2,000 CommitPackFT fixes (worse); use qwen3-coder:30b as is.
 "Give the coding agent a task" (phase 3): run `.github/workflows/agent.yml` ("Coding agent (free model)", input `task`;
-~30–60 min); it opens a PR from `agent/run-<id>` (or the job summary shows its question). Review the PR; never merge
+~30–60 min); it opens a PR from `agent/run-<id>-<attempt>` (or the job summary shows its question). Review the PR; never merge
 unasked. Edit `coder/agent.py`/`coder/build_agent.py`, then `python coder/build.py`; from here: `python coder/run_agent.py --task "..."`.
+"Give the coding models the engineer exam" (phase 4): run `coder.yml` with `action` exam (~4½ h; "still running": `fetch-exam`),
+report the table and weakest tasks from the job log. Tasks in `coder/exam/tasks/`: check with `python -m coder.exam.grade --check-references`, then `python coder/build.py`.

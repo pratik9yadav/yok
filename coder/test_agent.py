@@ -92,6 +92,7 @@ def run(model, repo: Path, tmp_path: Path, **kwargs) -> dict:
     kwargs.setdefault("say", lambda *a: None)
     kwargs.setdefault("sleep", lambda s: None)
     kwargs.setdefault("changed", lambda workdir: True)  # most tests are about other things; see the tests below
+    kwargs.setdefault("self_check", None)  # no tests run at AGENT_DONE; see the self-check tests below
     return agent.run("Fix add in calc.py", model, str(repo), log_path=str(tmp_path / "agent_log.json"), **kwargs)
 
 
@@ -245,11 +246,59 @@ def test_only_the_first_of_several_blocks_runs(repo, tmp_path) -> None:
     assert "only the first ran" in model.seen[1][-1]["content"]
 
 
-def test_the_same_command_three_times_gets_a_nudge(repo, tmp_path) -> None:
-    model = Scripted(bash("ls"), bash("ls"), bash("ls"), DONE_REPLY)
-    run(model, repo, tmp_path)
-    assert "same command 3 times" in model.seen[3][-1]["content"]
-    assert "same command" not in model.seen[2][-1]["content"]
+def test_the_same_command_a_third_time_is_not_run(repo, tmp_path) -> None:
+    """Bench task 4: `ls -la bench/` about 30 times. The third time (spaces don't matter) it is not run."""
+    model = Scripted(bash("ls"), bash("ls  "), bash(" ls"), bash("cat calc.py"), DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    assert log["status"] == "done" and len(log["steps"]) == 5 and log["commands_refused"] == 1
+    assert [s.get("note") for s in log["steps"]] == [None, None, "not run: repeated", None, None]
+    third = log["steps"][2]
+    assert third["exit_code"] is None and third["output"] == ""
+    assert model.seen[3][-1]["content"].startswith(agent.REPEATED + "\n(Step 3 of 40")
+    assert agent.REPEATED.startswith("(Not run: you already ran this command twice")
+    assert "Not run" not in model.seen[2][-1]["content"]
+
+
+def test_a_command_runs_again_after_a_file_changed(repo, tmp_path) -> None:
+    tests = bash("python -m pytest -q")
+    model = Scripted(tests, tests, FIX, tests, tests, tests, bash("git diff"), DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    notes = [s.get("note") for s in log["steps"]]
+    assert notes == [None, None, None, None, None, "not run: repeated", None, None]
+    assert "1 failed" in log["steps"][1]["output"] and "1 passed" in log["steps"][3]["output"]
+    # Writing a file again with the same text is no change: still not run.
+    same = bash(f"cp calc.py {tmp_path}/copy.py && cp {tmp_path}/copy.py calc.py")
+    model = Scripted(same, tests, tests, same, tests, DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    assert [s.get("note") for s in log["steps"]] == [None, None, None, None, "not run: repeated", None]
+
+
+def test_six_refused_commands_stop_the_agent_as_stuck(repo, tmp_path) -> None:
+    model = Scripted(*[bash("ls -la .")] * 30)
+    log = run(model, repo, tmp_path)
+    assert log["status"] == "stuck" and len(log["steps"]) == 8 and log["commands_refused"] == 6
+    assert log["summary"].startswith("Stuck: the agent kept sending commands it had already run twice (6 were not run")
+    assert "`ls -la .`" in log["summary"] and "Files changed: none." in log["summary"]
+    assert "stuck" in agent.STATUSES and "no_change" in agent.STATUSES
+
+
+def test_the_change_is_shown_after_a_step_that_changed_the_repo(repo, tmp_path) -> None:
+    model = Scripted(bash("cat calc.py"), FIX, NEW_TEST, bash("python -m pytest -q"), bash("rm old.txt"), DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    after_read, after_fix, after_test, after_pytest, after_rm = (model.seen[i][-1]["content"] for i in range(1, 6))
+    assert "git diff --stat" not in after_read and "git diff --stat" not in after_pytest  # caches are no change
+    assert "calc.py | 2 +-" in after_fix and "(Files changed so far: calc.py)" in after_fix
+    assert "1 file changed, 1 insertion(+), 1 deletion(-)" in after_fix
+    assert " test_more.py | new file" in after_test and "1 new file(s)" in after_test
+    assert "(Files changed so far: calc.py, test_more.py)" in after_test
+    assert "(Files changed so far: calc.py, old.txt, test_more.py)" in after_rm
+    assert log["steps"][1]["files_changed"] == ["calc.py"]
+    stat, files = agent.changes_so_far(str(repo), max_lines=20)
+    assert files == ["calc.py", "old.txt", "test_more.py"] and len(stat.splitlines()) <= 20
+    for i in range(30):
+        (repo / f"n{i:02}.txt").write_text("x\n")
+    stat, files = agent.changes_so_far(str(repo))
+    assert len(stat.splitlines()) == 20 and "... and" in stat and "31 new file(s)" in stat.splitlines()[-1]
 
 
 def test_failed_model_requests_are_retried_then_stop(repo, tmp_path) -> None:
@@ -263,8 +312,9 @@ def test_failed_model_requests_are_retried_then_stop(repo, tmp_path) -> None:
 
 
 def test_messages_are_trimmed_to_fit_num_ctx(repo, tmp_path) -> None:
-    big = bash("python3 -c \"print('line of output ' * 200)\"")
-    model = Scripted(*[big] * 9, DONE_REPLY)
+    bigs = [bash(f"python3 -c \"print('line of output ' * 200)\"  # {i}") for i in range(12)]  # never the same
+    big = bigs[8]
+    model = Scripted(*bigs[:9], DONE_REPLY)
     num_ctx, num_predict = 4000, 500
     log = run(model, repo, tmp_path, num_ctx=num_ctx, num_predict=num_predict)
     budget = num_ctx - num_predict - 512
@@ -278,7 +328,7 @@ def test_messages_are_trimmed_to_fit_num_ctx(repo, tmp_path) -> None:
     assert len(last) >= 4 and last[-2]["content"] == big  # the newest step stays
     assert "(Step 9 of 40" in last[-1]["content"]
     # With more room the newest KEEP_LAST_STEPS steps always stay whole.
-    model = Scripted(*[big] * 12, DONE_REPLY)
+    model = Scripted(*bigs, DONE_REPLY)
     log = run(model, repo, tmp_path, num_ctx=8000, num_predict=500)
     assert log["steps_cut_from_messages"] > 0
     assert all(agent.tokens(m) <= 8000 - 500 - 512 for m in model.seen)
@@ -619,6 +669,28 @@ def test_runner_reads_the_task_from_a_file_and_shows_a_question(tmp_path, monkey
     assert "The agent asks:\n   Which function?" in out and "no change" in out and "No change was made" in out
 
 
+@pytest.mark.parametrize(("status", "says"), [
+    ("no_change", "No pull request: the agent said it was done, but it changed no file."),
+    ("stuck", "No pull request: the agent got stuck repeating the same commands, so it was stopped."),
+])
+def test_runner_says_plainly_when_there_is_no_pull_request(status, says, tmp_path, monkeypatch, capsys) -> None:
+    summary = "Said done, but changed no file. It was sent back 2 times." if status == "no_change" else "Stuck: ..."
+    api = FakeKaggle({**RESULT, "status": status, "summary": summary}, patch="" if status == "no_change" else PATCH)
+    assert run_main(api, tmp_path, monkeypatch, "--wait") == 0  # the same exit code as "stopped"
+    out = capsys.readouterr().out
+    assert f"Status: {status}  (7 steps" in out and says in out and summary in out
+
+
+def test_runner_shows_the_self_check(tmp_path, monkeypatch, capsys) -> None:
+    api = FakeKaggle()
+    log = {"steps": [], "tests_at_done": {"exit_code": 0, "seconds": 3.0}, "files_at_done": ["calc.py"]}
+    monkeypatch.setattr(api, "kernels_output", lambda kernel, path, file_pattern=None, force=False: (
+        FakeKaggle.kernels_output(api, kernel, path, file_pattern, force),
+        (Path(path) / "agent_log.json").write_text(json.dumps(log))))
+    assert run_main(api, tmp_path, monkeypatch, "--wait") == 0
+    assert "Self-check when it said done: tests passed (exit 0, 3.0 s); files changed: calc.py" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(("patch", "says"), [
     (PATCH.replace("calc.py", ".github/workflows/ci.yml"), "touches .github/"),
     ('diff --git "a/\\056github/x.yml" "b/\\056github/x.yml"\n', "touches .github/"),
@@ -716,6 +788,10 @@ def test_fence_is_longer_than_any_backticks_inside() -> None:
     (RESULT, "", False, "the agent changed nothing"),
     (RESULT, PATCH.replace("calc.py", ".github/workflows/x.yml"), False, "touches .github/"),
     ({**RESULT, "status": "stopped"}, PATCH, True, "Coding agent: stopped"),
+    ({**RESULT, "status": "no_change"}, "", False, "Coding agent: said done, but changed nothing"),
+    ({**RESULT, "status": "no_change"}, PATCH, False, "No pull request: the agent said it was done, but it changed no file."),
+    ({**RESULT, "status": "stuck"}, PATCH, False, "No pull request: the agent got stuck repeating the same commands"),
+    ({**RESULT, "status": "stuck"}, "", False, "Coding agent: stuck (it kept repeating commands)"),
     (None, PATCH, False, "no result"),
 ])
 def test_decide_writes_the_job_summary_and_the_output(result, patch, opened, says, tmp_path, monkeypatch) -> None:
@@ -755,7 +831,7 @@ def run_step(tmp_path: Path, step: dict, env: dict, *stubs: str) -> list[list[st
                                     f"open({str(calls)!r}, 'a').write(json.dumps([{name!r}, *sys.argv[1:]]) + '\\n')\n")
         (bin_dir / name).chmod(0o755)
     run_env = {"PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", **env}
-    script = step["run"].replace("${{ github.run_id }}", "42").replace("${{ github.repository }}", "o/r")  # GitHub's
+    script = step["run"].replace("${{ github.run_id }}", "42").replace("${{ github.run_attempt }}", "1").replace("${{ github.repository }}", "o/r")  # GitHub's
     subprocess.run(["bash", "-e", "-c", script], env=run_env, cwd=tmp_path, capture_output=True, check=True)
     return [json.loads(line) for line in calls.read_text().splitlines()]
 
@@ -768,7 +844,7 @@ def test_workflow_passes_the_task_only_through_the_environment(tmp_path: Path) -
     for job in workflow()["jobs"].values():
         for step in job["steps"]:
             used = set(re.findall(r"\$\{\{\s*([^}]*?)\s*\}\}", step.get("run", "")))
-            assert used <= {"github.run_id", "github.repository"}, (step.get("name"), used)
+            assert used <= {"github.run_id", "github.run_attempt", "github.repository"}, (step.get("name"), used)
     task = NASTY[7] + "\n" + NASTY[5]
     calls = run_step(tmp_path, step_named("agent", "run_agent.py"),
                      {"TASK": task, "GITHUB_SHA": "0123abc", "GITHUB_REPOSITORY": "o/r"}, "python")
@@ -784,7 +860,7 @@ def test_workflow_opens_the_pull_request_with_the_files_as_they_are(tmp_path: Pa
     calls = run_step(tmp_path, step_named("pull-request", "gh pr create"),
                      {"GH_TOKEN": "t", "GITHUB_REF_NAME": "main", "GITHUB_REPOSITORY": "o/r",
                       "GITHUB_STEP_SUMMARY": str(summary)}, "git", "gh")
-    branch = "agent/run-42"
+    branch = "agent/run-42-1"
     assert ["git", "switch", "-c", branch] in calls
     assert ["git", "apply", "--index", "kaggle_output_agent/changes.patch"] in calls
     assert ["git", "commit", "-q", "--no-verify", "-F", "kaggle_output_agent/commit_message.txt"] in calls
@@ -823,10 +899,86 @@ def test_saying_done_with_nothing_changed_is_sent_back(repo, tmp_path) -> None:
     assert "def add(a, b):\n    return a + b" in (repo / "calc.py").read_text()
 
 
-def test_saying_done_again_and_again_with_nothing_changed_is_taken_in_the_end(repo, tmp_path) -> None:
-    log = run(Scripted(*[bash("echo AGENT_DONE")] * 3), repo, tmp_path, changed=agent.repo_changed)
-    assert log["status"] == "done" and len(log["steps"]) == 3
+def test_saying_done_again_and_again_with_nothing_changed_ends_as_no_change(repo, tmp_path) -> None:
+    """Bench task 5: "all tests pass" three times with no file changed. Not "done": "no_change"."""
+    log = run(Scripted(*[bash("echo AGENT_DONE", "All fixed, all tests pass.")] * 3), repo, tmp_path,
+              changed=agent.repo_changed)
+    assert log["status"] == "no_change" and len(log["steps"]) == 3 and log["commands_refused"] == 0
     assert [s.get("note") for s in log["steps"]][:2] == ["said done, but nothing changed: sent back"] * 2
+    assert log["summary"].startswith("Said done, but changed no file. It was sent back 2 times.")
+    assert "All fixed, all tests pass." in log["summary"]
+    log = run(Scripted("Nothing to do.\nAGENT_DONE"), repo, tmp_path, changed=agent.repo_changed,
+              empty_done_retries=0)  # a bare marker, no retries
+    assert log["status"] == "no_change" and "Nothing to do." in log["summary"]
+
+
+def test_the_self_check_sends_failing_tests_back_once(repo, tmp_path) -> None:
+    broken = bash("printf 'def add(a, b):\\n    return a * b\\n' > calc.py")
+    model = Scripted(broken, DONE_REPLY, bash("cat calc.py"), DONE_REPLY)
+    log = run(model, repo, tmp_path, self_check=agent.tests_at_done)
+    assert log["status"] == "done" and len(log["steps"]) == 4  # sent back once, then taken
+    assert log["steps"][1]["note"] == "tests fail at done: sent back"
+    told = model.seen[2][-1]["content"]
+    assert told.startswith("Exit code: 0\nOutput:\nAGENT_DONE") and "\n\n(Tests fail after your change \u2014 fix them, then echo AGENT_DONE.\n" in told
+    assert "`python -m pytest -q` gave exit 1" in told and "1 failed" in told
+    assert log["tests_at_done"]["exit_code"] == 1 and log["files_at_done"] == ["calc.py"]
+    # Passing tests: taken at once, and recorded.
+    git(repo, "checkout", "-q", "--", "calc.py")
+    log = run(Scripted(FIX, bash("python -m pytest -q && echo AGENT_DONE", "Fixed.")), repo, tmp_path,
+              self_check=agent.tests_at_done)
+    assert log["status"] == "done" and log["tests_at_done"]["passed"] and log["files_at_done"] == ["calc.py"]
+    assert log["summary"] == "Fixed."
+    assert not agent.tests_fail({"exit_code": 5, "last_lines": "no tests ran"})
+    assert not agent.tests_fail({"exit_code": 1, "last_lines": "No module named pytest"})
+
+
+def test_a_scratch_file_is_pointed_out_once(repo, tmp_path) -> None:
+    """Bench task 1 left test_fix.py at the repo root, while the code and its tests are in bench/."""
+    (repo / "bench").mkdir()
+    (repo / "bench" / "orders.py").write_text("X = 1\n")
+    (repo / "bench" / "test_orders.py").write_text("from bench.orders import X\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "bench")
+    model = Scripted(bash("sed -i 's/X = 1/X = 2/' bench/orders.py && echo 'print(1)' > test_fix.py"),
+                     DONE_REPLY, bash("rm test_fix.py"), DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    assert log["status"] == "done" and len(log["steps"]) == 4
+    assert log["steps"][1]["note"] == "new scratch files: told once"
+    told = model.seen[2][-1]["content"]
+    assert "test_fix.py" in told and "Delete them" in told and "echo AGENT_DONE again" in told
+    # Told only once: kept the second time it is taken.
+    model = Scripted(bash("echo x > calc.py.orig"), DONE_REPLY, DONE_REPLY)
+    log = run(model, repo, tmp_path)
+    assert log["status"] == "done" and len(log["steps"]) == 3
+    assert "Do not leave scratch files" in model.seen[0][0]["content"]
+    assert "never duplicate an existing test" in " ".join(model.seen[0][0]["content"].split())
+
+
+def test_stray_files_rules(repo) -> None:
+    def strays(*new: str, edit: tuple = ("calc.py",)) -> list:
+        for name in new:
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text("x\n")
+        for name in edit:
+            (repo / name).write_text((repo / name).read_text() + "# edited\n")
+        try:
+            return agent.stray_files(str(repo))
+        finally:
+            git(repo, "checkout", "-q", "--", ".")
+            git(repo, "clean", "-qfd")
+
+    (repo / "pkg" / "tests").mkdir(parents=True)
+    (repo / "pkg" / "mod.py").write_text("y = 1\n")
+    (repo / "pkg" / "tests" / "test_mod.py").write_text("def test_y():\n    pass\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "pkg")
+    assert strays("test_more.py", "helper.py") == []  # next to calc.py and its tests
+    assert strays("calc.py.orig", "tmp.py", "scratch_1.py", "x.bak") == ["calc.py.orig", "scratch_1.py",
+                                                                           "tmp.py", "x.bak"]
+    assert strays("pkg/tests/test_new.py", "test_root.py", edit=("pkg/mod.py",)) == ["test_root.py"]
+    assert strays("pkg/new.py", "pkg/tests/test_new.py", "docs/notes.md", edit=("pkg/mod.py",)) == ["docs/notes.md"]
+    assert strays("pkg/__pycache__/m.pyc", ".pytest_cache/v/x") == []  # caches are never part of the change
+    assert strays("template.html") == []
 
 
 def test_repo_changed_sees_edits_and_new_files(repo) -> None:

@@ -1,0 +1,57 @@
+# Voice v0: a spoken shop call on Kaggle's free GPU (Actions → Voice v0 (speech to speech) → Run workflow).
+# The AI asks 3 Hindi questions by voice; each spoken answer goes ears (Whisper) → brain (the trained shop model in
+# Ollama) → a polite Hindi reply → mouth (text to speech). Runs voice/run_voice.py (voice/voice_v0.ipynb on Kaggle).
+# The .wav files are in the run's artifact kaggle-output-voice (this page, at the bottom) and in the Kaggle Output tab.
+# Needs the repository secret KAGGLE_API_TOKEN and one finished training run (Train on Kaggle).
+name: Voice v0 (speech to speech)
+
+on:
+  workflow_dispatch:
+    inputs:
+      clips_dataset:
+        description: "Optional: your Kaggle dataset with recordings (owner/slug, e.g. me/wimb-voice-clips). Empty: only the 6 synthetic answers"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+# One run at a time: every run uses the same Kaggle notebook, so a second one waits for the first.
+concurrency:
+  group: kaggle-voice
+  cancel-in-progress: false
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - name: Check the Kaggle token
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+        run: |
+          if [ -z "$KAGGLE_API_TOKEN" ]; then
+            echo "::error::Add the secret KAGGLE_API_TOKEN: https://github.com/${{ github.repository }}/settings/secrets/actions/new"
+            exit 1
+          fi
+      - name: Run Voice v0 on Kaggle (about 20–40 minutes)
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          # Inputs reach the script only as environment variables (never pasted into it).
+          CLIPS_DATASET: ${{ inputs.clips_dataset }}
+        run: |
+          ARGS=()
+          if [ -n "$CLIPS_DATASET" ]; then ARGS+=(--clips-dataset "$CLIPS_DATASET"); fi
+          python voice/run_voice.py "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kaggle-output-voice
+          path: kaggle_output_voice/
+          if-no-files-found: ignore

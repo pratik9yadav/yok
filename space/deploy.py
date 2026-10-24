@@ -1,0 +1,262 @@
+"""Put the trained shop model on Hugging Face as a free web page (a Space). Runs on a GitHub runner. No clicks.
+
+1. Downloads the model file (.Q4_K_M.gguf, about 2.5 GB) from the training notebook's Kaggle output.
+2. Uploads it, the repo's Modelfile and a model card to your private model repo <you>/wimb-shop-model-<v4|v2>.
+3. Makes or updates your Space <you>/wimb-shop-model (Gradio, free CPU): app.py, requirements.txt, README.md, a copy
+   of score.py (the training prompt) and shop_words.py (try_on_kaggle.in_words); sets its variables MODEL_REPO
+   and MODEL_FILE, and its secret HF_TOKEN when the Space is new (a read-only token put there later is kept).
+4. Waits (up to 15 minutes) until the Space runs, and prints its link.
+
+    python space/deploy.py                     v4, private
+    python space/deploy.py --model v2          the v2 model instead (its own model repo; the Space switches to it)
+    python space/deploy.py --public            anyone with the link can use the page (the model file stays private)
+    python space/deploy.py --skip-upload-model only the page (the model repo already has the file)
+
+Needs HF_TOKEN (a Hugging Face token with write access) and, unless --skip-upload-model, KAGGLE_API_TOKEN.
+"""
+
+import argparse
+import inspect
+import os
+import re
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent
+sys.path.insert(0, str(REPO))
+
+import run_on_kaggle
+import try_on_kaggle
+
+MODELS = ("v4", "v2")
+SPACE_FILES = ("app.py", "requirements.txt", "README.md")  # from space/; score.py and shop_words.py are added
+GGUF_PATTERN = r"Q4_K_M\.gguf$"
+WAIT_MINUTES = 15
+POLL_SECONDS = 20
+FAILED = {"BUILD_ERROR", "RUNTIME_ERROR", "CONFIG_ERROR", "NO_APP_FILE", "DELETING", "STOPPED", "PAUSED"}
+TOKENS_PAGE = "https://huggingface.co/settings/tokens"
+
+# The scores from README.md: share of calls with all 4 answers right (held-out sets, never trained on).
+SCORES = {
+    "v4": (("run 11 (2026-10-22), training set v4: 6,151 rows in Hindi, Hinglish and Marathi, Devanagari and "
+            "Latin, speech-to-text style"),
+           [("test (30)", "100%", "100%"), ("hard (56)", "77%", "80%"), ("fresh (60, written blind)", "82%", "78%"),
+            ("asr (60, blind, speech-to-text style)", "95%", "93% (56 of 60 done)")]),
+    "v2": ("run 9, training set v2: 1,451 rows built from real products, prices and number words",
+           [("test (30)", "97%", "97%"), ("hard (56)", "84%", "79%"), ("fresh (60, written blind)", "77%", "70%")]),
+}
+
+
+def gguf_name() -> str:
+    """The model file's name, from the repo's Modelfile ("FROM ./wimb-shop-model.Q4_K_M.gguf")."""
+    match = re.match(r"FROM \./(\S+\.gguf)\n", (REPO / "Modelfile").read_text(encoding="utf-8"))
+    if not match:
+        raise RuntimeError("Modelfile: the first line is not FROM ./<name>.gguf")
+    return match.group(1)
+
+
+def model_repo(user: str, model: str) -> str:
+    return f"{user}/wimb-shop-model-{model}"
+
+
+def app_url(user: str, space_name: str) -> str:
+    """The page alone, without Hugging Face around it (https://<user>-<space>.hf.space)."""
+    host = re.sub(r"[^a-z0-9-]", "-", f"{user}-{space_name}".lower())
+    return f"https://{host}.hf.space"
+
+
+def model_card(model: str, kernel: str, space_id: str) -> str:
+    run, rows = SCORES[model]
+    table = "\n".join(f"| {name} | {after} | {exported} |" for name, after, exported in rows)
+    return f"""---
+license: other
+license_name: mixed-see-card
+base_model: Qwen/Qwen3-4B-Instruct-2507
+language: [hi, mr, en]
+tags: [gguf, llama.cpp, ollama, qlora, unsloth]
+---
+
+# WIMB shop model ({model}, GGUF Q4_K_M)
+
+Reads what a shopkeeper said on a phone call about a product and answers with JSON:
+`in_stock` (true/false/null), `price_inr` (number/null), `delivery` (true/false/null), `alternative` (text/null).
+
+```
+Product: 16A MCB
+Shopkeeper: haan hai, 220 ka, delivery nahi
+→ {{"in_stock": true, "price_inr": 220, "delivery": false, "alternative": null}}
+```
+
+Made by the yok project (part of WIMB): QLoRA (Unsloth) on Kaggle's free T4, then exported to `{gguf_name()}`
+(about 2.5 GB). From the Kaggle notebook `{kernel}`.
+
+## Scores
+{run}. Share of calls with all 4 answers right; held-out sets, never trained on.
+
+| set | after training | this exported file |
+|---|---|---|
+{table}
+
+## Use it
+- The web page: https://huggingface.co/spaces/{space_id} (made with this file by `space/deploy.py`).
+- Ollama: put `{gguf_name()}` and this repo's `Modelfile` in one folder, `ollama create wimb-shop -f Modelfile`.
+  The prompt must be exactly the training text: Qwen chat format, the system message in the Modelfile, and the
+  user message `Product: <product>` + newline + `Shopkeeper: <what was said>`. Temperature 0, context 2048.
+
+## Licences (a practical note, not legal advice)
+- Base model: Qwen/Qwen3-4B-Instruct-2507, Apache-2.0.
+- Training data (generated by the project's `make_data.py`): CC BY-SA 4.0 as a whole. It is built on Flipkart
+  Products by PromptCloud (CC BY-SA 4.0), Amazon India Products 2023 by asaniczka (ODC-By), number words from
+  AI4Bharat indic-numtowords (MIT), Unicode CLDR (Unicode License) and gpu-sankhya (MIT), and spellings from the
+  Dakshina dataset (Google Research, CC BY-SA 4.0) and COMI-LINGUA (CC BY-SA 4.0). Plus 151 real Hindi answers
+  from xPQA by Amazon Science (CDLA-Sharing-1.0).
+- Whether share-alike terms reach a model trained on such data is not settled, so this repo is **private by
+  default**. Before making it public, keep the attribution above and check the licences.
+"""
+
+
+def download_gguf(api, kernel: str, folder: Path) -> Path:
+    """The .Q4_K_M.gguf from the notebook's Kaggle output (every page of the file list), and nothing else."""
+    token = None
+    while True:  # the output may list more files than one page (the LoRA folder, logs, results)
+        result = api.kernels_output(kernel, str(folder), file_pattern=GGUF_PATTERN, force=True, page_token=token,
+                                    page_size=100)
+        token = result[1] if isinstance(result, tuple) else None
+        if not token:
+            break
+    found = sorted(folder.rglob("*.gguf"))
+    if not found:
+        sys.exit(f"No .Q4_K_M.gguf in the output of https://www.kaggle.com/code/{kernel}/output. Train first "
+                 "(Actions → Train on Kaggle, with the GGUF export on).")
+    print(f"Model file: {found[0].name}, {found[0].stat().st_size / 1e9:.2f} GB", flush=True)
+    return found[0]
+
+
+def write_space(folder: Path) -> list[str]:
+    """The Space's files, in folder: app.py, requirements.txt, README.md, score.py and shop_words.py."""
+    for name in SPACE_FILES:
+        (folder / name).write_text((HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
+    (folder / "score.py").write_text((REPO / "score.py").read_text(encoding="utf-8"), encoding="utf-8")
+    (folder / "shop_words.py").write_text(
+        '"""in_words(), copied from try_on_kaggle.py by space/deploy.py. Don\'t edit here."""\n\n\n'
+        + inspect.getsource(try_on_kaggle.in_words), encoding="utf-8")
+    return sorted(p.name for p in folder.iterdir())
+
+
+def upload_model(hf, repo_id: str, model: str, kaggle_api, kernel: str, space_id: str) -> None:
+    hf.create_repo(repo_id, repo_type="model", private=True, exist_ok=True)
+    print(f"Model repo: https://huggingface.co/{repo_id}", flush=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        gguf = download_gguf(kaggle_api, kernel, Path(tmp))
+        print("Uploading the model file (a few minutes)…", flush=True)
+        hf.upload_file(path_or_fileobj=str(gguf), path_in_repo=gguf_name(), repo_id=repo_id, repo_type="model",
+                       commit_message=f"Model file from {kernel}")
+    hf.upload_file(path_or_fileobj=(REPO / "Modelfile").read_bytes(), path_in_repo="Modelfile", repo_id=repo_id,
+                   repo_type="model", commit_message="Modelfile (the prompt the model was trained on)")
+    hf.upload_file(path_or_fileobj=model_card(model, kernel, space_id).encode("utf-8"), path_in_repo="README.md",
+                   repo_id=repo_id, repo_type="model", commit_message="Model card")
+
+
+def make_space(hf, space_id: str, private: bool, token: str, repo_id: str, set_token: bool = False) -> bool:
+    """Make or update the Space. Its secret HF_TOKEN is set when the Space is new (or set_token): a read-only token
+    the owner put there later is kept. True when the secret was set."""
+    new = not hf.repo_exists(space_id, repo_type="space")
+    hf.create_repo(space_id, repo_type="space", space_sdk="gradio", space_hardware="cpu-basic", private=private,
+                   exist_ok=True)
+    hf.update_repo_settings(space_id, private=private, repo_type="space")  # also when the Space was already there
+    # Before the files, so the first start already has them.
+    if new or set_token:
+        hf.add_space_secret(space_id, "HF_TOKEN", token, description="reads the private model repo")
+    hf.add_space_variable(space_id, "MODEL_REPO", repo_id)
+    hf.add_space_variable(space_id, "MODEL_FILE", gguf_name())
+    with tempfile.TemporaryDirectory() as tmp:
+        files = write_space(Path(tmp))
+        hf.upload_folder(repo_id=space_id, repo_type="space", folder_path=tmp,
+                         commit_message=f"The web page, with the model from {repo_id}")
+    print(f"Space files: {', '.join(files)}", flush=True)
+    return new or set_token
+
+
+def wait_running(hf, space_id: str, minutes: float = WAIT_MINUTES) -> str:
+    """Poll the Space until it runs the new files, fails, or the time is up. Prints each new stage; returns the last.
+
+    Right after an upload the old build may still say RUNNING; it counts only after a build stage was seen,
+    or after 2 minutes."""
+    last, building, waited = None, False, 0.0
+    while True:
+        stage = hf.get_space_runtime(space_id).stage
+        stage = str(getattr(stage, "value", stage) or "UNKNOWN")
+        if stage != last:
+            print(f"{time.strftime('%H:%M')} Space: {stage}", flush=True)
+            last = stage
+        building = building or stage in ("BUILDING", "APP_STARTING", "RUNNING_BUILDING", "RUNNING_APP_STARTING")
+        if stage in FAILED or (stage == "RUNNING" and (building or waited >= 120)) or waited >= minutes * 60:
+            return stage
+        time.sleep(POLL_SECONDS)
+        waited += POLL_SECONDS
+
+
+def main() -> None:
+    args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    args.add_argument("--model", choices=MODELS, default="v4", help="which trained model (default v4)")
+    visibility = args.add_mutually_exclusive_group()
+    visibility.add_argument("--private", dest="private", action="store_true", default=True,
+                            help="only you (logged in to Hugging Face) can open the page (default)")
+    visibility.add_argument("--public", dest="private", action="store_false",
+                            help="anyone with the link can use the page; the model file stays private")
+    args.add_argument("--space-name", default="wimb-shop-model", help="the Space's name (default wimb-shop-model)")
+    args.add_argument("--skip-upload-model", action="store_true",
+                      help="don't download from Kaggle or upload the model file (the model repo already has it)")
+    args.add_argument("--set-space-token", action="store_true",
+                      help="put this run's HF_TOKEN in the Space's secret even when the Space is already there")
+    opts = args.parse_args()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}", opts.space_name):
+        args.error("--space-name: letters, digits, '-', '_' and '.' only")
+
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if not token:
+        sys.exit(f"Set HF_TOKEN: a Hugging Face token with write access ({TOKENS_PAGE}).")
+    from huggingface_hub import HfApi
+
+    hf = HfApi(token=token)
+    user = hf.whoami()["name"]
+    print(f"Hugging Face user: {user}", flush=True)
+    repo_id, space_id = model_repo(user, opts.model), f"{user}/{opts.space_name}"
+
+    if opts.skip_upload_model:
+        if not hf.file_exists(repo_id, gguf_name()):
+            sys.exit(f"{repo_id} has no {gguf_name()}: run again without --skip-upload-model.")
+        print(f"Model repo (kept as it is): https://huggingface.co/{repo_id}", flush=True)
+    else:
+        kaggle_api, kernel = run_on_kaggle.connect(run_on_kaggle.slug_for(opts.model))
+        upload_model(hf, repo_id, opts.model, kaggle_api, kernel, space_id)
+
+    if make_space(hf, space_id, opts.private, token, repo_id, opts.set_space_token):
+        print(f"Space secret HF_TOKEN set (the token this run used, with write access). Safer: make a read-only "
+              f"token at {TOKENS_PAGE} and put it in the Space instead: https://huggingface.co/spaces/{space_id}/"
+              "settings → Variables and secrets → HF_TOKEN → Replace. Later deploys keep it.", flush=True)
+    else:
+        print("Space secret HF_TOKEN kept as it is (--set-space-token puts this run's token there).", flush=True)
+    print(f"Waiting for the Space to build and start (up to {WAIT_MINUTES} minutes)…", flush=True)
+    stage = wait_running(hf, space_id)
+
+    print(f"\nYour page: https://huggingface.co/spaces/{space_id}")
+    print(f"The page alone: {app_url(user, opts.space_name)}"
+          + (" (private: open the link above while logged in to Hugging Face)" if opts.private else ""))
+    print(f"Model: {opts.model} ({'private' if opts.private else 'public'} page; the model repo {repo_id} is private)")
+    if stage == "RUNNING":
+        print("The Space is running. The first start downloads and loads the model: the page says "
+              "\"Loading the model\" for 1–2 minutes.")
+    elif stage in FAILED:
+        sys.exit(f"The Space stopped at {stage}. Open https://huggingface.co/spaces/{space_id}?logs=build "
+                 "(and ?logs=container) and send Claude the log.")
+    else:
+        print(f"Still {stage} after {WAIT_MINUTES} minutes (building can take longer the first time). "
+              "Open the link in a few minutes.")
+
+
+if __name__ == "__main__":
+    main()

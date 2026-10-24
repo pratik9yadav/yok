@@ -1,0 +1,1 @@
+We are about to put `customers.py` live on the shop server; a contractor wrote it. Please review it before release and fix whatever is wrong, without changing how the rest of the app calls it (`CustomerStore(path)` with `add`, `get_by_phone`, `search` and `import_many`, the `DuplicateCustomer` exception, and `send_welcome_sms`).

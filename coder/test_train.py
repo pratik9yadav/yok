@@ -17,6 +17,7 @@ sys.path.insert(0, str(HERE.parent))
 
 import run_on_kaggle
 from coder import build, build_agent, build_train, fixeval, fixtrain, run_train
+from coder.exam import build_exam
 from coder.test_coder import FIXED, NOT_FIXED, TASKS
 from test_try import FakeApi, Status
 
@@ -546,7 +547,8 @@ def test_workflow_trains_fetches_and_still_evaluates(tmp_path: Path) -> None:
     for line in text.splitlines():  # inputs reach the scripts only as environment variables
         if "${{ inputs." in line:
             assert re.fullmatch(r" +[A-Z_]+: \$\{\{ inputs\.\w+ \}\}", line), line
-    assert "options: [eval, fetch, train, fetch-train]" in text and "kaggle_output_coder_train/" in text
+    assert "options: [eval, fetch, train, fetch-train, exam, fetch-exam, regrade-exam]" in text
+    assert "kaggle_output_coder_train/" in text
     assert int(re.search(r"timeout-minutes: (\d+)", text).group(1)) <= 360  # GitHub's limit
     train = ["coder/run_train.py", "--wait-minutes", "330"]
     assert workflow_command(tmp_path, ACTION="train", SMOKE="no") == train
@@ -562,9 +564,14 @@ def test_build_writes_all_coder_notebooks(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(build, "HERE", tmp_path)
     monkeypatch.setattr(build_train, "HERE", tmp_path)
     monkeypatch.setattr(build_agent, "HERE", tmp_path)
-    for name in ("fixeval.py", "fixtrain.py", "agent.py"):
+    monkeypatch.setattr(build_exam, "HERE", tmp_path / "exam")
+    monkeypatch.setattr(build_exam, "TASKS_DIR", HERE / "exam" / "tasks")
+    for name in ("fixeval.py", "fixtrain.py", "agent.py", "exam/grade.py", "exam/exam.py"):
+        (tmp_path / name).parent.mkdir(exist_ok=True)
         (tmp_path / name).write_text((HERE / name).read_text(encoding="utf-8"), encoding="utf-8")
     build.main()
+    exam_nb = HERE / "exam" / build_exam.NOTEBOOK
+    assert (tmp_path / "exam" / build_exam.NOTEBOOK).read_text("utf-8") == exam_nb.read_text("utf-8")
     assert (tmp_path / build.NOTEBOOK).read_text("utf-8") == (HERE / build.NOTEBOOK).read_text("utf-8")
     assert (tmp_path / build_train.NOTEBOOK).read_text("utf-8") == (HERE / build_train.NOTEBOOK).read_text("utf-8")
     assert (tmp_path / build_agent.NOTEBOOK).read_text("utf-8") == (HERE / build_agent.NOTEBOOK).read_text("utf-8")

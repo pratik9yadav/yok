@@ -1,7 +1,8 @@
 """The coding agent's result as a GitHub job summary and a pull request text (used by .github/workflows/agent.yml).
 
     python coder/agent_pr.py decide   write the job summary ($GITHUB_STEP_SUMMARY) and open_pr=true|false
-                                      ($GITHUB_OUTPUT): true when there is a valid change and no question
+                                      ($GITHUB_OUTPUT): true when there is a valid change and no question, and
+                                      the agent was not stuck and did not say done without changing a file
     python coder/agent_pr.py pr       check the patch again, then write pr_title.txt, pr_body.md and
                                       commit_message.txt into kaggle_output_agent/ (exit 1 if the patch is refused)
 
@@ -20,10 +21,12 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
 from coder import build_agent
-from coder.run_agent import OUT, patch_problems, stat_lines, tests_line
+from coder.run_agent import NO_PR, OUT, patch_problems, stat_lines, tests_line
 
 NOTE = "Made by the free coding agent (qwen3-coder:30b on Kaggle). Review before merging."
-STATUSES = ("done", "question", "stopped", "error")
+STATUSES = ("done", "question", "stopped", "stuck", "no_change", "error")
+HEADS = {"question": "The agent asks a question", "stuck": "Coding agent: stuck (it kept repeating commands)",
+         "no_change": "Coding agent: said done, but changed nothing"}
 TITLE_CHARS = 60
 MAX_BODY = 60_000  # GitHub allows 65,536 characters
 CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f  ]")
@@ -91,6 +94,8 @@ def decision(result: dict | None, patch: str) -> tuple[bool, str]:
         return False, "the run left no agent_result.json"
     if status_of(result) == "question":
         return False, "the agent asks a question"
+    if status_of(result) in NO_PR:
+        return False, NO_PR[status_of(result)]
     if not patch.strip():
         return False, "the agent changed nothing"
     problems = patch_problems(patch)
@@ -154,7 +159,7 @@ def job_summary(task: str, result: dict | None, patch: str, opened: bool, why: s
     if result is None:
         return f"## Coding agent: no result\n\n{why}. See the job log.\n"
     status = status_of(result)
-    head = "The agent asks a question" if status == "question" else f"Coding agent: {status}"
+    head = HEADS.get(status, f"Coding agent: {status}")
     lines = [f"## {head}", "Task:", fence(task), work_line(result),
              ("The question:" if status == "question" else "The agent's summary:"), fence(result.get("summary")),
              "Files changed:", fence("\n".join(line.strip() for line in stat_lines(patch)) if patch.strip() else
