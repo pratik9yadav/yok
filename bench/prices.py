@@ -3,7 +3,7 @@
 
 def parse_price(text: str) -> float:
     """'₹1,250.50' / 'Rs. 1250' / '1250' -> 1250.5 / 1250.0 / 1250.0"""
-    cleaned = text.replace("Rs.", "").replace(",", "").strip()
+    cleaned = text.replace("₹", "").replace("Rs.", "").replace(",", "").strip()
     return float(cleaned)
 
 
