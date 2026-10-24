@@ -217,6 +217,65 @@ fallback voice (MMS-TTS) is used.
 This cascade is the start. The goal is a direct speech-to-speech model, trained on real shop calls recorded with
 the shopkeepers' consent.
 
+## Voice bot (any task, Hindi / Marathi / English)
+The product version of Voice v0. One bot for any phone task: a task is a small JSON file in `voicebot/tasks/`
+(what to find out, the questions in Hindi, Marathi and English, the facts it may tell, business rules), so the same
+bot can **ask a shop about stock** (`shop_stock`), **book a clinic visit** (`clinic_booking`, the bot answers the
+phone) or **confirm a cash-on-delivery order** (`order_confirm`), or anything you write, with no code change.
+
+**How a turn works** (all free models, on Kaggle's free T4):
+1. **Ears**: speech to text (faster-whisper large-v3 turbo; AI4Bharat IndicConformer with an HF token). Tested on
+   real Hindi and Marathi speech, clean and as a phone line (8 kHz, μ-law, noise).
+2. **Understand**: rules for short replies ("हाँ", "नाही", "ढाई सौ", "कल शाम पाँच बजे") and a small model (Ollama, JSON
+   forced by a schema) for the rest. Every value is checked by type; a price is checked against the number reader
+   (`voicebot/numbers.py`: डेढ़, ढाई, सवा, साढ़े, पौने, दोनशे वीस, "two thirty"…), so a model's slip can't reach the
+   result. If the model fails, the rules answer.
+3. **Decide** (`voicebot/engine.py`): plain rules, never the model: ask the next missing thing, say it again when not
+   understood (twice, then move on), answer a question from the task's facts, read everything back and fix
+   corrections. It never makes up a price, a promise or a fact.
+4. **Mouth**: text to speech (Kokoro, Apache-2.0; AI4Bharat Indic Parler-TTS with an HF token). Numbers, ₹, times,
+   phone numbers and short forms like MCB are spelled out in the reply's language first.
+
+It switches to Marathi or English when the other person speaks it, handles "कौन बोल रहा है?", "एक मिनट", "बाद में
+कॉल करो", "दोबारा कॉल मत करना" (ends and marks do-not-call), "गलत नंबर", "किसी इंसान से बात कराओ" (hand-off),
+silence, and a clinic's rules (closed on Sunday, 10:00–19:00).
+
+**Measure it:** **Actions → Voice bot → Run workflow**, mode `eval` (about 60–90 minutes), or ask Claude
+"run the voice bot eval". It prints: the 48 test calls typed (rules only, then each brain), speech to text on real
+speech (word error rate, clean vs phone line), the test calls spoken over a phone line, the voices and the seconds
+per turn. Demo calls (.wav) are in the run's artifact `kaggle-output-voicebot`. Offline: `python -m voicebot.evaluate`
+(rules only; `--show shop-hi-who` prints one call).
+
+**Talk to it (web page, on a phone too):** first add the repository secret `VOICEBOT_PASSWORD` (any password, 6+
+characters) at https://github.com/pratik9yadav/yok/settings/secrets/actions/new. Then **Actions → Voice bot → Run
+workflow**, mode `live`, minutes `90`. After 10–20 minutes the job log prints the page's link; log in with user
+`wimb` and your password, pick a task, press **Start call**, tap the mic and speak. With "save my voice" on, each
+call is kept in the Kaggle run's Output tab (private, never in GitHub): real voices to make the ears better.
+
+**Better Indian voices and accents (optional):** a free Hugging Face token whose account accepted
+https://huggingface.co/ai4bharat/indic-parler-tts, https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual
+and https://huggingface.co/datasets/ai4bharat/Lahaja; on kaggle.com open the notebook `wimb-voicebot-eval` (and
+`-live`) → **Edit** → **Add-ons → Secrets** → add `HF_TOKEN`, switch it on. Then the eval also measures speech to
+text on Lahaja (Hindi from 132 speakers in 83 districts), by region.
+
+**Write your own task:** copy `voicebot/tasks/order_confirm.json`, change it, check it with
+`python -c "from voicebot import tasks; print(tasks.problems(__import__('json').load(open('my.json'))))"`, or paste it
+in the web page under "Your own task".
+
+| Part | Model | Licence |
+|---|---|---|
+| Ears | faster-whisper large-v3 turbo (`mobiuslabsgmbh/faster-whisper-large-v3-turbo`) | MIT |
+| Ears, with HF token | `ai4bharat/indic-conformer-600m-multilingual` | MIT |
+| Brain | Qwen3-4B-Instruct-2507, Gemma 3 4B / 12B in Ollama (the eval picks) | Apache-2.0 / Gemma terms |
+| Mouth | `hexgrad/Kokoro-82M` (Hindi voices; Marathi read by the Hindi voice) | Apache-2.0 |
+| Mouth, with HF token | `ai4bharat/indic-parler-tts` (native Marathi voices) | Apache-2.0 |
+| Mouth, last fallback | `facebook/mms-tts-hin`, `-mar` | CC-BY-NC-4.0: test only |
+
+**Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
+a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better
+free one comes. The calls the live page saves (with consent) are the data for the next steps: fine-tune the ears on
+real accents, then try a direct speech model.
+
 ## Coder model (phase 1: measure)
 **First full run (2026-10-15, Kaggle 2× T4, Ollama 0.40.4, 58 minutes):** bugs fixed of 164, one try each.
 
@@ -472,6 +531,7 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `test_try.py` | Checks `try_model.ipynb` and `try_on_kaggle.py` with a fake Ollama. |
 | `test_ask.py` | Checks `ask_model.ipynb` (with a fake Ollama and ipywidgets) and `try_on_kaggle.py --make-ask-notebook`. |
 | `space/` | The free web page on Hugging Face: `app.py` (Gradio + llama.cpp), `deploy.py` (puts the model and the page there; workflow `hf_space.yml`), `test_space.py`. |
+| `voicebot/` | The voice bot: `tasks/` (one JSON per task), `engine.py` (the conversation), `understand.py` (rules + model), `numbers.py` (spoken numbers), `audio.py` (ears, mouth, phone line), `live.py` (web page), `scenarios/` (48 test calls), `evaluate.py`, `voicebot.ipynb` (built by `build_voicebot.py`), `run_voicebot.py` (runs it on Kaggle), `test_voicebot.py`. |
 | `voice/` | Voice v0 (speech to speech): `voice_v0.ipynb` (built by `voice/build_voice.py` from `voice/voicecall.py`), `run_voice.py` (runs it on Kaggle), `test_voice.py`. |
 
 ## Use real data
