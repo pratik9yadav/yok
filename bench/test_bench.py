@@ -1,3 +1,4 @@
+from bench.prices import parse_price, format_inr
 import datetime
 
 from bench.orders import calc_total
@@ -16,3 +17,8 @@ def test_total() -> None:
 def test_lines() -> None:
     order = {"item": "MCB", "qty": 2, "price": 220.0, "day": datetime.date(2026, 10, 12)}
     assert order_lines([order]) == ["MCB: 2 x 220.0 = 440.0"]
+
+def test_format_inr() -> None:
+    assert format_inr(1250000) == "₹12,50,000"
+    assert format_inr(999) == "₹999"
+    assert format_inr(1250.5) == "₹1,250.50"
