@@ -46,7 +46,7 @@ SETTINGS = """
 import itertools, json, os, re, shutil, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 
 MODE = "eval"  # "eval": measure everything; "live": the web page
-BRAINS = ["qwen3:4b-instruct-2507-q4_K_M", "gemma3:4b", "gemma3:12b"]  # eval: all; live: the first that works
+BRAINS = ["gemma3:4b", "qwen3:4b-instruct-2507-q4_K_M"]  # eval: all; live: the first that works (eval 3: both 48/48)
 ASR = ["faster-whisper", "transformers"]  # speech to text ("indic-conformer" is tried too with an HF token)
 TTS = ["kokoro", "parler", "mms"]  # text to speech, in order of preference (parler needs an HF token)
 BENCH_ROWS = 60  # real speech per language for the speech-to-text test

@@ -131,6 +131,15 @@ def to_int16(audio):
     return (np.clip(np.asarray(audio, dtype=np.float32), -1, 1) * 32767).astype(np.int16)
 
 
+NO_REPEAT = 6  # Whisper can loop on a short clip ("कर दो कर दो कर दो ..."): no 6-token phrase twice
+
+
+def token_limit(audio) -> int:
+    """At most this many tokens for a clip: about 15 per second of speech (Devanagari takes many), so a
+    hallucination loop can't run on."""
+    return int(min(440, 20 + 15 * len(audio) / RATE))
+
+
 def preload_cuda_libraries() -> None:
     """faster-whisper (CTranslate2) looks for cuDNN and cuBLAS on the system path; on Kaggle they come with torch's
     pip packages instead. Loading them first lets it find them."""
@@ -174,7 +183,8 @@ class Ears:
             def run(audio, lang, prompt):
                 segments, _ = model.transcribe(audio, language=lang, beam_size=1, vad_filter=True,
                                                initial_prompt=prompt or None, condition_on_previous_text=False,
-                                               without_timestamps=True)
+                                               without_timestamps=True, no_repeat_ngram_size=NO_REPEAT,
+                                               max_new_tokens=token_limit(audio))
                 return " ".join(s.text.strip() for s in segments)
 
             import numpy as np
@@ -189,7 +199,15 @@ class Ears:
                            chunk_length_s=30)  # clips over 30 s too
 
             def run(audio, lang, prompt):
-                options = {"task": "transcribe", **({"language": lang} if lang else {})}
+                options = {"task": "transcribe", "max_new_tokens": token_limit(audio), "no_repeat_ngram_size": NO_REPEAT,
+                           **({"language": lang} if lang else {})}
+                if prompt and len(audio) <= 30 * RATE:  # a hint (the bot's question) helps with short answers
+                    try:
+                        ids = asr.tokenizer.get_prompt_ids(prompt, return_tensors="pt").to(asr.device)
+                        return asr({"raw": audio, "sampling_rate": RATE},
+                                   generate_kwargs={**options, "prompt_ids": ids})["text"]
+                    except Exception as e:  # noqa: BLE001 - not supported here: without the hint
+                        print("speech-to-text hint not used:", repr(e)[:200])
                 return asr({"raw": audio, "sampling_rate": RATE}, generate_kwargs=options)["text"]
 
             return cls(backend, run, None, "GPU" if gpu else "CPU")
@@ -249,9 +267,11 @@ class Mouth:
                 files[name] = os.path.join(tempfile.gettempdir(), name)
                 if not os.path.exists(files[name]):
                     download(url, files[name])
+            if gpu:
+                preload_cuda_libraries()
             import onnxruntime as ort
 
-            on = "CPU (onnxruntime)"
+            on = f"CPU (onnxruntime; providers: {', '.join(ort.get_available_providers())})"
             if "CUDAExecutionProvider" in ort.get_available_providers():
                 session = ort.InferenceSession(files["kokoro-v1.0.onnx"],
                                                providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
@@ -342,7 +362,8 @@ def load_first(kind: str, backends, token: str | None = None, log=print):
             tried.append({"backend": backend, "ok": False, "why": f"{type(e).__name__}: {e}"[:400]})
             log(f"{kind}: {backend} did not load: {e!r}"[:500])
             continue
-        tried.append({"backend": backend, "ok": True, "why": f"loaded in {time.time() - started:.0f} s"})
+        tried.append({"backend": backend, "ok": True, "why": f"loaded in {time.time() - started:.0f} s",
+                      "device": loaded.device})
         log(f"{kind}: {backend} ({info[backend]['model']}, {info[backend]['licence']}) on {loaded.device}")
         return loaded, tried
     return None, tried

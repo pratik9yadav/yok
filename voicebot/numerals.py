@@ -419,7 +419,12 @@ def time_of_day(text: str) -> str | None:
     if clock and int(clock.group(1)) < 24 and int(clock.group(2)) < 60:
         hour, minute = int(clock.group(1)), int(clock.group(2))
     else:
-        cue = next((i for i, w in enumerate(lowered) if w in CLOCK or key(w) in {key(c) for c in CLOCK}), None)
+        clock_keys = {key(c) for c in CLOCK}
+        cue = next((i for i, w in enumerate(lowered) if w in CLOCK or key(w) in clock_keys), None)
+        if cue is None:  # "पाँच बदे": a misheard बजे right after a number
+            numbered = {s.end for s in find_numbers(t)}
+            cue = next((i for i, w in enumerate(lowered) if i in numbered and not is_latin(w) and len(key(w)) == 3
+                        and any(distance(key(w), c) <= 1 for c in ("बजे", "बजक"))), None)
         if cue is not None:
             spans = [s for s in find_numbers(t) if s.end <= cue]
             if spans and spans[-1].end >= cue - 1:
@@ -449,15 +454,43 @@ def time_of_day(text: str) -> str | None:
     return f"{hour:02d}:{minute:02d}"
 
 
-def day(text: str) -> str | None:
+def distance(a: str, b: str) -> int:
+    """Edit distance (letters added, dropped or changed)."""
+    row = list(range(len(b) + 1))
+    for i, x in enumerate(a, 1):
+        prev, row[0] = row[0], i
+        for j, y in enumerate(b, 1):
+            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (x != y))
+    return row[-1]
+
+
+def near(word: str, choices: dict[str, str]) -> str | None:
+    """The value of the choice a misheard word is closest to ("संवार" -> सोमवार, "जविवार" -> रविवार): at most one
+    letter off for 4 letters, two for 5 or more, and only when one value is closest; else None."""
+    k = key(word)
+    if len(k) < 4:
+        return None
+    limit = 1 if len(k) < 5 else 2
+    scored = [(distance(k, c), v) for c, v in choices.items() if len(c) >= 4 and abs(len(c) - len(k)) <= limit]
+    scored = [(d, v) for d, v in scored if d <= limit]
+    if not scored:
+        return None
+    best = min(d for d, _ in scored)
+    found = {v for d, v in scored if d == best}
+    return found.pop() if len(found) == 1 else None
+
+
+def day(text: str, fuzzy: bool = False) -> str | None:
     """The day said in the text: "today", "tomorrow", "day_after" or a weekday ("monday" ...), or None. "कल" is
-    taken as tomorrow (a booking talks about the future)."""
+    taken as tomorrow (a booking talks about the future). fuzzy (the day was just asked): a weekday misheard by
+    speech to text by a letter or two counts too."""
     low = (text or "").lower()
     if any(p in low for p in DAY_AFTER_PHRASES):
         return "day_after"
     found = None
+    weekdays = {k: d for k, d in DAY_OF.items() if d not in ("today", "tomorrow", "day_after")}
     for w in tokens(text):
-        d = DAY_OF.get(key(w)) or DAY_OF.get(w.lower())
+        d = DAY_OF.get(key(w)) or DAY_OF.get(w.lower()) or (near(w, weekdays) if fuzzy and not is_latin(w) else None)
         if d:
             found = d if found in (None, "today") or d not in ("today",) else found
     return found

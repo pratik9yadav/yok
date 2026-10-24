@@ -271,6 +271,23 @@ in the web page under "Your own task".
 | Mouth, with HF token | `ai4bharat/indic-parler-tts` (native Marathi voices) | Apache-2.0 |
 | Mouth, last fallback | `facebook/mms-tts-hin`, `-mar` | CC-BY-NC-4.0: test only |
 
+**Results (eval 3, 2026-10-24, Kaggle T4):**
+
+| What | Result |
+|---|---|
+| 48 test calls, typed: rules only | 46/48 |
+| … with gemma3:4b / qwen3:4b-instruct-2507 / gemma3:12b | 48/48 each; 1.65 s / 1.67 s / 4.1 s per model call |
+| Speech to text, real Hindi (FLEURS, 60 clips), word error rate | 17.0% clean, 26.0% as a phone line (Whisper turbo, transformers); faster-whisper 19.2% / 27.8% |
+| … real Marathi | 36.4% clean, 46.2% phone: weak (an IndicConformer test needs the HF token) |
+| 44 test calls spoken by a synthetic voice over a phone line | 15/44: the ears mishear short words from the synthetic voice ("कल", names, "परसों") |
+| One turn, end to end | hear 0.5 s + understand 0.9 s + speak 2.6 s (Kokoro on CPU) = 4.1 s |
+
+Eval 1 (before the value checks): qwen3 4B 42/48, gemma3 4B 40/48, gemma3 12B 47/48. The small models repeated known
+values and garbled phone numbers, flipped answers they were not asked, and put whole lines into text fields;
+every model value is now checked against the words (`reconcile` in `understand.py`, with those slips as tests).
+gemma3:4b is the brain for live calls. Next: the ears (Whisper loops on short clips are now capped; the HF token
+brings IndicConformer and Indian voices), and the voice on the GPU.
+
 **Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
 a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better
 free one comes. The calls the live page saves (with consent) are the data for the next steps: fine-tune the ears on

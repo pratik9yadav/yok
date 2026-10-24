@@ -269,7 +269,7 @@ def by_rules(text: str, task: Task, view: View) -> Understood:
             spans = numerals.find_numbers(text)
             value = spans[0].value if spans else None
         elif kind == "day":
-            value = numerals.day(text)
+            value = numerals.day(text, fuzzy=is_pending)
         elif kind == "time":
             value = numerals.time_of_day(text)
         elif kind == "phone":
