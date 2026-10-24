@@ -16,7 +16,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from voicebot import numbers
+from voicebot import numerals
 from voicebot.tasks import DAY_VALUES, Task
 
 INTENTS = {
@@ -174,14 +174,14 @@ def check(slot: dict, value):
     if kind == "day":
         v = str(value).strip().lower().replace(" ", "_").replace("-", "_")
         v = {"day_after_tomorrow": "day_after", "dayafter": "day_after"}.get(v, v)
-        return v if v in DAY_VALUES else numbers.day(str(value))
+        return v if v in DAY_VALUES else numerals.day(str(value))
     if kind == "time":
         if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value < 24:
             return f"{int(value):02d}:{round((value - int(value)) * 60):02d}"
         m = re.fullmatch(r"\s*(\d{1,2})(?:[:.](\d{2}))?\s*", str(value))
         if m and int(m.group(1)) < 24 and int(m.group(2) or 0) < 60:
             return f"{int(m.group(1)):02d}:{int(m.group(2) or 0):02d}"
-        return numbers.time_of_day(str(value))
+        return numerals.time_of_day(str(value))
     if kind == "enum":
         v = str(value).strip().lower()
         options = slot["options"]
@@ -259,16 +259,16 @@ def by_rules(text: str, task: Task, view: View) -> Understood:
         if kind == "bool" and is_pending and u.intent in ("other", "answer"):
             value = answer
         elif kind == "money" and (is_pending or sum(s["type"] == "money" for s in task.slots) == 1):
-            value = numbers.money(text, expected=is_pending)
+            value = numerals.money(text, expected=is_pending)
         elif kind == "number" and is_pending:
-            spans = numbers.find_numbers(text)
+            spans = numerals.find_numbers(text)
             value = spans[0].value if spans else None
         elif kind == "day":
-            value = numbers.day(text)
+            value = numerals.day(text)
         elif kind == "time":
-            value = numbers.time_of_day(text)
+            value = numerals.time_of_day(text)
         elif kind == "phone":
-            value = numbers.phone(text)
+            value = numerals.phone(text)
         elif kind == "enum":
             value = enum_from_words(slot, text)
         elif kind == "name" and (is_pending and u.intent == "other" or NAME_AFTER.search(text or "")):
@@ -356,7 +356,7 @@ The assistant just said: "{view.last_bot}"
 {waiting}
 Known so far: {json.dumps(known, ensure_ascii=False) if known else "nothing"}
 
-The other person now said: "{numbers.annotate(text)}"
+The other person now said: "{numerals.annotate(text)}"
 
 Fields (null when this turn does not say it):
 {fields}
@@ -401,7 +401,7 @@ def reconcile(model: Understood, rules: Understood, text: str, task: Task, view:
     u.said_no = rules.said_no
     if rules.intent in STRONG_INTENTS:
         u.intent = rules.intent
-    spans = numbers.find_numbers(text, colloquial=True) + numbers.find_numbers(text)
+    spans = numerals.find_numbers(text, colloquial=True) + numerals.find_numbers(text)
     said = {s.value for s in spans}
     for slot in task.slots:
         name, kind = slot["name"], slot["type"]

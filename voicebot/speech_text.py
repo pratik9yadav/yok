@@ -10,7 +10,7 @@ and short forms like MCB are spelled out in the reply's language first.
 import re
 import unicodedata
 
-from voicebot.numbers import digit_words, money_words, time_words, to_words
+from voicebot.numerals import digit_words, money_words, time_words, to_words
 
 LETTERS_HI = {
     "A": "ए", "B": "बी", "C": "सी", "D": "डी", "E": "ई", "F": "एफ", "G": "जी", "H": "एच", "I": "आई", "J": "जे",

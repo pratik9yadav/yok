@@ -11,7 +11,7 @@ import pytest
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
-from voicebot import evaluate, numbers, tasks
+from voicebot import evaluate, numerals, tasks
 from voicebot.engine import Call
 from voicebot.lang import detect
 from voicebot.speech_text import clean_heard, for_voice
@@ -27,7 +27,7 @@ from voicebot.understand import View, by_rules, check, prompt, schema, understan
     ("डेढ़ लाख", 150_000), ("सवा लाख", 125_000), ("दोन हजार तीनशे", 2300),
 ])
 def test_spoken_prices(said, value):
-    assert numbers.money(said, expected=True) == value
+    assert numerals.money(said, expected=True) == value
 
 
 @pytest.mark.parametrize("said, value", [
@@ -37,13 +37,13 @@ def test_spoken_prices(said, value):
     ("एक का एक सौ नब्बे", 190),
 ])
 def test_prices_skip_sizes_and_counts(said, value):
-    assert numbers.money(said, expected=True) == value
+    assert numerals.money(said, expected=True) == value
 
 
 def test_a_lone_small_word_is_no_price():
-    assert numbers.money("नहीं, बता दो") is None
-    assert numbers.money("हाँ, दस बारह पीस हैं") is None  # not asked, no sign of money
-    assert numbers.money("पचास") is None and numbers.money("पचास", expected=True) == 50
+    assert numerals.money("नहीं, बता दो") is None
+    assert numerals.money("हाँ, दस बारह पीस हैं") is None  # not asked, no sign of money
+    assert numerals.money("पचास") is None and numerals.money("पचास", expected=True) == 50
 
 
 @pytest.mark.parametrize("said, hhmm", [
@@ -52,7 +52,7 @@ def test_a_lone_small_word_is_no_price():
     ("subah das baje", "10:00"), ("around 3:30 in the afternoon", "15:30"), ("बारह बजे", "12:00"),
 ])
 def test_times(said, hhmm):
-    assert numbers.time_of_day(said) == hhmm
+    assert numerals.time_of_day(said) == hhmm
 
 
 @pytest.mark.parametrize("said, d", [
@@ -61,7 +61,7 @@ def test_times(said, hhmm):
     ("the day after tomorrow", "day_after"), ("आज", "today"),
 ])
 def test_days(said, d):
-    assert numbers.day(said) == d
+    assert numerals.day(said) == d
 
 
 @pytest.mark.parametrize("said, number", [
@@ -70,28 +70,28 @@ def test_days(said, d):
     ("+91 98123 45678", "9812345678"), ("09812345678", "9812345678"),
 ])
 def test_phone_numbers(said, number):
-    assert numbers.phone(said) == number
+    assert numerals.phone(said) == number
 
 
 def test_too_short_is_no_phone():
-    assert numbers.phone("नौ आठ सात") is None
+    assert numerals.phone("नौ आठ सात") is None
 
 
 def test_numbers_back_to_words():
-    assert numbers.to_words(220, "hi") == "दो सौ बीस"
-    assert numbers.to_words(220, "mr") == "दोनशे वीस"
-    assert numbers.to_words(225, "en") == "two hundred twenty five"
-    assert numbers.money_words(12.5, "hi") == "बारह रुपये पचास पैसे"
-    assert numbers.time_words("16:30", "hi") == "शाम साढ़े चार बजे"
-    assert numbers.time_words("13:30", "mr") == "दुपारी दीड वाजता"
-    assert numbers.time_words("09:45", "hi") == "सुबह पौने दस बजे"
-    assert numbers.time_words("16:05", "en") == "four oh five in the evening"
-    assert numbers.digit_words("9876543210", "hi") == "नौ आठ सात छह पाँच, चार तीन दो एक शून्य"
+    assert numerals.to_words(220, "hi") == "दो सौ बीस"
+    assert numerals.to_words(220, "mr") == "दोनशे वीस"
+    assert numerals.to_words(225, "en") == "two hundred twenty five"
+    assert numerals.money_words(12.5, "hi") == "बारह रुपये पचास पैसे"
+    assert numerals.time_words("16:30", "hi") == "शाम साढ़े चार बजे"
+    assert numerals.time_words("13:30", "mr") == "दुपारी दीड वाजता"
+    assert numerals.time_words("09:45", "hi") == "सुबह पौने दस बजे"
+    assert numerals.time_words("16:05", "en") == "four oh five in the evening"
+    assert numerals.digit_words("9876543210", "hi") == "नौ आठ सात छह पाँच, चार तीन दो एक शून्य"
 
 
 def test_annotate_adds_digits_for_the_model():
-    assert numbers.annotate("ढाई सौ का है") == "ढाई सौ (=250) का है"
-    assert numbers.annotate("₹220 है") == "₹220 है"
+    assert numerals.annotate("ढाई सौ का है") == "ढाई सौ (=250) का है"
+    assert numerals.annotate("₹220 है") == "₹220 है"
 
 
 @pytest.mark.parametrize("said, lang", [
@@ -332,7 +332,7 @@ def test_notebook_is_up_to_date():
 
 def test_notebook_carries_the_whole_package():
     files = build_voicebot.package_files()
-    assert {"engine.py", "understand.py", "numbers.py", "audio.py", "live.py", "tasks/shop_stock.json",
+    assert {"engine.py", "understand.py", "numerals.py", "audio.py", "live.py", "tasks/shop_stock.json",
             "scenarios/shop_stock.jsonl"} <= set(files)
     for name, body in files.items():
         assert body == (HERE / name).read_text(encoding="utf-8")
@@ -434,3 +434,17 @@ def test_notebook_glue_runs_with_a_fake_brain(tmp_path, monkeypatch):
         for k in [k for k in sys.modules if k == "voicebot" or k.startswith("voicebot.")]:
             del sys.modules[k]
         sys.modules.update(saved_modules)
+
+
+@pytest.mark.parametrize("script", ["run_voicebot.py", "evaluate.py", "build_voicebot.py"])
+def test_scripts_start_as_scripts(script, tmp_path):
+    """Run as `python voicebot/<script>`, the folder voicebot/ is first on the path: nothing in it may hide a
+    standard module (a voicebot/numbers.py once broke tqdm's `from numbers import Number`)."""
+    import subprocess
+
+    args = ["--help"]
+    done = subprocess.run([sys.executable, str(HERE / script), *args], capture_output=True, text=True, timeout=120,
+                          cwd=tmp_path, check=False)
+    assert done.returncode == 0, done.stderr[-2000:]
+    clash = [p.name for p in HERE.glob("*.py") if p.stem in sys.stdlib_module_names]
+    assert not clash, f"rename: {clash} hide standard modules"

@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).parent
+if sys.path and Path(sys.path[0]).resolve() == HERE.resolve():  # run as a script: don't shadow standard modules
+    sys.path.pop(0)
 sys.path.insert(0, str(HERE.parent))
 
 from voicebot.engine import Call

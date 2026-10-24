@@ -13,6 +13,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
+if sys.path and Path(sys.path[0]).resolve() == HERE.resolve():  # run as a script: don't shadow standard modules
+    sys.path.pop(0)
 sys.path.insert(0, str(HERE.parent))
 
 from build_notebook import METADATA, OLLAMA_API, START_OLLAMA, code, md, run_helpers, text, titled
@@ -20,7 +22,7 @@ from build_notebook import METADATA, OLLAMA_API, START_OLLAMA, code, md, run_hel
 NOTEBOOK = "voicebot.ipynb"
 RESULTS_FILE = "voicebot_results.json"
 SETTINGS_TITLE = "1. Settings"
-PACKAGE = ["__init__.py", "numbers.py", "lang.py", "speech_text.py", "tasks.py", "understand.py", "engine.py",
+PACKAGE = ["__init__.py", "numerals.py", "lang.py", "speech_text.py", "tasks.py", "understand.py", "engine.py",
            "evaluate.py", "audio.py", "live.py"]
 GRADIO_PIP = "gradio==5.50.0"
 PARLER_PIP = "parler-tts==0.2.3"  # pins transformers 4.46.1: installed only when its model will be tried
@@ -593,6 +595,9 @@ def notebook() -> dict:
 
 
 def main() -> None:
+    if len(sys.argv) > 1:
+        print(__doc__)
+        return
     out = HERE / NOTEBOOK
     out.write_text(text(notebook()), encoding="utf-8")
     print(f"wrote {out}")

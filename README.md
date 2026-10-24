@@ -228,7 +228,7 @@ phone) or **confirm a cash-on-delivery order** (`order_confirm`), or anything yo
    real Hindi and Marathi speech, clean and as a phone line (8 kHz, μ-law, noise).
 2. **Understand**: rules for short replies ("हाँ", "नाही", "ढाई सौ", "कल शाम पाँच बजे") and a small model (Ollama, JSON
    forced by a schema) for the rest. Every value is checked by type; a price is checked against the number reader
-   (`voicebot/numbers.py`: डेढ़, ढाई, सवा, साढ़े, पौने, दोनशे वीस, "two thirty"…), so a model's slip can't reach the
+   (`voicebot/numerals.py`: डेढ़, ढाई, सवा, साढ़े, पौने, दोनशे वीस, "two thirty"…), so a model's slip can't reach the
    result. If the model fails, the rules answer.
 3. **Decide** (`voicebot/engine.py`): plain rules, never the model: ask the next missing thing, say it again when not
    understood (twice, then move on), answer a question from the task's facts, read everything back and fix
@@ -531,7 +531,7 @@ https://github.com/pratik9yadav/yok/settings/secrets/actions/new
 | `test_try.py` | Checks `try_model.ipynb` and `try_on_kaggle.py` with a fake Ollama. |
 | `test_ask.py` | Checks `ask_model.ipynb` (with a fake Ollama and ipywidgets) and `try_on_kaggle.py --make-ask-notebook`. |
 | `space/` | The free web page on Hugging Face: `app.py` (Gradio + llama.cpp), `deploy.py` (puts the model and the page there; workflow `hf_space.yml`), `test_space.py`. |
-| `voicebot/` | The voice bot: `tasks/` (one JSON per task), `engine.py` (the conversation), `understand.py` (rules + model), `numbers.py` (spoken numbers), `audio.py` (ears, mouth, phone line), `live.py` (web page), `scenarios/` (48 test calls), `evaluate.py`, `voicebot.ipynb` (built by `build_voicebot.py`), `run_voicebot.py` (runs it on Kaggle), `test_voicebot.py`. |
+| `voicebot/` | The voice bot: `tasks/` (one JSON per task), `engine.py` (the conversation), `understand.py` (rules + model), `numerals.py` (spoken numbers), `audio.py` (ears, mouth, phone line), `live.py` (web page), `scenarios/` (48 test calls), `evaluate.py`, `voicebot.ipynb` (built by `build_voicebot.py`), `run_voicebot.py` (runs it on Kaggle), `test_voicebot.py`. |
 | `voice/` | Voice v0 (speech to speech): `voice_v0.ipynb` (built by `voice/build_voice.py` from `voice/voicecall.py`), `run_voice.py` (runs it on Kaggle), `test_voice.py`. |
 
 ## Use real data

@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 
 from voicebot import lang as langs
-from voicebot.numbers import day_words, digit_words, money_words, time_words
+from voicebot.numerals import day_words, digit_words, money_words, time_words
 from voicebot.speech_text import clean_heard, for_voice
 from voicebot.tasks import Task, render, text_of
 from voicebot.understand import Understood, View, content_words, understand, words
