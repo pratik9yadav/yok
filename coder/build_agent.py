@@ -32,8 +32,9 @@ and runs the tests and the linter, one bash command at a time (at most `MAX_STEP
 minutes). It never commits or pushes: its change is saved as `changes.patch`.
 
 Output tab: `changes.patch` (the change), `agent_log.json` (every step: thought, command, exit code, output, seconds)
-and `agent_result.json` (status: done / question / stopped / error, the agent's summary, the tests before and
-after). Saved as it goes, so nothing is lost if it stops.
+and `agent_result.json` (status: done / question / stopped / stuck / no_change / error, the agent's summary, the
+tests before and after). `stuck`: it kept repeating the same commands; `no_change`: it said done but changed no file.
+Saved as it goes, so nothing is lost if it stops.
 
 Time: about 10 minutes to start (Ollama, the 19 GB model, the repository), then up to `AGENT_MINUTES` minutes.
 
