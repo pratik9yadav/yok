@@ -1,0 +1,48 @@
+{
+  "id": "clinic_booking",
+  "name": {"en": "Clinic: book a visit", "hi": "क्लिनिक: अपॉइंटमेंट बुक करें", "mr": "दवाखाना: भेट बुक करा"},
+  "bot_role": "receiver",
+  "who": "a patient or their family member calling the clinic",
+  "purpose": "The assistant answers the phone at {clinic} and books a visit with {doctor}: the patient's name, the day, the time, a mobile number, and what the visit is for. The clinic is open Monday to Saturday, 10:00 to 19:00, closed on Sunday.",
+  "languages": ["hi", "mr", "en"],
+  "default_language": "hi",
+  "context": {"clinic": "सिटी केयर क्लिनिक", "doctor": "डॉक्टर मेहता"},
+  "greeting": {
+    "hi": "नमस्ते, {clinic} में आपका स्वागत है। मैं AI सहायक हूँ, आपका अपॉइंटमेंट बुक कर देती हूँ।",
+    "mr": "नमस्कार, {clinic} मध्ये आपलं स्वागत आहे. मी AI सहायक आहे, तुमची अपॉइंटमेंट बुक करते.",
+    "en": "Hello, welcome to {clinic}. I'm the AI assistant, I'll book your appointment."
+  },
+  "slots": [
+    {"name": "patient_name", "type": "name", "describe": "the patient's name (as said, without words like 'my name is')",
+     "ask": {"hi": "मरीज़ का नाम क्या है?", "mr": "रुग्णाचं नाव काय आहे?", "en": "May I have the patient's name?"},
+     "readback": {"hi": "नाम {value}", "mr": "नाव {value}", "en": "name {value}"}},
+    {"name": "day", "type": "day", "describe": "the day of the visit",
+     "ask": {"hi": "आप किस दिन आना चाहेंगे?", "mr": "तुम्हाला कोणत्या दिवशी यायचं आहे?", "en": "Which day would you like to come?"},
+     "valid": {"not": ["sunday"]},
+     "invalid": {"hi": "माफ़ कीजिए, रविवार को क्लिनिक बंद रहता है। कोई और दिन बताइए।", "mr": "माफ करा, रविवारी दवाखाना बंद असतो. दुसरा दिवस सांगा.", "en": "Sorry, the clinic is closed on Sunday. Please choose another day."},
+     "readback": {"hi": "{value}", "mr": "{value}", "en": "{value}"}},
+    {"name": "time", "type": "time", "describe": "the time of the visit (24 h HH:MM)",
+     "ask": {"hi": "किस समय आना ठीक रहेगा? क्लिनिक सुबह दस से शाम सात बजे तक खुला है।", "mr": "कोणत्या वेळी यायला जमेल? दवाखाना सकाळी दहा ते संध्याकाळी सात उघडा असतो.", "en": "What time suits you? We're open from 10 in the morning to 7 in the evening."},
+     "valid": {"min": "10:00", "max": "19:00"},
+     "invalid": {"hi": "माफ़ कीजिए, उस समय क्लिनिक बंद रहता है। सुबह दस से शाम सात के बीच का समय बताइए।", "mr": "माफ करा, त्या वेळी दवाखाना बंद असतो. सकाळी दहा ते संध्याकाळी सात मधली वेळ सांगा.", "en": "Sorry, we're closed then. Please choose a time between 10 am and 7 pm."},
+     "readback": {"hi": "{value}", "mr": "{value}", "en": "at {value}"}},
+    {"name": "phone", "type": "phone", "describe": "the caller's 10-digit mobile number",
+     "ask": {"hi": "आपका मोबाइल नंबर बता दीजिए।", "mr": "तुमचा मोबाईल नंबर सांगा.", "en": "Your mobile number, please?"},
+     "readback": {"hi": "नंबर {value}", "mr": "नंबर {value}", "en": "number {value}"}},
+    {"name": "reason", "type": "text", "required": false, "describe": "what the visit is for: the health problem, in a few words",
+     "ask": {"hi": "किस तकलीफ़ के लिए दिखाना है?", "mr": "कोणत्या त्रासासाठी दाखवायचं आहे?", "en": "What is the visit for?"},
+     "readback": {"hi": "{value} के लिए", "mr": "{value} साठी", "en": "for {value}"}}
+  ],
+  "confirm": true,
+  "facts": {
+    "fee": {"about": "the doctor's fee or consultation charges",
+      "answer": {"hi": "डॉक्टर की फ़ीस ₹500 है।", "mr": "डॉक्टरांची फी ₹500 आहे.", "en": "The doctor's fee is ₹500."}},
+    "address": {"about": "where the clinic is, the address or how to reach",
+      "answer": {"hi": "क्लिनिक एमजी रोड पर, सिटी मॉल के सामने है।", "mr": "दवाखाना एमजी रोडवर, सिटी मॉलच्या समोर आहे.", "en": "The clinic is on MG Road, opposite City Mall."}},
+    "timings": {"about": "when the clinic is open, opening hours or days",
+      "answer": {"hi": "क्लिनिक सोमवार से शनिवार, सुबह दस से शाम सात बजे तक खुला है। रविवार बंद।", "mr": "दवाखाना सोमवार ते शनिवार, सकाळी दहा ते संध्याकाळी सात उघडा असतो. रविवारी बंद.", "en": "We're open Monday to Saturday, 10 am to 7 pm. Closed on Sunday."}},
+    "doctor": {"about": "which doctor, or what kind of doctor",
+      "answer": {"hi": "{doctor} जनरल फिज़िशियन हैं।", "mr": "{doctor} जनरल फिजिशियन आहेत.", "en": "{doctor} is a general physician."}}
+  },
+  "closing": {"hi": "आपका अपॉइंटमेंट बुक हो गया है। समय से दस मिनट पहले आ जाइए। धन्यवाद!", "mr": "तुमची अपॉइंटमेंट बुक झाली आहे. वेळेच्या दहा मिनिटं आधी या. धन्यवाद!", "en": "Your appointment is booked. Please come ten minutes early. Thank you!"}
+}

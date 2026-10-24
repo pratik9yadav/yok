@@ -1,0 +1,49 @@
+{
+  "id": "shop_stock",
+  "name": {"en": "Shop: is it in stock?", "hi": "दुकान: सामान है या नहीं", "mr": "दुकान: माल आहे का"},
+  "bot_role": "caller",
+  "who": "a shopkeeper",
+  "purpose": "The assistant calls a shop for a customer to find out whether {product} is in stock now, its price in rupees, whether the shop delivers to the home, and, if it is not in stock, what other brand or size the shop offers instead.",
+  "languages": ["hi", "mr", "en"],
+  "default_language": "hi",
+  "context": {"product": "16A MCB"},
+  "greeting": {
+    "hi": "नमस्ते! मैं WIMB की AI सहायक बोल रही हूँ, एक ग्राहक के लिए पूछना था।",
+    "mr": "नमस्कार! मी WIMB ची AI सहायक बोलतेय, एका ग्राहकासाठी विचारायचं होतं.",
+    "en": "Hello! I'm an AI assistant calling from WIMB, asking for a customer."
+  },
+  "slots": [
+    {"name": "in_stock", "type": "bool", "describe": "whether {product} is available in the shop right now",
+     "ask": {"hi": "क्या आपके पास {product} है?", "mr": "तुमच्याकडे {product} आहे का?", "en": "Do you have {product} in stock?"},
+     "readback": {"true": {"hi": "{product} है", "mr": "{product} आहे", "en": "{product} is in stock"},
+                  "false": {"hi": "{product} अभी नहीं है", "mr": "{product} सध्या नाही", "en": "{product} is not in stock"}}},
+    {"name": "price_inr", "type": "money", "describe": "the price of one {product} in rupees", "when": {"in_stock": true},
+     "ask": {"hi": "{product} का दाम कितना है?", "mr": "{product} ची किंमत किती आहे?", "en": "What is the price of {product}?"},
+     "readback": {"hi": "दाम {value}", "mr": "किंमत {value}", "en": "price {value}"}},
+    {"name": "delivery", "type": "bool", "describe": "whether the shop delivers to the customer's home", "when": {"in_stock": true},
+     "ask": {"hi": "क्या आप घर पर डिलीवरी करते हैं?", "mr": "तुम्ही घरपोच डिलिव्हरी देता का?", "en": "Do you deliver to the home?"},
+     "readback": {"true": {"hi": "डिलीवरी हो जाएगी", "mr": "डिलिव्हरी मिळेल", "en": "you deliver"},
+                  "false": {"hi": "डिलीवरी नहीं होगी", "mr": "डिलिव्हरी नाही", "en": "no delivery"}}},
+    {"name": "alternative", "type": "text", "required": false, "when": {"in_stock": false},
+     "describe": "another product, brand or size the shopkeeper offers instead of {product} (short, as said, e.g. 'Havells 32A')",
+     "ask": {"hi": "कोई दूसरा ब्रांड या साइज़ है जो आप दे सकें?", "mr": "दुसरा कोणता ब्रँड किंवा साइज आहे का?", "en": "Do you have another brand or size instead?"},
+     "readback": {"hi": "दूसरा विकल्प {value}", "mr": "दुसरा पर्याय {value}", "en": "instead: {value}"}}
+  ],
+  "confirm": true,
+  "facts": {
+    "quantity": {"about": "how many pieces or what quantity the customer needs",
+      "answer": {"hi": "अभी एक पीस चाहिए।", "mr": "सध्या एक नग हवा आहे.", "en": "Just one piece for now."}},
+    "who_customer": {"about": "who the customer is, where they live, or their name",
+      "answer": {"hi": "ग्राहक आपके इलाके के ही हैं। सामान मिल गया तो वे खुद आएँगे या डिलीवरी मँगवाएँगे।",
+                 "mr": "ग्राहक तुमच्याच भागातले आहेत. माल असेल तर ते स्वतः येतील किंवा डिलिव्हरी मागवतील.",
+                 "en": "The customer lives in your area. If you have it, they will come by or ask for delivery."}},
+    "what_wimb": {"about": "what WIMB is, or why we are calling",
+      "answer": {"hi": "WIMB लोगों को पास की दुकानों में सामान ढूँढने में मदद करता है, ताकि ग्राहक सीधे आपके पास आएँ।",
+                 "mr": "WIMB लोकांना जवळच्या दुकानात माल शोधायला मदत करतं, म्हणजे ग्राहक थेट तुमच्याकडे येतील.",
+                 "en": "WIMB helps people find things in nearby shops, so customers come straight to you."}}
+  },
+  "closing": [
+    {"when": {"in_stock": false}, "text": {"hi": "कोई बात नहीं, धन्यवाद! आपका दिन शुभ हो।", "mr": "काही हरकत नाही, धन्यवाद! तुमचा दिवस छान जावो.", "en": "No problem, thank you! Have a good day."}},
+    {"text": {"hi": "बहुत धन्यवाद! मैं ग्राहक को बता दूँगी। आपका दिन शुभ हो।", "mr": "खूप धन्यवाद! मी ग्राहकाला कळवते. तुमचा दिवस छान जावो.", "en": "Thank you so much! I'll let the customer know. Have a good day."}}
+  ]
+}

@@ -1,0 +1,314 @@
+"""Checks the voice bot's parts offline (no model, no audio): the number reader, the language guess, the text for the
+voice, the tasks, the understanding (rules, and a fake model), the conversation and the test calls.
+Run:  python -m pytest voicebot"""
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).parent
+sys.path.insert(0, str(HERE.parent))
+
+from voicebot import evaluate, numbers, tasks
+from voicebot.engine import Call
+from voicebot.lang import detect
+from voicebot.speech_text import clean_heard, for_voice
+from voicebot.understand import View, by_rules, check, prompt, schema, understand
+
+
+@pytest.mark.parametrize("said, value", [
+    ("ढाई सौ का है", 250), ("दो सौ बीस रुपये", 220), ("साढ़े तीन सौ", 350), ("पौने दो हज़ार", 1750),
+    ("सवा दो सौ", 225), ("डेढ़ सौ रुपये", 150), ("एक हज़ार पाँच सौ", 1500), ("पंद्रह सौ", 1500), ("बारह सौ पचास", 1250),
+    ("दोनशे वीस रुपये", 220), ("एकशे ऐंशी", 180), ("अडीचशे रुपये", 250), ("साडेतीनशे", 350), ("पावणेतीनशे", 275),
+    ("दीडशे रुपयांना", 150), ("do sau pachas", 250), ("dhai sau", 250), ("saade teen sau", 350),
+    ("two hundred and twenty rupees", 220), ("रेट टू थर्टी है", 230), ("₹245", 245), ("2 सौ", 200), ("1,250/-", 1250),
+    ("डेढ़ लाख", 150_000), ("सवा लाख", 125_000), ("दोन हजार तीनशे", 2300),
+])
+def test_spoken_prices(said, value):
+    assert numbers.money(said, expected=True) == value
+
+
+@pytest.mark.parametrize("said, value", [
+    ("सोलह ए वाला है, दो सौ बीस रुपये", 220),  # 16A is a size
+    ("दो पीस हैं, एक सौ नब्बे का", 190),  # 2 is a count
+    ("5 किलो 300 रुपये", 300),
+    ("एक का एक सौ नब्बे", 190),
+])
+def test_prices_skip_sizes_and_counts(said, value):
+    assert numbers.money(said, expected=True) == value
+
+
+def test_a_lone_small_word_is_no_price():
+    assert numbers.money("नहीं, बता दो") is None
+    assert numbers.money("हाँ, दस बारह पीस हैं") is None  # not asked, no sign of money
+    assert numbers.money("पचास") is None and numbers.money("पचास", expected=True) == 50
+
+
+@pytest.mark.parametrize("said, hhmm", [
+    ("शाम साढ़े चार बजे", "16:30"), ("सकाळी दहा वाजता", "10:00"), ("चार बजे", "16:00"), ("10:30 को", "10:30"),
+    ("चार बजकर बीस मिनट", "16:20"), ("शाम पाँच", "17:00"), ("दुपारी दोन वाजता", "14:00"), ("रात नौ बजे", "21:00"),
+    ("subah das baje", "10:00"), ("around 3:30 in the afternoon", "15:30"), ("बारह बजे", "12:00"),
+])
+def test_times(said, hhmm):
+    assert numbers.time_of_day(said) == hhmm
+
+
+@pytest.mark.parametrize("said, d", [
+    ("कल आऊँगा", "tomorrow"), ("उद्या", "tomorrow"), ("परसों", "day_after"), ("परवा", "day_after"),
+    ("सोमवार को", "monday"), ("मंगळवारी", "tuesday"), ("kal shaam", "tomorrow"), ("Wednesday", "wednesday"),
+    ("the day after tomorrow", "day_after"), ("आज", "today"),
+])
+def test_days(said, d):
+    assert numbers.day(said) == d
+
+
+@pytest.mark.parametrize("said, number", [
+    ("नौ आठ सात छह पाँच, चार तीन दो एक शून्य", "9876543210"), ("98765 43210", "9876543210"),
+    ("अट्ठानवे सत्तासी छिहत्तर पचपन चौंतीस", "9887765534"), ("नऊ आठ डबल सात सहा पाच चार तीन दोन एक", "9877654321"),
+    ("+91 98123 45678", "9812345678"), ("09812345678", "9812345678"),
+])
+def test_phone_numbers(said, number):
+    assert numbers.phone(said) == number
+
+
+def test_too_short_is_no_phone():
+    assert numbers.phone("नौ आठ सात") is None
+
+
+def test_numbers_back_to_words():
+    assert numbers.to_words(220, "hi") == "दो सौ बीस"
+    assert numbers.to_words(220, "mr") == "दोनशे वीस"
+    assert numbers.to_words(225, "en") == "two hundred twenty five"
+    assert numbers.money_words(12.5, "hi") == "बारह रुपये पचास पैसे"
+    assert numbers.time_words("16:30", "hi") == "शाम साढ़े चार बजे"
+    assert numbers.time_words("13:30", "mr") == "दुपारी दीड वाजता"
+    assert numbers.time_words("09:45", "hi") == "सुबह पौने दस बजे"
+    assert numbers.time_words("16:05", "en") == "four oh five in the evening"
+    assert numbers.digit_words("9876543210", "hi") == "नौ आठ सात छह पाँच, चार तीन दो एक शून्य"
+
+
+def test_annotate_adds_digits_for_the_model():
+    assert numbers.annotate("ढाई सौ का है") == "ढाई सौ (=250) का है"
+    assert numbers.annotate("₹220 है") == "₹220 है"
+
+
+@pytest.mark.parametrize("said, lang", [
+    ("हो, आहे ना, दोनशे रुपये", "mr"), ("haan bhai hai, do sau ka", "hi"), ("हाँ जी है, दो सौ बीस का", "hi"),
+    ("yes it is available, two hundred", "en"), ("नाही, संपलं आहे", "mr"), ("udya milel", "mr"),
+])
+def test_language(said, lang):
+    assert detect(said)[0] == lang
+
+
+def test_text_for_the_voice():
+    assert for_voice("16A MCB ₹220 में है", "hi") == "सोलह ए एम सी बी दो सौ बीस रुपये में है"
+    assert for_voice("नंबर 98765 43210", "mr") == "नंबर नऊ आठ सात सहा पाच, चार तीन दोन एक शून्य"
+    assert for_voice("5kg चावल", "hi") == "पाँच किलो चावल"
+    assert "प्रतिशत" in for_voice("25% छूट", "hi")
+
+
+def test_known_hallucinations_are_dropped():
+    assert clean_heard("Thank you for watching!") == ""
+    assert clean_heard("ご視聴ありがとうございました") == ""
+    assert clean_heard("हाँ हाँ हाँ हाँ हाँ") == "हाँ हाँ"
+    assert clean_heard("दो सौ बीस दो सौ बीस दो सौ बीस दो सौ बीस") == "दो सौ बीस"
+    assert clean_heard("  हाँ जी है  ") == "हाँ जी है"
+
+
+def test_every_task_is_valid_and_every_scenario_names_one():
+    for task_id in tasks.available():
+        spec = json.loads((tasks.TASKS_DIR / f"{task_id}.json").read_text(encoding="utf-8"))
+        assert tasks.problems(spec) == [], task_id
+    assert set(tasks.available()) >= {"shop_stock", "clinic_booking", "order_confirm"}
+    for row in evaluate.scenarios():
+        assert row["task"] in tasks.available()
+        names = set(tasks.load(row["task"]).slot)
+        assert set(row.get("replies") or {}) <= names | {"confirm", "fix", "*"}, row["id"]
+        assert set((row.get("expect") or {}).get("values") or {}) <= names, row["id"]
+
+
+def test_scenario_ids_are_unique():
+    ids = [r["id"] for r in evaluate.scenarios()]
+    assert len(ids) == len(set(ids))
+
+
+def test_task_problems_are_explained():
+    spec = json.loads((tasks.TASKS_DIR / "shop_stock.json").read_text(encoding="utf-8"))
+    spec["slots"][1]["type"] = "price"
+    spec["slots"][2]["when"] = {"nothing": True}
+    spec["greeting"] = {"hi": "नमस्ते {customer}"}
+    found = " | ".join(tasks.problems(spec))
+    assert "type must be one of" in found and "'nothing' must be a slot" in found
+    assert "no mr, en text" in found and "{customer}" in found
+    with pytest.raises(tasks.TaskError):
+        tasks.from_json("{not json")
+
+
+def test_context_changes_the_product():
+    call = Call(tasks.load("shop_stock", {"product": "LED बल्ब"}))
+    assert "LED बल्ब" in call.start().text
+
+
+def test_check_values_by_type():
+    task = tasks.load("clinic_booking")
+    assert check(task.slot["phone"], "+91 98765-43210") == "9876543210"
+    assert check(task.slot["phone"], "12345") is None
+    assert check(task.slot["time"], "4:30") == "04:30" and check(task.slot["time"], 17) == "17:00"
+    assert check(task.slot["day"], "Day after tomorrow") == "day_after" and check(task.slot["day"], "someday") is None
+    order = tasks.load("order_confirm")
+    assert check(order.slot["delivery_time"], "शाम") == "evening" and check(order.slot["delivery_time"], "x") is None
+    shop = tasks.load("shop_stock")
+    assert check(shop.slot["price_inr"], "₹2,500") == 2500 and check(shop.slot["price_inr"], -5) is None
+    assert check(shop.slot["in_stock"], "yes") is True and check(shop.slot["in_stock"], 1) is None
+
+
+def test_rules_read_short_replies_without_the_model():
+    shop = tasks.load("shop_stock")
+    u = by_rules("हाँ है", shop, View(pending="in_stock"))
+    assert u.values == {"in_stock": True} and u.fast
+    u = by_rules("हाँ है ना", shop, View(pending="in_stock"))
+    assert u.values == {"in_stock": True}  # "है ना" is a yes
+    u = by_rules("नहीं जी", shop, View(pending="delivery"))
+    assert u.values == {"delivery": False} and u.fast
+    u = by_rules("पता नहीं", shop, View(pending="price_inr"))
+    assert u.intent == "dont_know" and not u.values
+    assert by_rules("बार बार फोन मत करो, मैं बिलकुल भी इंटरेस्टेड नहीं हूँ भाई", shop, View()).intent == "stop_calling"
+    assert by_rules("हाँ सही है", shop, View(pending="confirm")).intent == "confirm_yes"
+
+
+class FakeModel:
+    """A pretend model: returns the JSON it was given, and remembers the prompts."""
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.prompts = []
+
+    def __call__(self, text, form):
+        self.prompts.append((text, form))
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply if isinstance(reply, str) else json.dumps(reply)
+
+
+def test_the_model_reads_long_replies_and_its_slips_are_caught():
+    shop = tasks.load("shop_stock")
+    said = "हाँ है, ढाई सौ का पड़ेगा, और घर पे भी पहुँचा देंगे"
+    model = FakeModel({"intent": "answer", "in_stock": True, "price_inr": 205, "delivery": True, "alternative": None,
+                       "fact": None})
+    u = understand(said, shop, View(pending="in_stock"), model)
+    assert u.values == {"in_stock": True, "price_inr": 250, "delivery": True}  # 205 was the model's slip
+    text, form = model.prompts[0]
+    assert "ढाई सौ (=250)" in text and "price_inr" in text and form["properties"]["price_inr"]["type"] == ["number",
+                                                                                                         "null"]
+
+
+def test_a_price_nobody_said_is_dropped():
+    shop = tasks.load("shop_stock")
+    model = FakeModel({"intent": "answer", "in_stock": True, "price_inr": 300, "delivery": None, "alternative": None})
+    assert understand("हाँ रखा है अपने पास", shop, View(pending="in_stock"), model).values == {"in_stock": True}
+
+
+def test_a_model_failure_falls_back_to_the_rules():
+    shop = tasks.load("shop_stock")
+    for broken in (TimeoutError("slow"), "not json at all", "[1, 2]"):
+        u = understand("हाँ है भाई, दुकान पर रखा है अभी", shop, View(pending="in_stock"), FakeModel(broken))
+        assert u.values == {"in_stock": True} and u.error and u.source == "rules"
+
+
+def test_a_clear_stop_wins_over_the_model():
+    shop = tasks.load("shop_stock")
+    model = FakeModel({"intent": "answer", "in_stock": None, "price_inr": None, "delivery": None, "alternative": None})
+    u = understand("दोबारा कॉल मत करना, हमें नहीं चाहिए कुछ भी समझे", shop, View(pending="in_stock"), model)
+    assert u.intent == "stop_calling"
+
+
+def test_schema_and_prompt_cover_every_slot_and_fact():
+    clinic = tasks.load("clinic_booking")
+    form = schema(clinic)
+    assert set(form["properties"]) == {"intent", "fact", *clinic.slot}
+    assert form["required"] == list(form["properties"])
+    assert None in form["properties"]["day"]["enum"] and "fee" in form["properties"]["fact"]["enum"]
+    text = prompt(clinic, View(pending="phone", last_bot="आपका मोबाइल नंबर बता दीजिए।"), "नौ आठ सात")
+    assert "phone" in text and "10 digits" in text and "fee:" in text and "आपका मोबाइल नंबर" in text
+
+
+def talk(task_id, lines, llm=None, **context):
+    call = Call(tasks.load(task_id, context or None), llm=llm)
+    replies = [call.start()]
+    for line in lines:
+        replies.append(call.hear(line))
+        if replies[-1].done:
+            break
+    return call, replies
+
+
+def test_a_whole_shop_call():
+    call, replies = talk("shop_stock", ["हाँ है", "ढाई सौ का", "हाँ कर देंगे", "हाँ सही है"])
+    assert "क्या आपके पास 16A MCB है?" in replies[0].text and "सोलह ए एम सी बी" in replies[0].speech
+    assert "दाम ₹250" in replies[3].text and "दो सौ पचास रुपये" in replies[3].speech
+    assert replies[-1].done and call.result()["outcome"] == "done"
+    assert call.result()["values"] == {"in_stock": True, "price_inr": 250, "delivery": True, "alternative": None}
+
+
+def test_the_bot_switches_to_marathi():
+    call, replies = talk("shop_stock", ["हो, आहे", "दोनशे वीस रुपये", "नाही, डिलिव्हरी नाही", "हो बरोबर"])
+    assert call.lang == "mr" and "बरोबर आहे का?" in replies[3].text and call.result()["outcome"] == "done"
+
+
+def test_a_correction_at_the_read_back():
+    call, _ = talk("shop_stock", ["है", "दो सौ बीस", "हाँ", "नहीं, दाम दो सौ चालीस है", "हाँ"])
+    assert call.result()["values"]["price_inr"] == 240 and call.outcome == "done"
+
+
+def test_a_slot_is_asked_twice_at_most():
+    call, replies = talk("shop_stock", ["हाँ है", "हम्म", "क्या पता भाई", "नहीं", "हाँ"])
+    asked = sum("दाम कितना है" in r.text for r in replies)
+    assert asked == 2 and call.status["price_inr"] == "unknown" and call.outcome == "partial"
+
+
+def test_the_clinic_keeps_its_rules():
+    call, replies = talk("clinic_booking", ["राहुल", "रविवार", "सोमवार", "रात नौ बजे", "शाम पाँच बजे", "9876543210",
+                                            "बुखार", "हाँ"])
+    assert "रविवार को क्लिनिक बंद" in replies[2].text and "उस समय क्लिनिक बंद" in replies[4].text
+    assert call.result()["values"]["day"] == "monday" and call.result()["values"]["time"] == "17:00"
+
+
+def test_a_question_gets_the_fact_then_the_question_again():
+    model = FakeModel({"intent": "question", "fact": "fee", "patient_name": None, "day": None, "time": None,
+                       "phone": None, "reason": None})
+    _, replies = talk("clinic_booking", ["डॉक्टर की फीस कितनी है?"], llm=model)
+    assert "₹500" in replies[1].text and "मरीज़ का नाम" in replies[1].text and "पाँच सौ रुपये" in replies[1].speech
+
+
+def test_ends_politely():
+    for lines, outcome in ((["अभी बिज़ी हूँ, बाद में कॉल करना"], "callback"), (["कॉल मत करो"], "do_not_call"),
+                           (["रॉन्ग नंबर है"], "wrong_number"), (["किसी इंसान से बात कराओ"], "handoff"),
+                           (["", "", ""], "no_answer")):
+        call, replies = talk("shop_stock", lines)
+        assert replies[-1].done and call.outcome == outcome and replies[-1].text
+
+
+def test_hold_then_come_back_is_not_a_yes():
+    call, replies = talk("shop_stock", ["एक मिनट रुकिए", "हाँ बोलिए"])
+    assert "रुकती" in replies[1].text and "in_stock" not in call.values and "16A MCB है?" in replies[2].text
+
+
+def test_the_rules_only_baseline_passes_most_test_calls():
+    results = [evaluate.play(s) for s in evaluate.scenarios()]
+    passed = sum(not r["wrong"] for r in results)
+    assert passed >= len(results) - 3, evaluate.summary_lines(results)
+
+
+def test_the_spoken_test_goes_through_say_and_hear():
+    heard = []
+
+    def say_and_hear(line, lang):
+        heard.append((line, lang))
+        return line, 0.5
+
+    row = next(s for s in evaluate.scenarios() if s["id"] == "shop-hi-basic")
+    result = evaluate.play(row, say_and_hear=say_and_hear)
+    assert not result["wrong"] and heard[0] == ("हाँ जी, है", "hi")

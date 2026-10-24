@@ -1,0 +1,46 @@
+{
+  "id": "order_confirm",
+  "name": {"en": "Shop order: confirm cash on delivery", "hi": "ऑर्डर: कैश ऑन डिलीवरी कन्फर्म", "mr": "ऑर्डर: कॅश ऑन डिलिव्हरी पक्की करा"},
+  "bot_role": "caller",
+  "who": "a customer who placed an online order",
+  "purpose": "The assistant calls a customer of {store} to confirm their cash-on-delivery order of {item} for {amount} rupees: whether they confirm it, and the delivery time they prefer; if they cancel, the reason.",
+  "languages": ["hi", "mr", "en"],
+  "default_language": "hi",
+  "context": {"store": "बाज़ार मार्ट", "item": "मिक्सर ग्राइंडर", "amount": 2499},
+  "greeting": {
+    "hi": "नमस्ते! मैं {store} की AI सहायक बोल रही हूँ, आपके ऑर्डर के बारे में कॉल किया है।",
+    "mr": "नमस्कार! मी {store} ची AI सहायक बोलतेय, तुमच्या ऑर्डरबद्दल फोन केला आहे.",
+    "en": "Hello! I'm an AI assistant from {store}, calling about your order."
+  },
+  "slots": [
+    {"name": "confirmed", "type": "bool", "describe": "whether the customer confirms (keeps) the order; false when they cancel it or say they did not order",
+     "ask": {"hi": "आपने {item} ऑर्डर किया है, ₹{amount} कैश ऑन डिलीवरी। क्या आप ये ऑर्डर कन्फर्म करते हैं?", "mr": "तुम्ही {item} ऑर्डर केला आहे, ₹{amount} कॅश ऑन डिलिव्हरी. ही ऑर्डर पक्की करायची का?", "en": "You ordered a {item}, ₹{amount} cash on delivery. Do you confirm this order?"},
+     "readback": {"true": {"hi": "ऑर्डर कन्फर्म", "mr": "ऑर्डर पक्की", "en": "the order is confirmed"},
+                  "false": {"hi": "ऑर्डर कैंसल", "mr": "ऑर्डर रद्द", "en": "the order is cancelled"}}},
+    {"name": "delivery_time", "type": "enum", "describe": "when the customer wants the delivery: morning, afternoon or evening", "when": {"confirmed": true},
+     "ask": {"hi": "डिलीवरी किस समय ठीक रहेगी, सुबह, दोपहर या शाम?", "mr": "डिलिव्हरी कोणत्या वेळी सोयीची, सकाळी, दुपारी की संध्याकाळी?", "en": "When should we deliver: morning, afternoon or evening?"},
+     "options": {
+       "morning": {"hi": "सुबह", "mr": "सकाळी", "en": "in the morning", "words": ["सुबह", "सवेरे", "सकाळी", "सकाळ", "subah", "morning", "मॉर्निंग"]},
+       "afternoon": {"hi": "दोपहर", "mr": "दुपारी", "en": "in the afternoon", "words": ["दोपहर", "दुपहर", "दुपारी", "दुपार", "dopahar", "afternoon", "आफ्टरनून"]},
+       "evening": {"hi": "शाम", "mr": "संध्याकाळी", "en": "in the evening", "words": ["शाम", "संध्याकाळी", "संध्याकाळ", "shaam", "sham", "evening", "ईवनिंग", "इवनिंग"]}
+     },
+     "readback": {"hi": "डिलीवरी {value}", "mr": "डिलिव्हरी {value}", "en": "delivery {value}"}},
+    {"name": "cancel_reason", "type": "text", "required": false, "when": {"confirmed": false},
+     "describe": "why the customer cancels, in a few words",
+     "ask": {"hi": "कोई बात नहीं। क्या आप बता सकते हैं कि ऑर्डर क्यों कैंसल करना है?", "mr": "काही हरकत नाही. ऑर्डर का रद्द करायची ते सांगाल का?", "en": "No problem. May I ask why you want to cancel?"},
+     "readback": {"hi": "वजह: {value}", "mr": "कारण: {value}", "en": "reason: {value}"}}
+  ],
+  "confirm": true,
+  "facts": {
+    "when_arrive": {"about": "when the order will arrive, delivery date",
+      "answer": {"hi": "ऑर्डर दो से तीन दिन में पहुँच जाएगा।", "mr": "ऑर्डर दोन ते तीन दिवसांत पोहोचेल.", "en": "The order will arrive in two to three days."}},
+    "pay_online": {"about": "paying by UPI, card or online instead of cash",
+      "answer": {"hi": "हाँ, डिलीवरी के समय आप यूपीआई से भी पेमेंट कर सकते हैं।", "mr": "हो, डिलिव्हरीच्या वेळी तुम्ही यूपीआयनेही पैसे देऊ शकता.", "en": "Yes, you can also pay by UPI at delivery."}},
+    "return": {"about": "return, replacement or warranty",
+      "answer": {"hi": "सात दिन में रिटर्न हो सकता है, और एक साल की वारंटी है।", "mr": "सात दिवसांत परत करता येईल, आणि एक वर्षाची वॉरंटी आहे.", "en": "You can return it within seven days, and there's a one-year warranty."}}
+  },
+  "closing": [
+    {"when": {"confirmed": false}, "text": {"hi": "ठीक है, आपका ऑर्डर कैंसल कर दिया जाएगा। धन्यवाद!", "mr": "ठीक आहे, तुमची ऑर्डर रद्द केली जाईल. धन्यवाद!", "en": "Okay, your order will be cancelled. Thank you!"}},
+    {"text": {"hi": "धन्यवाद! आपका ऑर्डर जल्द पहुँचेगा।", "mr": "धन्यवाद! तुमची ऑर्डर लवकरच पोहोचेल.", "en": "Thank you! Your order will reach you soon."}}
+  ]
+}
