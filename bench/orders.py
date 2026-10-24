@@ -9,7 +9,7 @@ def calc_total(order: dict) -> float:
 
 def in_stock_count(stock: dict[str, int]) -> int:
     """How many items have at least one piece in stock."""
-    return sum(1 for qty in stock.values() if qty >= 0)
+    return sum(1 for qty in stock.values() if qty > 0)
 
 
 def weekly_totals(orders: list[dict]) -> dict[str, float]:
