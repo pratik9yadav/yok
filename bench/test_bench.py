@@ -16,3 +16,6 @@ def test_total() -> None:
 def test_lines() -> None:
     order = {"item": "MCB", "qty": 2, "price": 220.0, "day": datetime.date(2026, 10, 12)}
     assert order_lines([order]) == ["MCB: 2 x 220.0 = 440.0"]
+
+def test_parse_indian_price() -> None:
+    assert parse_price("₹1,250.50") == 1250.5
