@@ -417,12 +417,12 @@ def test_make_ask_notebook_pushes_it_checks_it_and_prints_the_link(tmp_path: Pat
     meta = api.calls["meta"]
     assert meta["id"] == f"me/{try_on_kaggle.ASK_SLUG}" == "me/wimb-shop-model-ask"
     assert meta["code_file"] == "ask_model.ipynb" and api.calls["files"] == ["ask_model.ipynb", "kernel-metadata.json"]
-    assert meta["kernel_sources"] == ["me/wimb-shop-model-training"]
+    assert meta["kernel_sources"] == ["me/wimb-shop-model-training-v4"]
     assert meta["enable_gpu"] and meta["enable_internet"] and meta["is_private"] and api.calls["acc"] == "NvidiaTeslaT4"
     assert api.calls["notebook"] == json.loads((HERE / "ask_model.ipynb").read_text(encoding="utf-8"))
     assert api.calls["pattern"] == r"(ask_check\.json|.*\.log)$"
     out = capsys.readouterr().out
-    for text in ("Training notebook me/wimb-shop-model-training: last run COMPLETE", "Ollama 0.40.3; GPU: Tesla T4",
+    for text in ("Training notebook me/wimb-shop-model-training-v4: last run COMPLETE", "Ollama 0.40.3; GPU: Tesla T4",
                  "loading the model took 46 s", "Self-check: 16A MCB / haan hai, 220 ka, delivery nahi",
                  "Answer: in stock: yes; price: ₹220; delivery: no; other product offered: none",
                  "0.55 s on the GPU", "the model answered",
@@ -455,7 +455,7 @@ def test_make_ask_notebook_fails_when_the_check_did_not_work(check, final, says,
 
 def test_make_ask_notebook_stops_when_kaggle_cannot_attach_the_training_output(tmp_path, monkeypatch) -> None:
     with pytest.raises(SystemExit, match="could not attach"):
-        try_on_kaggle.push_ask(FakeAskApi(invalid_sources=["me/wimb-shop-model-training"]), "me/wimb-shop-model-ask")
+        try_on_kaggle.push_ask(FakeAskApi(invalid_sources=["me/wimb-shop-model-training-v4"]), "me/wimb-shop-model-ask")
 
 
 @pytest.mark.parametrize("other", [("--ask", "16A MCB", "haan hai"), ("--questions-json", "[]"), ("--wait",)])

@@ -236,7 +236,7 @@ class FakeApi:
         self.results, self.final, self.invalid_sources, self.calls = results, final, invalid_sources or [], {"polls": 0}
 
     def kernels_status(self, kernel):
-        if kernel.endswith("/wimb-shop-model-training"):
+        if kernel.endswith(("/wimb-shop-model-training", "/wimb-shop-model-training-v4")):
             return SimpleNamespace(status=Status.COMPLETE, failure_message="")
         self.calls["polls"] += 1
         return SimpleNamespace(status=self.final if self.calls["polls"] > 1 else Status.RUNNING, failure_message="")
@@ -260,7 +260,7 @@ def test_runner_attaches_the_training_output_and_sends_the_questions() -> None:
     api = FakeApi()
     try_on_kaggle.push(api, "me/wimb-shop-model-try", TRICKY)
     meta = api.calls["meta"]
-    assert meta["kernel_sources"] == ["me/wimb-shop-model-training"]
+    assert meta["kernel_sources"] == ["me/wimb-shop-model-training-v4"]
     assert meta["id"] == "me/wimb-shop-model-try" and meta["code_file"] == "try_model.ipynb"
     assert meta["enable_gpu"] and meta["enable_internet"] and meta["is_private"]
     assert api.calls["acc"] == "NvidiaTeslaT4"
@@ -270,7 +270,7 @@ def test_runner_attaches_the_training_output_and_sends_the_questions() -> None:
 
 
 def test_runner_stops_when_kaggle_cannot_attach_the_training_output() -> None:
-    api = FakeApi(invalid_sources=["me/wimb-shop-model-training"])
+    api = FakeApi(invalid_sources=["me/wimb-shop-model-training-v4"])
     with pytest.raises(SystemExit, match="could not attach"):
         try_on_kaggle.push(api, "me/wimb-shop-model-try", [])
 
@@ -529,3 +529,20 @@ def test_start_cell_uses_a_running_ollama(tmp_path: Path, fake_ollama: dict) -> 
     exec(cell.replace(default, f'OLLAMA_URL = "{fake_ollama["url"]}"'), scope)  # noqa: S102
     saved = json.loads((tmp_path / "try_results.json").read_text(encoding="utf-8"))
     assert saved["ollama_version"] == "0.0.0-fake" and saved["errors"] == []
+
+
+def test_the_model_can_be_v2_or_v4() -> None:
+    """v4 (run 11) is the default; v2 stays one flag away (--model v2)."""
+    import run_on_kaggle
+    import try_on_kaggle
+
+    class Status:
+        status = "COMPLETE"
+
+    class Api:
+        def kernels_status(self, kernel: str) -> Status:
+            return Status()
+
+    assert try_on_kaggle.MODEL == "v4"
+    assert try_on_kaggle.training_input(Api(), "me/x") == f"me/{run_on_kaggle.SLUG}-v4"
+    assert try_on_kaggle.training_input(Api(), "me/x", "v2") == f"me/{run_on_kaggle.SLUG}"

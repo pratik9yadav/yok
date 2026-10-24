@@ -357,7 +357,7 @@ def test_runner_attaches_the_training_output_and_the_clips(clips) -> None:
     api = FakeApi()
     run_voice.push(api, "me/wimb-voice-v0", clips)
     meta = api.calls["meta"]
-    assert meta["kernel_sources"] == ["me/wimb-shop-model-training"]
+    assert meta["kernel_sources"] == ["me/wimb-shop-model-training-v4"]
     assert meta["dataset_sources"] == ([clips] if clips else [])
     assert meta["id"] == "me/wimb-voice-v0" and meta["code_file"] == "voice_v0.ipynb"
     assert meta["enable_gpu"] and meta["enable_internet"] and meta["is_private"] and api.calls["acc"] == "NvidiaTeslaT4"

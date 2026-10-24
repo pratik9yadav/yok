@@ -114,10 +114,14 @@ def notebook_with(questions: list[dict]) -> dict:
     raise RuntimeError(f"{NOTEBOOK}: the '{ASK_CELL}' cell is missing; run build_notebook.py")
 
 
-def training_input(api, kernel: str) -> str:
+MODEL = "v4"  # which trained model to attach: v4 (newest, speech-to-text style; run 11) or v2
+
+
+def training_input(api, kernel: str, model: str = MODEL) -> str:
     """The training notebook (same owner) whose output, the model file, is attached. Prints how its last run went."""
     owner = kernel.split("/", 1)[0]
-    training = f"{owner}/{run_on_kaggle.SLUG}"
+    training = f"{owner}/{run_on_kaggle.slug_for(model)}"
+    print(f"Model: shop model {model}", flush=True)
     try:  # only a hint: the model comes from the training notebook's latest run
         status = api.kernels_status(training).status
         print(f"Training notebook {training}: last run {getattr(status, 'name', status)}", flush=True)
@@ -126,17 +130,17 @@ def training_input(api, kernel: str) -> str:
     return training
 
 
-def push(api, kernel: str, questions: list[dict]) -> None:
+def push(api, kernel: str, questions: list[dict], model: str = MODEL) -> None:
     """Start the notebook with the training notebook's output (the model file) attached."""
-    training = training_input(api, kernel)
+    training = training_input(api, kernel, model)
     print(f"Your questions: {len(questions)}", flush=True)
     run_on_kaggle.push_notebook(api, kernel, notebook_with(questions), NOTEBOOK, kernel_sources=[training])
 
 
-def push_ask(api, kernel: str) -> None:
+def push_ask(api, kernel: str, model: str = MODEL) -> None:
     """Make or refresh the "Ask the shop model" notebook on Kaggle, with the model attached. Kaggle runs it once."""
     nb = json.loads((HERE / ASK_NOTEBOOK).read_text(encoding="utf-8"))
-    run_on_kaggle.push_notebook(api, kernel, nb, ASK_NOTEBOOK, kernel_sources=[training_input(api, kernel)])
+    run_on_kaggle.push_notebook(api, kernel, nb, ASK_NOTEBOOK, kernel_sources=[training_input(api, kernel, model)])
 
 
 def short(text: str, width: int) -> str:
@@ -297,9 +301,9 @@ def fetch_ask(api, kernel: str, ok: bool = True) -> dict | None:
     return check
 
 
-def make_ask_notebook(api, kernel: str) -> bool:
+def make_ask_notebook(api, kernel: str, model: str = MODEL) -> bool:
     """Push the ask notebook, wait for its check run, print the result and the link. True when it works."""
-    push_ask(api, kernel)
+    push_ask(api, kernel, model)
     time.sleep(30)
     ok = wait(api, kernel, limit_min=30)
     check = fetch_ask(api, kernel, ok)
@@ -318,13 +322,15 @@ def main() -> None:
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current one")
     args.add_argument("--make-ask-notebook", action="store_true",
                       help='make or refresh your "Ask the shop model" notebook on Kaggle, and check it once')
+    args.add_argument("--model", choices=["v4", "v2"], default=MODEL,
+                      help=f"which trained shop model to use (default {MODEL})")
     opts = args.parse_args()
     if opts.make_ask_notebook:
         if opts.ask or opts.questions_json is not None or opts.wait:
             args.error("--make-ask-notebook can't be used with --ask, --questions-json or --wait")
         api, kernel = connect(ASK_SLUG)
         check_gpu(api, need_hours=0.5)
-        sys.exit(0 if make_ask_notebook(api, kernel) else 1)
+        sys.exit(0 if make_ask_notebook(api, kernel, opts.model) else 1)
     try:
         questions = questions_from(opts.ask, opts.questions_json)
     except (TypeError, ValueError) as e:
@@ -332,7 +338,7 @@ def main() -> None:
     api, kernel = connect(SLUG)
     if not opts.wait:
         check_gpu(api, need_hours=0.5)
-        push(api, kernel, questions)
+        push(api, kernel, questions, opts.model)
         time.sleep(30)
     ok = wait(api, kernel, limit_min=60)
     r = fetch(api, kernel, ok)
