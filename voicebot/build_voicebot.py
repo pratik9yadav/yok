@@ -23,7 +23,7 @@ NOTEBOOK = "voicebot.ipynb"
 RESULTS_FILE = "voicebot_results.json"
 SETTINGS_TITLE = "1. Settings"
 PACKAGE = ["__init__.py", "numerals.py", "lang.py", "speech_text.py", "tasks.py", "understand.py", "engine.py",
-           "evaluate.py", "audio.py", "live.py"]
+           "evaluate.py", "audio.py", "assistant.py", "server.py"]
 GRADIO_PIP = "gradio==5.50.0"
 PARLER_PIP = "parler-tts==0.2.3"  # pins transformers 4.46.1: installed only when its model will be tried
 
@@ -556,34 +556,32 @@ def notify(url):
 
 
 if MODE == "live":
-    from voicebot.live import build_app
+    from voicebot.assistant import ollama_chat
+    from voicebot.server import make_app, open_tunnel, serve
 
     ears = EARS.get(RESULTS["best_asr"]) if EARS else None
     mouth = next(iter(MOUTHS.values()), None)
-    note = "" if mouth is None or mouth.info["business"] else "Test voice (non-commercial licence). "
     save_dir = os.path.join(WORKING_DIR, "live")
-    app = build_app(ears, mouth, LLM, save_dir=save_dir, brain_name=RESULTS["best_brain"] or "rules only", note=note)
-    app.queue(default_concurrency_limit=1)
-    _, local_url, share_url = app.launch(share=True, auth=("wimb", LIVE_PASSWORD or "wimb"), prevent_thread_lock=True,
-                                         show_error=True)
-    RESULTS["live"] = {"opened": time.strftime("%H:%M UTC"), "minutes": LIVE_MINUTES, "link": bool(share_url)}
-    print("Page:", "ready" if share_url else "no public link (Gradio share failed)")
-    if share_url:
-        notify(share_url)
+    chat = ollama_chat(RESULTS["best_brain"]) if RESULTS["best_brain"] else None
+    app = make_app(ears, mouth, llm=LLM, chat=chat, password=LIVE_PASSWORD or "wimb", save_dir=save_dir)
+    serve(app, 7860)
+    url = open_tunnel(7860)
+    RESULTS["live"] = {"opened": time.strftime("%H:%M UTC"), "minutes": LIVE_MINUTES, "link": bool(url),
+                       "brain": RESULTS["best_brain"], "ears": RESULTS["best_asr"],
+                       "mouth": mouth.backend if mouth else None, "mouth_device": mouth.device if mouth else None}
+    print("Page:", "ready" if url else "no public link (both tunnels failed)", RESULTS["live"])
+    if url:
+        notify(url)
     else:
-        failed("live page", "Gradio gave no share link")
+        failed("live page", "no tunnel")
     save_results()
     end = time.time() + 60 * LIVE_MINUTES
-    while time.time() < end and share_url:
+    while time.time() < end and url:
         time.sleep(60)
-        calls = [d for d in os.listdir(save_dir)] if os.path.isdir(save_dir) else []
-        RESULTS["live"].update(saved=len(calls))
+        RESULTS["live"].update(saved=len(os.listdir(save_dir)) if os.path.isdir(save_dir) else 0)
         save_results()
-    app.close()
     calls = sorted(os.listdir(save_dir)) if os.path.isdir(save_dir) else []
-    RESULTS["live"].update(saved=len(calls), calls=len(calls),
-                           outcomes=[json.load(open(os.path.join(save_dir, c, "call.json")))["result"]["outcome"]
-                                     for c in calls if os.path.exists(os.path.join(save_dir, c, "call.json"))])
+    RESULTS["live"].update(saved=len(calls), calls=len(calls))
     print("Page closed.", RESULTS["live"])
     save_results()
 """
@@ -592,9 +590,9 @@ if MODE == "live":
 def package_files() -> dict:
     """Every file of the voicebot package the notebook needs: code, tasks and test calls."""
     files = {name: (HERE / name).read_text(encoding="utf-8") for name in PACKAGE}
-    for folder in ("tasks", "scenarios"):
+    for folder in ("tasks", "scenarios", "web"):
         for path in sorted((HERE / folder).iterdir()):
-            if path.suffix in (".json", ".jsonl"):
+            if path.suffix in (".json", ".jsonl", ".html"):
                 files[f"{folder}/{path.name}"] = path.read_text(encoding="utf-8")
     return files
 

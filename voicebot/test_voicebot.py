@@ -341,7 +341,8 @@ def test_notebook_is_up_to_date():
 
 def test_notebook_carries_the_whole_package():
     files = build_voicebot.package_files()
-    assert {"engine.py", "understand.py", "numerals.py", "audio.py", "live.py", "tasks/shop_stock.json",
+    assert {"engine.py", "understand.py", "numerals.py", "audio.py", "server.py", "assistant.py", "web/index.html",
+            "tasks/shop_stock.json",
             "scenarios/shop_stock.jsonl"} <= set(files)
     for name, body in files.items():
         assert body == (HERE / name).read_text(encoding="utf-8")
@@ -563,12 +564,108 @@ def test_the_live_link_is_posted_on_an_issue(monkeypatch):
 
 
 def test_saved_calls_print_with_phone_numbers_masked():
-    call = {"id": "20261025-1920-abc", "timings": [{}, {"hear": 0.5, "think": 0.9, "speak": 0.3}],
-            "result": {"task": "clinic_booking", "outcome": "done", "lang": "hi", "missing": [],
-                       "values": {"phone": "9876543210", "day": "monday"},
-                       "turns": [{"who": "bot", "text": "आपका मोबाइल नंबर बता दीजिए।"},
-                                 {"who": "person", "text": "98765 43210",
-                                  "understood": {"intent": "answer", "values": {"phone": "9876543210"}}}]}}
+    call = {"id": "abc", "mode": "clinic_booking",
+            "log": [{"who": "bot", "text": "आपका मोबाइल नंबर बता दीजिए।", "first_audio": 0.8},
+                    {"who": "person", "text": "98765 43210", "hear": 0.5},
+                    {"who": "bot", "text": "नंबर 98765 43210, सही है?", "first_audio": 1.2, "speak": 0.4}],
+            "result": {"outcome": "done", "values": {"phone": "9876543210", "day": "monday"}}}
     text = "\n".join(run_voicebot.call_lines(call))
     assert "9876543210" not in text and "98765" not in text and "••••••••10" in text
-    assert "clinic_booking" in text and "hear 0.5 s" in text and "monday" in text
+    assert "clinic_booking" in text and "first_audio 1.2 s" in text and "monday" in text
+
+
+# --- the hands-free voice page (voicebot/server.py) --------------------------------------------------------------
+def test_sentences_come_as_soon_as_they_are_whole():
+    from voicebot.assistant import clean, sentences
+
+    pieces = list("नमस्ते! मैं आपकी मदद कर सकती हूँ। मुंबई में **दो करोड़** लोग रहते हैं. Ok 🙂")
+    assert list(sentences(pieces)) == ["नमस्ते! मैं आपकी मदद कर सकती हूँ।", "मुंबई में दो करोड़ लोग रहते हैं.", "Ok"]
+    assert clean("- पहला\n2. दूसरा *बोल्ड*") == "पहला दूसरा बोल्ड"
+
+
+def test_the_assistant_remembers_and_answers_in_the_language_asked():
+    from voicebot.assistant import Assistant
+
+    seen = []
+
+    def chat(messages, stream=False):
+        seen.append(messages)
+        return iter(["ठीक है। ", "दो करोड़।"])
+
+    helper = Assistant(chat)
+    assert list(helper.reply("मुंबई में कितने लोग?", "hi")) == ["ठीक है। दो करोड़।"]  # short ones go together
+    list(helper.reply("aur Pune?", "mr"))
+    assert "Marathi" in seen[1][0]["content"] and seen[1][1] == {"role": "user", "content": "मुंबई में कितने लोग?"}
+    assert seen[1][2]["content"] == "ठीक है। दो करोड़।"
+
+
+def test_a_task_call_answers_an_off_script_question_without_inventing_business_facts():
+    asked = []
+
+    def aside(question, lang):
+        asked.append((question, lang))
+        return "दिल्ली भारत की राजधानी है।"
+
+    call = Call(tasks.load("shop_stock"), aside=aside)
+    call.start()
+    reply = call.hear("भारत की राजधानी क्या है?")
+    assert "दिल्ली" in reply.text and "16A MCB है?" in reply.text and asked == [("भारत की राजधानी क्या है?", "hi")]
+    from voicebot.assistant import ASIDE
+
+    assert "prices, stock" in ASIDE and "check with the team" in ASIDE
+
+
+def test_echo_is_not_an_interruption():
+    from voicebot.server import echo_of, pairs
+
+    assert echo_of("यह भारत का सबसे बड़ा शहर है", "मुंबई में लगभग दो करोड़ लोग रहते हैं। यह भारत का सबसे बड़ा शहर है।")
+    assert not echo_of("रुको, पुणे के बारे में बताओ", "मुंबई में लगभग दो करोड़ लोग रहते हैं।")
+    assert echo_of("", "anything")
+    assert pairs("ठीक है। दाम ₹250 है?", "ठीक है। दाम दो सौ पचास रुपये है?") == [
+        ("ठीक है।", "ठीक है।"), ("दाम ₹250 है?", "दाम दो सौ पचास रुपये है?")]
+
+
+def test_the_voice_page_server():
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    pytest.importorskip("soundfile")
+    import io
+
+    import numpy as np
+    import soundfile as sf
+    from fastapi.testclient import TestClient
+
+    from voicebot.audio import Mouth
+    from voicebot.server import make_app
+
+    class Ears:
+        def hear(self, samples, hint="hi", allowed=(), prompt=None, detect=True):
+            return "मुंबई में कितने लोग रहते हैं?", "hi", 0.1
+
+    def chat(messages, stream=False):
+        text = "मुंबई में लगभग दो करोड़ लोग रहते हैं। यह भारत का सबसे बड़ा शहर है।"
+        return iter(list(text)) if stream else text
+
+    mouth = Mouth("kokoro", lambda t, lang, v: np.full(2400, 0.1, np.float32), 24000)
+    client = TestClient(make_app(Ears(), mouth, chat=chat, password="secret12"))
+    assert "password" in client.get("/").text and client.get("/api/modes").status_code == 401
+    assert client.post("/login", data={"password": "nope"}).status_code == 401
+    login = client.post("/login", data={"password": "secret12"}, follow_redirects=False)
+    client.cookies.set("wimb", login.cookies.get("wimb"))
+    assert "orb" in client.get("/").text and next(m["id"] for m in client.get("/api/modes").json()) == "assistant"
+
+    def events(response):
+        return [json.loads(x) for x in response.text.splitlines()]
+
+    start = events(client.post("/api/start", json={"mode": "assistant"}))
+    assert start[0]["type"] == "session" and start[1]["type"] == "say" and start[1]["audio"]
+    sid = start[0]["sid"]
+    buffer = io.BytesIO()
+    sf.write(buffer, np.zeros(16000, np.float32), 16000, format="WAV")
+    turn = events(client.post(f"/api/turn?sid={sid}", content=buffer.getvalue(), headers={"Content-Type": "audio/wav"}))
+    assert [e["type"] for e in turn] == ["heard", "say", "say", "done"]
+    assert turn[1]["text"] == "मुंबई में लगभग दो करोड़ लोग रहते हैं।" and turn[-1]["timing"]["first_audio"] >= 0
+    shop = events(client.post("/api/start", json={"mode": "shop_stock"}))
+    said = events(client.post("/api/text", json={"sid": shop[0]["sid"], "text": "हाँ है, ढाई सौ का"}))
+    assert "price_inr: 250" in said[-1]["found"]
+    assert client.post("/api/turn?sid=nope", content=b"x").status_code == 404

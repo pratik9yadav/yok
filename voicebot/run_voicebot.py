@@ -37,7 +37,7 @@ NOTEBOOK = HERE / build_voicebot.NOTEBOOK
 OUT = HERE.parent / "kaggle_output_voicebot"
 EVAL_MINUTES = 150
 BRAIN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$")
-LINK = re.compile(r"^https://[a-z0-9-]+\.gradio\.live/?$")
+LINK = re.compile(r"^https://[a-z0-9-]+\.(gradio\.live|trycloudflare\.com)/?$")
 
 
 def notebook_with(settings: dict) -> dict:
@@ -165,25 +165,21 @@ def mask(text) -> str:
 
 
 def call_lines(call: dict) -> list[str]:
-    """One saved live call for a person: each turn (what the bot said, what it heard, what it understood), the
-    outcome, the values and the seconds per turn. Phone numbers are masked."""
+    """One saved conversation for a person: each turn (what was heard, what Wimb said, how fast), and for a task
+    what it found. Phone numbers are masked."""
     r = call.get("result") or {}
-    lines = [(f"Call {call.get('id', '?')}: task {r.get('task')}, outcome {r.get('outcome') or 'not finished'}, "
-              f"language {r.get('lang')}")]
-    timings = list(call.get("timings") or [])
-    person = 0
-    for t in r.get("turns") or []:
+    lines = [(f"Conversation {call.get('id', '?')}: {call.get('mode')}"
+              + (f", outcome {r.get('outcome') or 'not finished'}" if r else ""))]
+    for t in call.get("log") or []:
         if t.get("who") == "bot":
-            lines.append(f"   BOT: {mask(t.get('text', ''))}")
+            secs = ", ".join(f"{k} {t[k]} s" for k in ("hear", "first_audio", "speak") if t.get(k) is not None)
+            lines.append(f"   WIMB: {mask(t.get('text', ''))}" + (f"  [{secs}]" if secs else "")
+                         + (f"  ERROR {t['error']}" if t.get("error") else ""))
         else:
-            person += 1
-            u = t.get("understood") or {}
-            values = {k: mask(v) for k, v in (u.get("values") or {}).items()}
-            took = timings[person] if person < len(timings) else {}
-            secs = ", ".join(f"{k} {v} s" for k, v in took.items() if k in ("hear", "think", "speak") and v is not None)
-            lines.append(f"   YOU (heard): {mask(t.get('text') or '(silence)')}   → {u.get('intent')} {values}"
-                         + (f"  [{secs}]" if secs else ""))
-    lines.append(f"   found: { {k: mask(v) for k, v in (r.get('values') or {}).items()} }; missing: {r.get('missing')}")
+            how = " (typed)" if t.get("typed") else " (while Wimb spoke)" if t.get("during_bot") else ""
+            lines.append(f"   YOU{how}: {mask(t.get('text') or '(nothing heard)')}")
+    if r:
+        lines.append(f"   found: { {k: mask(v) for k, v in (r.get('values') or {}).items()} }")
     return lines
 
 

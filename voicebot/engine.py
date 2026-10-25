@@ -96,6 +96,7 @@ class Call:
     task: Task
     lang: str | None = None
     llm: object = None  # llm(prompt, schema) -> JSON text; None: rules only
+    aside: object = None  # aside(question, lang) -> a short answer to an off-script question; None: "I'll check"
     max_turns: int = 16
     values: dict = field(default_factory=dict)  # slot -> value
     status: dict = field(default_factory=dict)  # slot -> "filled", "unknown" (asked, no answer) or "none" (no)
@@ -151,6 +152,18 @@ class Call:
         self.pending = name
         self.last_question = self._say(self.task.slot[name]["ask"])
         return self.last_question
+
+    def _aside(self, question: str) -> tuple[str, str]:
+        """An off-script question: a short answer from the model (general knowledge only; the business's own
+        details are never made up), else "I'll check with the team"."""
+        if self.aside is not None:
+            try:
+                answer = self.aside(question, self.lang)
+            except Exception:  # noqa: BLE001 - the call goes on without it
+                answer = None
+            if answer:
+                return answer, for_voice(answer, self.lang)
+        return self._phrase("unknown_fact")
 
     def _readback(self) -> tuple[str, str]:
         shown, spoken = [], []
@@ -323,7 +336,7 @@ class Call:
         if fact:
             pieces.append(self._say(fact["answer"]))
         elif u.intent == "question" and not changed:
-            pieces.append(self._phrase("unknown_fact"))
+            pieces.append(self._aside(text))
         if pending in ("confirm", "fix"):
             if changed:
                 self.readbacks = min(self.readbacks, MAX_READBACKS - 1)

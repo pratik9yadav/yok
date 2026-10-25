@@ -246,11 +246,17 @@ speech (word error rate, clean vs phone line), the test calls spoken over a phon
 per turn. Demo calls (.wav) are in the run's artifact `kaggle-output-voicebot`. Offline: `python -m voicebot.evaluate`
 (rules only; `--show shop-hi-who` prints one call).
 
-**Talk to it (web page, on a phone too):** first add the repository secret `VOICEBOT_PASSWORD` (any password, 6+
-characters) at https://github.com/pratik9yadav/yok/settings/secrets/actions/new. Then **Actions → Voice bot → Run
-workflow**, mode `live`, minutes `90`. After 10–20 minutes the job log prints the page's link; log in with user
-`wimb` and your password, pick a task, press **Start call**, tap the mic and speak. With "save my voice" on, each
-call is kept in the Kaggle run's Output tab (private, never in GitHub): real voices to make the ears better.
+**Talk to it (hands-free page, on a phone too):** first add the repository secret `VOICEBOT_PASSWORD` (any password,
+6+ characters) at https://github.com/pratik9yadav/yok/settings/secrets/actions/new. Then **Actions → Voice bot → Run
+workflow**, mode `live`, minutes `120`, or ask Claude "open the voice page". After 10–20 minutes the link is posted on
+the issue **"Voice bot live page"** (GitHub notifies you). Log in with your password, tap the circle once, then just
+talk, like Gemini Live: the page hears when you start and stop, Wimb answers by voice (the first sentence while the
+rest is still being written), and you can interrupt it. Modes at the top: **Assistant** (ask anything, in Hindi,
+Marathi or English) and the tasks (Shop, Clinic, Order). In a task, a general question gets a short answer and the
+call goes on; the business's own details (prices, stock, address) are never made up. With "save my voice" on, each
+conversation is kept in the Kaggle run's Output tab (private, never in GitHub); `mode` `calls` prints them as text,
+phone numbers masked. Code: `voicebot/server.py` (FastAPI), `voicebot/web/index.html` (the page, with the Silero
+voice detector from @ricky0123/vad-web), `voicebot/assistant.py`.
 
 **Better Indian voices and accents (optional):** a free Hugging Face token whose account accepted
 https://huggingface.co/ai4bharat/indic-parler-tts, https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual

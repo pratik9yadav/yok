@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wimb Voice</title>
+<style>
+  :root { --bg1:#0b1020; --bg2:#151b33; --ink:#eef1ff; --mute:#9aa3c7; --blue:#4f8cff; --violet:#9b6bff;
+          --green:#2fd38a; --red:#ff4d5e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:radial-gradient(1200px 800px at 50% 30%, var(--bg2), var(--bg1));
+               color:var(--ink); font-family:system-ui, -apple-system, "Segoe UI", "Noto Sans Devanagari", sans-serif; }
+  body { display:flex; flex-direction:column; min-height:100dvh; padding:env(safe-area-inset-top) 16px
+         env(safe-area-inset-bottom); overflow:hidden; }
+  header { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:14px 0 6px; }
+  .chip { border:1px solid #2a3360; background:#121834; color:var(--mute); padding:8px 14px; border-radius:999px;
+          font-size:14px; cursor:pointer; }
+  .chip.on { background:linear-gradient(135deg, var(--blue), var(--violet)); color:white; border-color:transparent; }
+  main { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; }
+  #orb { width:min(56vw, 240px); aspect-ratio:1; border-radius:50%; cursor:pointer; position:relative;
+         background:radial-gradient(circle at 35% 30%, #8fb4ff, var(--blue) 45%, var(--violet) 100%);
+         box-shadow:0 0 60px rgba(79,140,255,.35); transition:transform .25s; }
+  #orb::after { content:""; position:absolute; inset:-14px; border-radius:50%; border:2px solid rgba(143,180,255,.25); }
+  body.idle #orb { filter:saturate(.6) brightness(.8); }
+  body.listening #orb { animation:breathe 1.6s ease-in-out infinite; }
+  body.hearing #orb { transform:scale(1.12); box-shadow:0 0 90px rgba(47,211,138,.55);
+          background:radial-gradient(circle at 35% 30%, #a7ffd9, var(--green) 50%, #1a8f73 100%); }
+  body.thinking #orb { animation:spin 1.1s linear infinite;
+          background:conic-gradient(var(--blue), var(--violet), #ff7ad9, var(--blue)); }
+  body.speaking #orb { animation:talk .5s ease-in-out infinite alternate; }
+  @keyframes breathe { 50% { transform:scale(1.06); box-shadow:0 0 80px rgba(79,140,255,.5); } }
+  @keyframes spin { to { transform:rotate(360deg) scale(.92); } }
+  @keyframes talk { from { transform:scale(1); } to { transform:scale(1.09); } }
+  #status { color:var(--mute); font-size:15px; min-height:20px; text-align:center; }
+  #captions { width:100%; max-width:640px; text-align:center; display:flex; flex-direction:column; gap:10px;
+              min-height:120px; }
+  .you { color:var(--mute); font-size:15px; }
+  .bot { font-size:20px; line-height:1.45; }
+  footer { display:flex; justify-content:center; align-items:center; gap:18px; padding:12px 0 20px; }
+  .round { width:56px; height:56px; border-radius:50%; border:none; font-size:22px; cursor:pointer; color:white;
+           background:#1d2447; display:flex; align-items:center; justify-content:center; }
+  .round.end { background:var(--red); }
+  #typebar { display:none; width:100%; max-width:640px; gap:8px; margin:0 auto 10px; }
+  #typebar.on { display:flex; }
+  #typebar input { flex:1; padding:12px 14px; border-radius:12px; border:1px solid #2a3360; background:#121834;
+                   color:var(--ink); font-size:16px; }
+  #typebar button { padding:0 16px; border-radius:12px; border:none; background:var(--blue); color:white; font-size:16px; }
+  #found { font-size:13px; color:var(--mute); max-width:640px; text-align:center; white-space:pre-wrap; }
+  label.save { font-size:12px; color:var(--mute); display:flex; gap:6px; align-items:center; justify-content:center; }
+</style>
+</head>
+<body class="idle">
+<header id="modes"></header>
+<main>
+  <div id="orb" role="button" aria-label="talk"></div>
+  <div id="status">Tap the circle and start talking</div>
+  <div id="captions"><div class="you" id="you"></div><div class="bot" id="bot"></div></div>
+  <div id="found"></div>
+</main>
+<div id="typebar"><input id="typed" placeholder="Type instead…" autocomplete="off"><button id="send">Send</button></div>
+<footer>
+  <button class="round" id="kbd" title="Type">⌨</button>
+  <button class="round end" id="end" title="End">✕</button>
+  <label class="save"><input type="checkbox" id="save" checked> save my voice to improve Wimb</label>
+</footer>
+<script src="{{ORT_BASE}}ort.js"></script>
+<script src="{{VAD_BASE}}bundle.min.js"></script>
+<script>
+const VAD_BASE = "{{VAD_BASE}}", ORT_BASE = "{{ORT_BASE}}";
+const $ = id => document.getElementById(id);
+const player = new Audio();
+let mode = "assistant", sid = null, vadObj = null, recorder = null, started = false, busy = false;
+let queue = [], speaking = false, ending = false, turnSeq = 0;
+
+function state(s, text) {
+  document.body.className = s;
+  if (text !== undefined) $("status").textContent = text;
+}
+const SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+
+async function loadModes() {
+  const r = await fetch("api/modes");
+  const modes = await r.json();
+  $("modes").innerHTML = "";
+  for (const m of modes) {
+    const b = document.createElement("button");
+    b.className = "chip" + (m.id === mode ? " on" : "");
+    b.textContent = m.name;
+    b.onclick = () => switchMode(m.id);
+    $("modes").appendChild(b);
+  }
+}
+
+function wav(samples, rate = 16000) {
+  const b = new ArrayBuffer(44 + samples.length * 2), v = new DataView(b);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, "data");
+  v.setUint32(40, samples.length * 2, true);
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([b], { type: "audio/wav" });
+}
+
+async function* lines(resp) {
+  const reader = resp.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const l = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (l) yield JSON.parse(l);
+    }
+  }
+  if (buf.trim()) yield JSON.parse(buf);
+}
+
+function b64blob(b64, type = "audio/wav") {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type });
+}
+
+function playNext() {
+  if (!queue.length) {
+    speaking = false;
+    if (!busy) afterSpeaking();
+    return;
+  }
+  speaking = true;
+  state("speaking", "Wimb is speaking… (tap to interrupt)");
+  player.src = URL.createObjectURL(queue.shift());
+  player.volume = 1;
+  player.play().catch(() => playNext());
+}
+player.onended = playNext;
+
+function stopSpeaking() {
+  queue = []; speaking = false;
+  try { player.pause(); } catch (e) {}
+}
+
+function afterSpeaking() {
+  if (ending) { state("idle", "Call ended. Tap the circle to start again."); stopListening(); sid = null;
+                started = false; ending = false; return; }
+  listen();
+}
+
+function listen() {
+  if (vadObj) { vadObj.start(); state("listening", "Listening… speak any time"); }
+  else if (recorder) state("listening", "Tap the circle, speak, tap again to send");
+}
+
+function stopListening() { if (vadObj) vadObj.pause(); }
+
+async function stream(resp, seq, during = false) {
+  for await (const ev of lines(resp)) {
+    if (during && ev.type === "heard") {  // said while Wimb was speaking
+      if (ev.ignored) { if (speaking) player.volume = 1; return; }  // only Wimb's own voice, picked up again
+      seq = ++turnSeq; stopSpeaking(); busy = true; during = false;  // a real interruption: this turn now leads
+    }
+    if (seq !== turnSeq) return;  // an older turn, interrupted
+    if (ev.type === "session") sid = ev.sid;
+    else if (ev.type === "heard") { $("you").textContent = ev.text ? "“" + ev.text + "”" : ""; $("bot").textContent = ""; }
+    else if (ev.type === "say") {
+      $("bot").textContent = ($("bot").textContent + " " + ev.text).trim();
+      if (ev.audio) { queue.push(b64blob(ev.audio)); if (!speaking) playNext(); }
+    } else if (ev.type === "done") {
+      if (ev.found) $("found").textContent = ev.found;
+      if (ev.end) ending = true;
+    } else if (ev.type === "error") { $("bot").textContent = ev.text; }
+  }
+  if (seq !== turnSeq) return;
+  busy = false;
+  if (!speaking) afterSpeaking();
+}
+
+async function startSession() {
+  const seq = ++turnSeq;
+  busy = true; state("thinking", "Connecting…");
+  const r = await fetch("api/start", { method: "POST", headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ mode, save: $("save").checked }) });
+  await stream(r, seq);
+}
+
+async function sendAudio(blob, during) {
+  if (!sid) return;
+  if (during) {
+    const r = await fetch(`api/turn?sid=${sid}&during=1`, { method: "POST", body: blob,
+                                                           headers: { "Content-Type": blob.type } });
+    await stream(r, turnSeq, true);
+    return;
+  }
+  const seq = ++turnSeq;
+  busy = true; state("thinking", "Thinking…");
+  const r = await fetch(`api/turn?sid=${sid}&during=0`, { method: "POST", body: blob,
+                                                         headers: { "Content-Type": blob.type } });
+  await stream(r, seq);
+}
+
+async function sendText(text) {
+  if (!text.trim()) return;
+  if (!sid) { $("status").textContent = "Tap the circle first"; return; }
+  stopSpeaking(); stopListening();
+  const seq = ++turnSeq;
+  busy = true; state("thinking", "Thinking…");
+  const r = await fetch("api/text", { method: "POST", headers: { "Content-Type": "application/json" },
+                                     body: JSON.stringify({ sid, text }) });
+  await stream(r, seq);
+}
+
+async function setupMic() {
+  try {
+    vadObj = await vad.MicVAD.new({
+      baseAssetPath: VAD_BASE, onnxWASMBasePath: ORT_BASE,
+      positiveSpeechThreshold: 0.6, negativeSpeechThreshold: 0.4, redemptionFrames: 9, minSpeechFrames: 4,
+      onSpeechStart: () => { if (speaking) player.volume = 0.3; else if (!busy) state("hearing", "Hearing you…"); },
+      onVADMisfire: () => { if (speaking) player.volume = 1; else if (!busy) listen(); },
+      onSpeechEnd: (audio) => {
+        const during = speaking;
+        if (!during) stopListening();
+        sendAudio(wav(audio), during);
+      },
+    });
+    return true;
+  } catch (e) {
+    console.warn("VAD unavailable, tap to talk instead", e);
+    vadObj = null;
+  }
+  try {  // tap to talk: tap to start, tap again to send
+    const s = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    recorder = { stream: s, rec: null, chunks: [] };
+    return true;
+  } catch (e) {
+    state("idle", "No microphone: allow it in the browser, or type with ⌨");
+    $("typebar").classList.add("on");
+    return false;
+  }
+}
+
+function tapToTalk() {
+  if (!recorder) return;
+  if (recorder.rec && recorder.rec.state === "recording") { recorder.rec.stop(); return; }
+  recorder.chunks = [];
+  recorder.rec = new MediaRecorder(recorder.stream);
+  recorder.rec.ondataavailable = e => recorder.chunks.push(e.data);
+  recorder.rec.onstop = () => sendAudio(new Blob(recorder.chunks, { type: recorder.rec.mimeType || "audio/webm" }), false);
+  recorder.rec.start();
+  state("hearing", "Recording… tap again to send");
+}
+
+$("orb").onclick = async () => {
+  if (!started) {
+    started = true;
+    player.src = SILENT; player.play().catch(() => {});  // lets the phone play Wimb's voice later
+    state("thinking", "Starting the microphone…");
+    await setupMic();
+    await startSession();
+    return;
+  }
+  if (speaking) { stopSpeaking(); if (!busy) listen(); return; }  // interrupt
+  if (!vadObj) tapToTalk();
+};
+
+async function switchMode(id) {
+  mode = id; stopSpeaking(); stopListening();
+  if (sid) fetch("api/end", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ sid }) });
+  sid = null; $("you").textContent = ""; $("bot").textContent = ""; $("found").textContent = "";
+  await loadModes();
+  if (started) await startSession();
+  else state("idle", "Tap the circle and start talking");
+}
+
+$("end").onclick = () => {
+  stopSpeaking(); stopListening();
+  if (sid) fetch("api/end", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ sid }) });
+  sid = null; started = false; state("idle", "Call ended. Tap the circle to start again.");
+};
+$("kbd").onclick = () => { $("typebar").classList.toggle("on"); $("typed").focus(); };
+$("send").onclick = () => { sendText($("typed").value); $("typed").value = ""; };
+$("typed").onkeydown = e => { if (e.key === "Enter") $("send").onclick(); };
+loadModes();
+</script>
+</body>
+</html>

@@ -56,8 +56,9 @@ private|public; ~10–25 min; secrets HF_TOKEN (write) + KAGGLE_API_TOKEN), give
 "Run voice v0" (speech to speech, `voice/`): run `.github/workflows/voice.yml` (`clips_dataset` optional; ~20–40 min), report the per-clip lines, times and TTS licence from the job log; .wav files: artifact `kaggle-output-voice`.
 Notebook: edit `voice/build_voice.py` or `voice/voicecall.py`, then `python voice/build_voice.py` and `python -m pytest`; never edit `voice/voice_v0.ipynb` by hand.
 "Voice bot" (the product: any task from `voicebot/tasks/*.json`, Hindi/Marathi/English, `voicebot/`): run `.github/workflows/voicebot.yml`
-with `mode` eval (~60–90 min; report typed/spoken test-call scores, speech-to-text WER, seconds per turn) or live (`minutes`;
-the job log prints the page link; needs secret VOICEBOT_PASSWORD, user `wimb`). Offline: `python -m voicebot.evaluate`. The model
+with `mode` eval (~60–90 min; report typed/spoken test-call scores, speech-to-text WER, seconds per turn), live (`minutes`;
+hands-free page like Gemini Live, `voicebot/server.py` + `web/index.html`; ~15 min to start; read the link from issue
+"Voice bot live page" and send it; needs secret VOICEBOT_PASSWORD) or calls (prints saved conversations, phones masked). Offline: `python -m voicebot.evaluate`. The model
 only reads; `engine.py` decides what to say (never the model). Edit `voicebot/*.py`, tasks or scenarios, then
 `python voicebot/build_voicebot.py` and `python -m pytest`; never edit `voicebot/voicebot.ipynb` by hand. Live calls stay on Kaggle (repo is public).
 
