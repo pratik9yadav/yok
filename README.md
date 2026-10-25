@@ -295,6 +295,15 @@ real people (25% word errors on real phone-line Hindi). The real test is people 
 way: Whisper loops on short clips (token cap by clip length), digits Whisper half-hears in phone numbers ("साथ" for
 सात), weekdays misheard by a letter, and a cache so a task's greeting and questions are spoken at once.
 
+**Teach the ears Indian speech:** **Actions → Voice bot → Run workflow**, mode `train-ears` (1–2 h), or ask Claude
+"train the ears". LoRA fine-tuning of Whisper large-v3 turbo on real Hindi and Marathi speech (FLEURS train and dev;
+with the Kaggle secret HF_TOKEN also AI4Bharat IndicVoices: many speakers and districts), half of each clip heard
+through a pretend phone line and at 0.9–1.1× speed, measured before and after on FLEURS test (never trained on),
+clean and as a phone line. The model is saved as `wimb-ears/` only when it is better; the eval and the live page
+then attach and use it (`voicebot/build_ears.py`, `voicebot/run_ears.py`). Note: word error rates before 2026-10-25
+were computed with a text normaliser that dropped Devanagari vowel signs (fixed); they compare models fairly but
+are not exact.
+
 **Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
 a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better
 free one comes. The calls the live page saves (with consent) are the data for the next steps: fine-tune the ears on

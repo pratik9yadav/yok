@@ -446,7 +446,8 @@ def test_notebook_glue_runs_with_a_fake_brain(tmp_path, monkeypatch):
         sys.modules.update(saved_modules)
 
 
-@pytest.mark.parametrize("script", ["run_voicebot.py", "evaluate.py", "build_voicebot.py"])
+@pytest.mark.parametrize("script", ["run_voicebot.py", "evaluate.py", "build_voicebot.py", "run_ears.py",
+                                    "build_ears.py"])
 def test_scripts_start_as_scripts(script, tmp_path):
     """Run as `python voicebot/<script>`, the folder voicebot/ is first on the path: nothing in it may hide a
     standard module (a voicebot/numbers.py once broke tqdm's `from numbers import Number`)."""
@@ -669,3 +670,51 @@ def test_the_voice_page_server():
     said = events(client.post("/api/text", json={"sid": shop[0]["sid"], "text": "हाँ है, ढाई सौ का"}))
     assert "price_inr: 250" in said[-1]["found"]
     assert client.post("/api/turn?sid=nope", content=b"x").status_code == 404
+
+
+def test_ears_notebook_is_up_to_date_and_python():
+    import ast
+
+    from voicebot import build_ears
+
+    saved = (HERE / build_ears.NOTEBOOK).read_text(encoding="utf-8")
+    assert saved == build_ears.text(build_ears.notebook()), "run: python voicebot/build_ears.py"
+    nb = json.loads(saved)
+    for c in nb["cells"]:
+        if c["cell_type"] == "code":
+            ast.parse("".join(c["source"]))
+    source = "".join("".join(c["source"]) for c in nb["cells"])
+    assert "phone_line" in source and "merge_and_unload" in source and "SAVE_DIR" in source
+    assert "fleurs(lang, EVAL_ROWS, \"test\")" in source  # held out: the test split is never trained on
+
+
+def test_trained_ears_are_found_and_attached(tmp_path):
+    from voicebot.audio import trained_ears
+
+    assert trained_ears(str(tmp_path)) is None
+    folder = tmp_path / "wimb-ears-training" / "wimb-ears"
+    folder.mkdir(parents=True)
+    (folder / "config.json").write_text("{}")
+    assert trained_ears(str(tmp_path)) == str(folder)
+
+    class Api:
+        def __init__(self, status):
+            self.status = status
+
+        def kernels_status(self, name):
+            if self.status is None:
+                raise RuntimeError("404")
+            return type("S", (), {"status": type("E", (), {"name": self.status})()})()
+
+    assert run_voicebot.trained_ears(Api("COMPLETE"), "me/wimb-voicebot-live") == ["me/wimb-ears-training"]
+    assert run_voicebot.trained_ears(Api("RUNNING"), "me/wimb-voicebot-live") == []
+    assert run_voicebot.trained_ears(Api(None), "me/wimb-voicebot-live") == []
+
+
+def test_speech_scoring():
+    from voicebot.speechdata import error_rates, norm
+
+    assert norm("पाँच, हज़ार!") == "पांच हजार"
+    assert error_rates([("दो सौ बीस रुपये", "दो सौ बीस रुपये")]) == (0.0, 0.0)
+    wer, cer = error_rates([("दो सौ बीस रुपये", "दो सौ तीस रुपये")])
+    assert wer == 25.0 and 0 < cer < 25

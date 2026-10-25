@@ -65,6 +65,21 @@ def brains_from(text: str | None) -> list[str] | None:
     return names
 
 
+EARS_SLUG = "wimb-ears-training"
+
+
+def trained_ears(api, kernel: str) -> list[str]:
+    """The ears training notebook (same owner), to attach when its last run finished: the voice bot then uses
+    the trained ears (wimb-ears/) when that run saved them. [] when there is none yet."""
+    training = f"{kernel.split('/', 1)[0]}/{EARS_SLUG}"
+    try:
+        status = getattr(api.kernels_status(training).status, "name", "")
+    except Exception:  # noqa: BLE001 - no such notebook yet
+        return []
+    print(f"Ears training {training}: last run {status or '?'}", flush=True)
+    return [training] if str(status).upper() == "COMPLETE" else []
+
+
 def wait_for_link(topic: str, minutes: int = 40) -> str | None:
     """The page's link, posted by the notebook to ntfy.sh/<topic>; None after minutes."""
     url = f"https://ntfy.sh/{topic}/json?poll=1&since=all"
@@ -234,7 +249,8 @@ def main() -> None:
         topic = "wimb-" + secrets.token_urlsafe(18).replace("_", "x").replace("-", "y")
         settings.update(LIVE_MINUTES=opts.live, LIVE_PASSWORD=password, NOTIFY_TOPIC=topic)
     check_gpu(api, need_hours=(opts.live / 60 + 0.5) if live else 1.5)
-    run_on_kaggle.push_notebook(api, kernel, notebook_with(settings), build_voicebot.NOTEBOOK)
+    run_on_kaggle.push_notebook(api, kernel, notebook_with(settings), build_voicebot.NOTEBOOK,
+                                kernel_sources=trained_ears(api, kernel))
     time.sleep(30)
     if live:
         print("Starting the page: installing and loading the models (about 10–20 minutes)…", flush=True)

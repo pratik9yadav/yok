@@ -61,6 +61,9 @@ hands-free page like Gemini Live, `voicebot/server.py` + `web/index.html`; ~15 m
 "Voice bot live page" and send it; needs secret VOICEBOT_PASSWORD) or calls (prints saved conversations, phones masked). Offline: `python -m voicebot.evaluate`. The model
 only reads; `engine.py` decides what to say (never the model). Edit `voicebot/*.py`, tasks or scenarios, then
 `python voicebot/build_voicebot.py` and `python -m pytest`; never edit `voicebot/voicebot.ipynb` by hand. Live calls stay on Kaggle (repo is public).
+"Train the ears" / accents: `voicebot.yml` mode `train-ears` (LoRA Whisper turbo on Hindi/Marathi speech + phone-line
+augmentation; HF_TOKEN Kaggle secret adds IndicVoices); report WER before → after. Edit `voicebot/build_ears.py`, then
+`python voicebot/build_ears.py`; never edit `voicebot/ears_training.ipynb` by hand.
 
 ## Using real data
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:

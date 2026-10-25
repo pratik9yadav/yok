@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "eval: measure everything (about 60–90 min). live: the web page to talk to the bot. calls: print the calls the last page saved"
+        description: "eval: measure everything (60–90 min). live: the voice page. calls: print saved calls. train-ears: teach the ears Indian speech (1–2 h)"
         type: choice
-        options: [eval, live, calls]
+        options: [eval, live, calls, train-ears]
         default: eval
       minutes:
         description: "live: how long the page stays open (10–300)"

@@ -23,7 +23,7 @@ NOTEBOOK = "voicebot.ipynb"
 RESULTS_FILE = "voicebot_results.json"
 SETTINGS_TITLE = "1. Settings"
 PACKAGE = ["__init__.py", "numerals.py", "lang.py", "speech_text.py", "tasks.py", "understand.py", "engine.py",
-           "evaluate.py", "audio.py", "assistant.py", "server.py"]
+           "evaluate.py", "audio.py", "assistant.py", "server.py", "speechdata.py"]
 GRADIO_PIP = "gradio==5.50.0"
 PARLER_PIP = "parler-tts==0.2.3"  # pins transformers 4.46.1: installed only when its model will be tried
 
@@ -214,7 +214,10 @@ save_results()
 EARS_MOUTH = """
 from voicebot.audio import ASR_INFO, TTS_INFO, Ears, Mouth, load_first, phone_line, resample, to_int16
 
-ASR_ORDER = (["indic-conformer"] if HF_TOKEN else []) + [a for a in ASR if a != "indic-conformer"]
+from voicebot.audio import trained_ears
+
+ASR_ORDER = ((["wimb-ears"] if trained_ears() else []) + (["indic-conformer"] if HF_TOKEN else [])
+             + [a for a in ASR if a not in ("indic-conformer", "wimb-ears")])
 EARS = {}  # every speech-to-text model that loads (eval) or the first (live)
 for backend in ASR_ORDER:
     ears, tried = load_first("ears", [backend], HF_TOKEN)
@@ -236,92 +239,20 @@ save_results()
 """
 
 BENCH = """
-import io
-import unicodedata
-
 import numpy as np
 import soundfile as sf
 
-
-def norm(t):
-    t = unicodedata.normalize("NFC", str(t or "")).lower().replace("\\u093c", "").replace("\\u0901", "\\u0902")
-    return " ".join(re.sub(r"[^\\w\\s]", " ", t).split())
-
-
-def edits(a, b):
-    row = list(range(len(b) + 1))
-    for i, x in enumerate(a, 1):
-        prev, row[0] = row[0], i
-        for j, y in enumerate(b, 1):
-            prev, row[j] = row[j], min(row[j] + 1, row[j - 1] + 1, prev + (x != y))
-    return row[-1]
-
-
-def error_rates(pairs):
-    \"\"\"(word error rate %, character error rate %) over (reference, heard) pairs.\"\"\"
-    w = sum(edits(norm(r).split(), norm(h).split()) for r, h in pairs)
-    c = sum(edits(norm(r).replace(" ", ""), norm(h).replace(" ", "")) for r, h in pairs)
-    nw = sum(len(norm(r).split()) for r, _ in pairs) or 1
-    nc = sum(len(norm(r).replace(" ", "")) for r, _ in pairs) or 1
-    return round(100 * w / nw, 1), round(100 * c / nc, 1)
-
-
-def decode(audio):
-    if isinstance(audio, dict) and audio.get("bytes"):
-        data, rate = sf.read(io.BytesIO(audio["bytes"]), dtype="float32", always_2d=True)
-    elif isinstance(audio, dict) and audio.get("array") is not None:
-        data, rate = np.asarray(audio["array"], dtype=np.float32)[:, None], audio["sampling_rate"]
-    else:
-        data, rate = sf.read(audio["path"], dtype="float32", always_2d=True)
-    return resample(data.mean(axis=1), rate, 16000)
-
-
-def rows_from(ds, n, text_keys, group_keys=()):
-    from datasets import Audio
-
-    columns = list(getattr(ds, "column_names", None) or next(iter(ds.take(1))).keys())
-    audio_key = next(k for k in columns if k in ("audio", "audio_filepath", "file") or "audio" in k)
-    text_key = next(k for k in text_keys if k in columns)
-    group_key = next((k for k in group_keys if k in columns), None)
-    try:
-        ds = ds.cast_column(audio_key, Audio(decode=False))
-    except Exception:
-        pass
-    out = []
-    for row in ds:
-        out.append({"audio": decode(row[audio_key]), "text": row[text_key],
-                    "group": str(row[group_key]) if group_key else None})
-        if len(out) >= n:
-            break
-    return out, {"text": text_key, "group": group_key}
+from voicebot.speechdata import error_rates, norm
+from voicebot.speechdata import fleurs as fleurs_rows
+from voicebot.speechdata import lahaja as lahaja_rows
 
 
 def fleurs(lang, n):
-    from datasets import load_dataset
-
-    code = {"hi": "hi_in", "mr": "mr_in"}[lang]
-    errors = []
-    for how in ("parquet", "script"):
-        try:
-            if how == "parquet":
-                ds = load_dataset("parquet", split="train", streaming=True, data_files=(
-                    f"hf://datasets/google/fleurs@refs/convert/parquet/{code}/test/*.parquet"))
-            else:
-                ds = load_dataset("google/fleurs", code, split="test", streaming=True, trust_remote_code=True)
-            rows, keys = rows_from(ds, n, ("raw_transcription", "transcription"))
-            return rows, f"google/fleurs {code} test ({how})"
-        except Exception as e:
-            errors.append(f"{how}: {e!r}"[:300])
-    raise RuntimeError(" | ".join(errors))
+    return fleurs_rows(lang, n, "test")
 
 
 def lahaja(n):
-    from datasets import load_dataset
-
-    ds = load_dataset("ai4bharat/Lahaja", split="test", streaming=True, token=HF_TOKEN)
-    rows, keys = rows_from(ds, n, ("text", "transcription", "transcript", "sentence", "verbatim"),
-                           ("native_state", "state", "native_district", "district", "region"))
-    return rows, "ai4bharat/Lahaja test (Hindi from many districts)"
+    return lahaja_rows(n, HF_TOKEN)
 
 
 def bench(name, rows, lang):

@@ -26,7 +26,18 @@ ASR_INFO = {
     "transformers": {"model": "openai/whisper-large-v3-turbo", "licence": "MIT", "business": True},
     "indic-conformer": {"model": "ai4bharat/indic-conformer-600m-multilingual", "licence": "MIT", "business": True,
                         "token": True},
+    "wimb-ears": {"model": "Whisper large-v3 turbo fine-tuned by us (voicebot/build_ears.py)", "licence": "MIT",
+                  "business": True},
 }
+TRAINED_EARS = "wimb-ears"  # the folder the ears training saves (attached to other notebooks under /kaggle/input)
+
+
+def trained_ears(root: str = "/kaggle/input") -> str | None:
+    """The fine-tuned Whisper's folder, when the ears training's output is attached; else None."""
+    import glob
+
+    found = sorted(glob.glob(os.path.join(root, "**", TRAINED_EARS, "config.json"), recursive=True))
+    return os.path.dirname(found[0]) if found else None
 TTS_INFO = {
     "kokoro": {"model": "hexgrad/Kokoro-82M (kokoro-onnx)", "licence": "Apache-2.0", "business": True},
     "parler": {"model": "ai4bharat/indic-parler-tts", "licence": "Apache-2.0", "business": True, "token": True},
@@ -192,10 +203,13 @@ class Ears:
 
             run(np.zeros(RATE, dtype=np.float32), "hi", None)  # some CUDA problems only show on the first use
             return cls(backend, run, detect, "GPU" if gpu else "CPU")
-        if backend == "transformers":
+        if backend in ("transformers", "wimb-ears"):
             from transformers import pipeline
 
-            asr = pipeline("automatic-speech-recognition", model=ASR_INFO[backend]["model"],
+            model = ASR_INFO["transformers"]["model"] if backend == "transformers" else trained_ears()
+            if model is None:
+                raise FileNotFoundError("no trained ears attached (run the ears training first)")
+            asr = pipeline("automatic-speech-recognition", model=model,
                            device="cuda:0" if gpu else "cpu", torch_dtype=torch.float16 if gpu else torch.float32,
                            chunk_length_s=30)  # clips over 30 s too
 

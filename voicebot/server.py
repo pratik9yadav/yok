@@ -31,6 +31,7 @@ from voicebot.assistant import SENTENCE_END, Assistant, aside
 from voicebot.engine import Call
 from voicebot.lang import detect
 from voicebot.speech_text import clean_heard, for_voice
+from voicebot.speechdata import norm
 
 WEB = Path(__file__).parent / "web" / "index.html"
 VAD_CDN = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/"
@@ -72,10 +73,10 @@ def pairs(text: str, speech: str) -> list[tuple[str, str]]:
 
 def echo_of(heard: str, bot: str) -> bool:
     """Whether what was heard while Wimb spoke is just Wimb's own voice coming back through the microphone."""
-    words = re.findall(r"\w+", heard.lower())
+    words = norm(heard).split()
     if not words:
         return True
-    own = set(re.findall(r"\w+", bot.lower()))
+    own = set(norm(bot).split())
     return sum(w in own for w in words) / len(words) >= 0.6
 
 
