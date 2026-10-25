@@ -80,6 +80,40 @@ def wait_for_link(topic: str, minutes: int = 40) -> str | None:
     return None
 
 
+ISSUE_TITLE = "Voice bot live page"
+
+
+def post_link(link: str, minutes: int) -> None:
+    """Post the page's link as a comment on the issue "Voice bot live page" (made once), so it can be read while
+    the job runs (a running job's log can't be read through GitHub's API) and the owner gets a GitHub notice on
+    the phone. The page needs the password, so the link alone opens nothing. Needs GITHUB_TOKEN with issues: write;
+    without it, nothing is posted."""
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        return
+
+    def call(method, path, body=None):
+        request = urllib.request.Request(f"https://api.github.com/repos/{repo}{path}", method=method,
+                                         data=json.dumps(body).encode() if body is not None else None,
+                                         headers={"Authorization": f"Bearer {token}",
+                                                  "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(request, timeout=30) as resp:
+            return json.load(resp)
+
+    try:
+        found = [i for i in call("GET", "/issues?state=open&per_page=100")
+                 if i.get("title") == ISSUE_TITLE and "pull_request" not in i]
+        number = found[0]["number"] if found else call("POST", "/issues", {
+            "title": ISSUE_TITLE, "body": "Each live run of the voice bot posts its page link here. "
+                                          "Log in with user `wimb` and the VOICEBOT_PASSWORD secret."})["number"]
+        until = time.strftime("%H:%M UTC", time.gmtime(time.time() + 60 * minutes))
+        call("POST", f"/issues/{number}/comments", {"body": f"Voice bot page: {link}\n\nUser `wimb`, password: "
+                                                            f"your VOICEBOT_PASSWORD secret. Open until about {until}."})
+        print(f"Link also posted on issue #{number} ({ISSUE_TITLE}).", flush=True)
+    except Exception as e:  # noqa: BLE001 - the log still has the link
+        print("Could not post the link on an issue:", type(e).__name__, str(e)[:200], flush=True)
+
+
 def report(r: dict) -> None:
     print()
     for line in r.get("summary") or []:
@@ -163,6 +197,7 @@ def main() -> None:
             print("User name: wimb   Password: your VOICEBOT_PASSWORD secret")
             print(f"Open for {opts.live} minutes from now. Best on a phone: tap the mic, speak, tap again.")
             print("=" * 60 + "\n", flush=True)
+            post_link(link, opts.live)
         else:
             print("No link came back (see the log below).", flush=True)
     ok = wait(api, kernel, limit_min=(opts.live + 45) if live else EVAL_MINUTES)

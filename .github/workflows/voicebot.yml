@@ -25,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  issues: write  # live: the page's link is posted on the issue "Voice bot live page"
 
 concurrency:
   group: kaggle-voicebot-${{ inputs.mode }}
@@ -59,6 +60,7 @@ jobs:
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           VOICEBOT_PASSWORD: ${{ secrets.VOICEBOT_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Inputs reach the script only as environment variables (never pasted into it).
           MODE: ${{ inputs.mode }}
           MINUTES: ${{ inputs.minutes }}

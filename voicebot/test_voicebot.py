@@ -525,3 +525,38 @@ def test_the_same_line_is_spoken_once():
     assert made == ["नमस्ते", "क्या आपके पास 16A MCB है?"]
     with pytest.raises(RuntimeError):
         Mouth("kokoro", lambda *a: [], 24000).say("x")
+
+
+def test_the_live_link_is_posted_on_an_issue(monkeypatch):
+    calls = []
+
+    class Resp:
+        def __init__(self, body):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return json.dumps(self.body).encode()
+
+    def urlopen(request, timeout):
+        calls.append((request.get_method(), request.full_url, json.loads(request.data) if request.data else None))
+        if request.get_method() == "GET":
+            return Resp([{"number": 3, "title": "Something else"}])
+        return Resp({"number": 9})
+
+    monkeypatch.setattr(run_voicebot.urllib.request, "urlopen", urlopen)
+    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "me/yok")
+    run_voicebot.post_link("https://abc.gradio.live", 90)
+    assert [c[0] for c in calls] == ["GET", "POST", "POST"]
+    assert calls[1][2]["title"] == run_voicebot.ISSUE_TITLE
+    assert calls[2][1].endswith("/issues/9/comments") and "https://abc.gradio.live" in calls[2][2]["body"]
+    monkeypatch.delenv("GITHUB_TOKEN")
+    calls.clear()
+    run_voicebot.post_link("https://abc.gradio.live", 90)
+    assert calls == []
