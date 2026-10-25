@@ -718,3 +718,23 @@ def test_speech_scoring():
     assert error_rates([("दो सौ बीस रुपये", "दो सौ बीस रुपये")]) == (0.0, 0.0)
     wer, cer = error_rates([("दो सौ बीस रुपये", "दो सौ तीस रुपये")])
     assert wer == 25.0 and 0 < cer < 25
+
+
+def test_a_start_waits_while_kaggle_is_busy(monkeypatch, tmp_path):
+    import run_on_kaggle
+
+    replies = [type("R", (), {"error": "Maximum batch GPU session count of 2 reached."})(),
+               type("R", (), {"error": None, "invalid_kernel_sources": [], "invalid_dataset_sources": [],
+                              "url": "u"})()]
+    slept = []
+
+    class Api:
+        def kernels_push(self, folder, acc=None):
+            return replies.pop(0)
+
+        def kernels_pull(self, *a, **k):
+            raise RuntimeError("not needed")
+
+    monkeypatch.setattr(run_on_kaggle.time, "sleep", slept.append)
+    run_on_kaggle.push_notebook(Api(), "me/x", {"cells": []}, "x.ipynb")
+    assert slept == [300] and not replies

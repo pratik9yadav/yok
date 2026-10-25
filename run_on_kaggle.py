@@ -103,6 +103,9 @@ def push(api, kernel: str, train_set: str = "v2", gguf: bool = True) -> None:
     push_notebook(api, kernel, notebook_for(train_set, gguf), "train_colab.ipynb")
 
 
+BUSY_WAIT_MINUTES = 150  # how long a start waits while Kaggle's 2 GPU sessions are in use
+
+
 def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: list[str] | None = None,
                   dataset_sources: list[str] | None = None) -> None:
     """Start a run of this notebook on Kaggle: private, T4 GPU, internet on.
@@ -121,8 +124,15 @@ def push_notebook(api, kernel: str, nb: dict, code_file: str, kernel_sources: li
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(meta, indent=1))
     # T4: the older P100 is too old for the training library.
-    resp = api.kernels_push(str(folder), acc="NvidiaTeslaT4")
-    error = getattr(resp, "error", None)
+    deadline = time.time() + 60 * BUSY_WAIT_MINUTES
+    while True:
+        resp = api.kernels_push(str(folder), acc="NvidiaTeslaT4")
+        error = getattr(resp, "error", None)
+        if not (error and "session count" in str(error).lower() and time.time() < deadline):
+            break
+        # Kaggle runs at most 2 GPU notebooks at once: wait for one to end instead of failing
+        print(f"Kaggle is busy ({error}); trying again in 5 minutes", flush=True)
+        time.sleep(300)
     if error:
         sys.exit(f"Kaggle refused the run: {error}")
     bad = getattr(resp, "invalid_kernel_sources", None)
