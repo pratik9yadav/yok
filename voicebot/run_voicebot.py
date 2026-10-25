@@ -18,6 +18,7 @@ import re
 import secrets
 import shutil
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -157,12 +158,63 @@ def fetch(api, kernel: str, ok: bool = True, live: bool = False) -> dict | None:
     return r
 
 
+def mask(text) -> str:
+    """Phone numbers hidden (this log can be public): "9876543210" -> "••••••••10"."""
+    return re.sub(r"\d[\d\s-]{4,}\d", lambda m: "•" * max(len(re.sub(r"\D", "", m[0])) - 2, 0) + re.sub(r"\D", "", m[0])[-2:],
+                  str(text))
+
+
+def call_lines(call: dict) -> list[str]:
+    """One saved live call for a person: each turn (what the bot said, what it heard, what it understood), the
+    outcome, the values and the seconds per turn. Phone numbers are masked."""
+    r = call.get("result") or {}
+    lines = [(f"Call {call.get('id', '?')}: task {r.get('task')}, outcome {r.get('outcome') or 'not finished'}, "
+              f"language {r.get('lang')}")]
+    timings = list(call.get("timings") or [])
+    person = 0
+    for t in r.get("turns") or []:
+        if t.get("who") == "bot":
+            lines.append(f"   BOT: {mask(t.get('text', ''))}")
+        else:
+            person += 1
+            u = t.get("understood") or {}
+            values = {k: mask(v) for k, v in (u.get("values") or {}).items()}
+            took = timings[person] if person < len(timings) else {}
+            secs = ", ".join(f"{k} {v} s" for k, v in took.items() if k in ("hear", "think", "speak") and v is not None)
+            lines.append(f"   YOU (heard): {mask(t.get('text') or '(silence)')}   → {u.get('intent')} {values}"
+                         + (f"  [{secs}]" if secs else ""))
+    lines.append(f"   found: { {k: mask(v) for k, v in (r.get('values') or {}).items()} }; missing: {r.get('missing')}")
+    return lines
+
+
+def show_calls(api, kernel: str) -> int:
+    """Print the calls the last live page saved (text only, phone numbers masked; the audio stays on Kaggle)."""
+    folder = Path(tempfile.mkdtemp())
+    try:
+        api.kernels_output(kernel, str(folder), file_pattern=r"call\.json$", force=True)
+        calls = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.rglob("call.json"))]
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if not calls:
+        print("No saved calls yet: the page saves them when it closes (and only with 'save my voice' on).")
+        return 0
+    print(f"{len(calls)} saved calls from the last live page\n")
+    for call in calls:
+        print("\n".join(call_lines(call)) + "\n")
+    return len(calls)
+
+
 def main() -> None:
     args = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args.add_argument("--live", type=int, metavar="MINUTES", help="open the web page for this many minutes")
     args.add_argument("--brains", help="comma-separated Ollama models to use instead of the notebook's")
     args.add_argument("--wait", action="store_true", help="don't start a new run, wait for the current eval run")
+    args.add_argument("--calls", action="store_true", help="print the calls the last live page saved (no GPU)")
     opts = args.parse_args()
+    if opts.calls:
+        api, kernel = connect(SLUGS["live"])
+        show_calls(api, kernel)
+        return
     try:
         brains = brains_from(opts.brains)
     except ValueError as e:

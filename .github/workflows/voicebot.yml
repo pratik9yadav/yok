@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "eval: measure everything (about 60–90 min). live: the web page to talk to the bot"
+        description: "eval: measure everything (about 60–90 min). live: the web page to talk to the bot. calls: print the calls the last page saved"
         type: choice
-        options: [eval, live]
+        options: [eval, live, calls]
         default: eval
       minutes:
         description: "live: how long the page stays open (10–300)"
@@ -68,6 +68,7 @@ jobs:
         run: |
           ARGS=()
           if [ "$MODE" = "live" ]; then ARGS+=(--live "$MINUTES"); fi
+          if [ "$MODE" = "calls" ]; then ARGS+=(--calls); fi
           if [ -n "$BRAINS" ]; then ARGS+=(--brains "$BRAINS"); fi
           python voicebot/run_voicebot.py "${ARGS[@]}"
       - uses: actions/upload-artifact@v4

@@ -560,3 +560,15 @@ def test_the_live_link_is_posted_on_an_issue(monkeypatch):
     calls.clear()
     run_voicebot.post_link("https://abc.gradio.live", 90)
     assert calls == []
+
+
+def test_saved_calls_print_with_phone_numbers_masked():
+    call = {"id": "20261025-1920-abc", "timings": [{}, {"hear": 0.5, "think": 0.9, "speak": 0.3}],
+            "result": {"task": "clinic_booking", "outcome": "done", "lang": "hi", "missing": [],
+                       "values": {"phone": "9876543210", "day": "monday"},
+                       "turns": [{"who": "bot", "text": "आपका मोबाइल नंबर बता दीजिए।"},
+                                 {"who": "person", "text": "98765 43210",
+                                  "understood": {"intent": "answer", "values": {"phone": "9876543210"}}}]}}
+    text = "\n".join(run_voicebot.call_lines(call))
+    assert "9876543210" not in text and "98765" not in text and "••••••••10" in text
+    assert "clinic_booking" in text and "hear 0.5 s" in text and "monday" in text
