@@ -70,6 +70,7 @@ jobs:
           if [ "$MODE" = "live" ]; then ARGS+=(--live "$MINUTES"); fi
           if [ "$MODE" = "calls" ]; then ARGS+=(--calls); fi
           if [ -n "$BRAINS" ]; then ARGS+=(--brains "$BRAINS"); fi
+          if [ "$MODE" = "train-ears" ]; then exec python voicebot/run_ears.py; fi
           python voicebot/run_voicebot.py "${ARGS[@]}"
       - uses: actions/upload-artifact@v4
         if: always() && inputs.mode == 'eval'

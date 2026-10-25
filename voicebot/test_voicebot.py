@@ -3,6 +3,7 @@ voice, the tasks, the understanding (rules, and a fake model), the conversation 
 Run:  python -m pytest voicebot"""
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -738,3 +739,12 @@ def test_a_start_waits_while_kaggle_is_busy(monkeypatch, tmp_path):
     monkeypatch.setattr(run_on_kaggle.time, "sleep", slept.append)
     run_on_kaggle.push_notebook(Api(), "me/x", {"cells": []}, "x.ipynb")
     assert slept == [300] and not replies
+
+
+def test_every_workflow_mode_runs_its_script():
+    flow = (HERE.parent / ".github/workflows/voicebot.yml").read_text(encoding="utf-8")
+    options = re.search(r"options: \[(.*?)\]", flow).group(1).split(", ")
+    assert options == ["eval", "live", "calls", "train-ears"]
+    assert 'if [ "$MODE" = "live" ]; then ARGS+=(--live' in flow
+    assert 'if [ "$MODE" = "calls" ]; then ARGS+=(--calls); fi' in flow
+    assert 'if [ "$MODE" = "train-ears" ]; then exec python voicebot/run_ears.py; fi' in flow

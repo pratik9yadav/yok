@@ -283,8 +283,8 @@ in the web page under "Your own task".
 |---|---|
 | 48 test calls, typed: rules only | 46/48 |
 | … with gemma3:4b / qwen3:4b-instruct-2507 | 48/48 each, 1.6 s per model call (gemma3:12b in eval 3: 48/48, 4.1 s) |
-| Speech to text, real Hindi (FLEURS, 60 clips), word error rate | 19.4% clean, 25.4% as a phone line (Whisper turbo, transformers); faster-whisper 21.2% / 27.6% |
-| … real Marathi | 38.1% clean, 45.0% phone: weak (IndicConformer, with the HF token, is the next try) |
+| Speech to text, real Hindi (FLEURS, 60 clips), word error rate | 32.7% clean, 38.4% as a phone line (Whisper turbo, transformers); faster-whisper 34.3% / 40.1% (eval 6, exact scoring; eval 5 showed 19.4% / 25.4% with the faulty normaliser) |
+| … real Marathi | 79.6% clean, 88.1% phone (eval 6, exact scoring; eval 5 showed 38% / 45%): Whisper hardly knows Marathi, hence the ears training |
 | 44 test calls spoken by a synthetic voice over a phone line | Kokoro voice 19/44, MMS voice 9/44 |
 | One turn, end to end | hear 0.5 s + understand 0.9 s + speak 2.7 s (Kokoro fell back to the CPU) = 4.0 s |
 
