@@ -73,6 +73,8 @@ try:
     pip("peft", "datasets", "soundfile", "librosa", "scipy", "accelerate")
 except Exception as e:
     failed("pip install", e)
+# Kaggle's torchao is older than peft accepts (peft then refuses to add LoRA); it is not needed here
+subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "torchao"], capture_output=True, timeout=300)
 if not shutil.which("ffmpeg"):
     sh("apt-get update -qq; DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg", timeout=900)
 
