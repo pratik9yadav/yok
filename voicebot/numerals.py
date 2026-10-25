@@ -499,6 +499,12 @@ def day(text: str, fuzzy: bool = False) -> str | None:
 # --- phone numbers ----------------------------------------------------------------------------------------------
 REPEAT = {"डबल": 2, "double": 2, "दुबल": 2, "ट्रिपल": 3, "triple": 3, "ट्रिप्पल": 3}
 DIGIT_WORDS = {"oh": 0, "o": 0, "जीरो": 0, "झिरो": 0, "शुन्य": 0}
+# How speech to text writes digits it half-heard, in a phone number (eval 4): "साथ" for सात, "नो" for नौ, ...
+SOUNDS_LIKE = {"साथ": 7, "सात्": 7, "नो": 9, "नव": 9, "शून्ये": 0, "शुन्ये": 0, "शूनिये": 0, "शूने": 0, "शुन्या": 0,
+               "छे": 6, "छः": 6, "तिन": 3, "चर": 4, "पांच": 5, "पाच": 5, "एक्": 1, "दोन": 2, "आट": 8, "आठ्": 8}
+
+
+SOUND_KEYS = {key(w): n for w, n in SOUNDS_LIKE.items()}
 
 
 def phone(text: str) -> str | None:
@@ -516,6 +522,8 @@ def phone(text: str) -> str | None:
             piece = w.replace(",", "")
         elif lw in DIGIT_WORDS or key(lw) in {key(d) for d in DIGIT_WORDS}:
             piece = "0"
+        elif key(w) in SOUND_KEYS:
+            piece = str(SOUND_KEYS[key(w)])
         else:
             parts = classify(w)
             if len(parts) == 1 and parts[0][0] == "val" and float(parts[0][1]).is_integer() and parts[0][1] < 100:

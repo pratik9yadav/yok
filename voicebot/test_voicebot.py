@@ -55,6 +55,12 @@ def test_times(said, hhmm):
     assert numerals.time_of_day(said) == hhmm
 
 
+def test_a_misheard_weekday_counts_only_when_the_day_was_asked():
+    assert numerals.day("जविवार कोई", fuzzy=True) == "sunday" and numerals.day("जविवार कोई") is None
+    assert numerals.day("संवार को", fuzzy=True) is None  # as close to इतवार as to सोमवार: not guessed
+    assert numerals.time_of_day("शाम पांच बदे") == "17:00"
+
+
 @pytest.mark.parametrize("said, d", [
     ("कल आऊँगा", "tomorrow"), ("उद्या", "tomorrow"), ("परसों", "day_after"), ("परवा", "day_after"),
     ("सोमवार को", "monday"), ("मंगळवारी", "tuesday"), ("kal shaam", "tomorrow"), ("Wednesday", "wednesday"),
@@ -68,6 +74,9 @@ def test_days(said, d):
     ("नौ आठ सात छह पाँच, चार तीन दो एक शून्य", "9876543210"), ("98765 43210", "9876543210"),
     ("अट्ठानवे सत्तासी छिहत्तर पचपन चौंतीस", "9887765534"), ("नऊ आठ डबल सात सहा पाच चार तीन दोन एक", "9877654321"),
     ("+91 98123 45678", "9812345678"), ("09812345678", "9812345678"),
+    # as Whisper wrote them in eval 4 (from a phone line)
+    ("नौ एक, दो, तीन, चार, पांच, छह, साथ, आठ शून्ये।", "9123456780"), ("9-8-7-6-5-4-3-2-1-0", "9876543210"),
+    ("नो नो आठ आठ साथ साथ छे छे पांच पांच", "9988776655"),
 ])
 def test_phone_numbers(said, number):
     assert numerals.phone(said) == number

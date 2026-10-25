@@ -135,9 +135,9 @@ NO_REPEAT = 6  # Whisper can loop on a short clip ("कर दो कर दो 
 
 
 def token_limit(audio) -> int:
-    """At most this many tokens for a clip: about 15 per second of speech (Devanagari takes many), so a
-    hallucination loop can't run on."""
-    return int(min(440, 20 + 15 * len(audio) / RATE))
+    """At most this many tokens for a clip: about 30 per second of speech (Devanagari takes many; 15 cut real
+    sentences short in eval 4), so a hallucination loop can't run on for long."""
+    return int(min(440, 30 + 30 * len(audio) / RATE))
 
 
 def preload_cuda_libraries() -> None:

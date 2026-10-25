@@ -379,10 +379,12 @@ from voicebot.speech_text import for_voice
 
 PERSON_MOUTH = next((MOUTHS[b] for b in ("parler", "kokoro", "mms") if b in MOUTHS), None)  # the most varied voices
 BOT_MOUTH = next(iter(MOUTHS.values()), None)
+PERSON_MOUTHS = [MOUTHS[b] for b in ("parler", "kokoro", "mms") if b in MOUTHS]  # the test is run with each voice
 VOICES = itertools.cycle(["person", "person2", "person3"])
 
 
-def spoken_test(label, use_prompt, demo=False):
+def spoken_test(label, use_prompt, demo=False, person_mouth=None):
+    person_mouth = person_mouth or PERSON_MOUTH
     ears = EARS[RESULTS["best_asr"]]
     rows = [s for s in SCENARIOS if "latin" not in s.get("tags", [])]  # speech to text writes Devanagari anyway
     heard_log, demos = [], {}
@@ -394,7 +396,7 @@ def spoken_test(label, use_prompt, demo=False):
         def say_and_hear(line, call):
             lang = detect(line, default=call.lang)[0]
             try:
-                audio, rate, t_say = PERSON_MOUTH.say(for_voice(line, lang), lang, voice)
+                audio, rate, t_say = person_mouth.say(for_voice(line, lang), lang, voice)
             except Exception as e:  # this line can't be spoken: the bot reads it as typed (counted)
                 heard_log.append({"id": scenario["id"], "said": line, "heard": line, "seconds": 0, "unspoken": repr(e)[:200]})
                 return line, 0.0
@@ -445,11 +447,14 @@ def spoken_test(label, use_prompt, demo=False):
     save_results()
 
 
-if MODE == "eval" and EARS and PERSON_MOUTH is not None:
-    RESULTS["spoken_test"]["voice"] = f"{PERSON_MOUTH.backend} voices, then a phone line (8 kHz, μ-law, noise)"
-    for label, use_prompt, demo in (("no hint", False, True), ("hint: the bot's question", True, False)):
+if MODE == "eval" and EARS and PERSON_MOUTHS:
+    # The callers' lines are spoken by each test voice, then sent through a phone line (8 kHz, μ-law, noise).
+    # Eval 3–4 showed the ears mishearing the synthetic voice's short words ("राहुल" as "जाहुल" every time): two
+    # voices tell whether the test voice or the ears is the problem. The hint (the bot's question) did not help.
+    for i, mouth in enumerate(PERSON_MOUTHS):
+        label = f"voice {mouth.backend}"
         try:
-            spoken_test(label, use_prompt, demo)
+            spoken_test(label, False, demo=i == 0, person_mouth=mouth)
         except Exception as e:
             failed(f"spoken test ({label})", e)
 """
@@ -499,7 +504,9 @@ def summary_lines():
             i = info.get(t["backend"], {})
             flag = "" if i.get("business", True) else " (NOT for business use)"
             lines.append(f"{kind.upper()} {t['backend']} ({i.get('model')}, {i.get('licence')}{flag}): "
-                         + ("ok" if t["ok"] else t["why"]))
+                         + (f"ok, on {t.get('device')}" if t["ok"] else t["why"]))
+    if RESULTS.get("best_asr"):
+        lines.append(f"Speech to text used for the spoken test and live calls: {RESULTS['best_asr']}")
     if MODE == "live":
         lines.append(f"Live page: {RESULTS['live'].get('calls', 0)} calls, {RESULTS['live'].get('saved', 0)} saved")
     return lines
