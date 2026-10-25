@@ -512,3 +512,18 @@ def test_a_model_question_with_an_answer_is_not_left_unanswered():
     _, replies = talk("clinic_booking", ["mera naam Vikas hai"],
                       llm=FakeModel(blank(task, intent="question", patient_name="Vikas")))
     assert "पता नहीं" not in replies[1].text and "किस दिन" in replies[1].text
+
+
+def test_the_same_line_is_spoken_once():
+    import numpy as np
+
+    from voicebot.audio import Mouth
+
+    made = []
+    mouth = Mouth("kokoro", lambda text, lang, voice: made.append(text) or np.ones(10, np.float32), 24000)
+    for text in ("नमस्ते", "नमस्ते", "क्या आपके पास 16A MCB है?", "नमस्ते"):
+        audio, rate, _ = mouth.say(text, "hi")
+        assert len(audio) == 10 and rate == 24000
+    assert made == ["नमस्ते", "क्या आपके पास 16A MCB है?"]
+    with pytest.raises(RuntimeError):
+        Mouth("kokoro", lambda *a: np.zeros(0, np.float32), 24000).say("x")

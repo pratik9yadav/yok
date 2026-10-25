@@ -18,6 +18,7 @@ import tempfile
 import time
 
 RATE = 16000  # what speech to text takes
+CACHE_LINES = 256  # lines of speech kept, so a task's greeting and questions are said at once
 
 # Every model, its licence, and whether a business may use it. The results always say which one ran.
 ASR_INFO = {
@@ -249,6 +250,7 @@ class Mouth:
     def __init__(self, backend: str, run, rate: int, device: str = "?"):
         self.backend, self.run, self.rate, self.device = backend, run, rate, device
         self.info = TTS_INFO[backend]
+        self.cache: dict = {}
 
     @classmethod
     def load(cls, backend: str, token: str | None = None) -> "Mouth":
@@ -270,6 +272,12 @@ class Mouth:
             if gpu:
                 preload_cuda_libraries()
             import onnxruntime as ort
+
+            if gpu and hasattr(ort, "preload_dlls"):  # onnxruntime 1.21+: load CUDA and cuDNN from the pip packages
+                try:
+                    ort.preload_dlls()
+                except Exception as e:  # noqa: BLE001 - it then runs on the CPU, and says so
+                    print("onnxruntime preload_dlls:", repr(e)[:200])
 
             on = f"CPU (onnxruntime; providers: {', '.join(ort.get_available_providers())})"
             if "CUDAExecutionProvider" in ort.get_available_providers():
@@ -340,10 +348,18 @@ class Mouth:
         raise ValueError(f"unknown text-to-speech backend {backend}")
 
     def say(self, text: str, lang: str = "hi", voice: str = "bot"):
+        """(samples, rate, seconds). The same line said again (a task's greeting and questions) comes from a
+        cache, at once."""
         started = time.perf_counter()
-        audio = self.run(text, lang, voice)
-        if audio is None or len(audio) == 0:
-            raise RuntimeError(f"{self.backend} made no sound for {text[:40]!r}")
+        key = (text, lang, voice)
+        audio = self.cache.get(key)
+        if audio is None:
+            audio = self.run(text, lang, voice)
+            if audio is None or len(audio) == 0:
+                raise RuntimeError(f"{self.backend} made no sound for {text[:40]!r}")
+            if len(self.cache) >= CACHE_LINES:
+                self.cache.pop(next(iter(self.cache)))
+            self.cache[key] = audio
         return audio, self.rate, round(time.perf_counter() - started, 3)
 
 

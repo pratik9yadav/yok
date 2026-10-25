@@ -271,22 +271,23 @@ in the web page under "Your own task".
 | Mouth, with HF token | `ai4bharat/indic-parler-tts` (native Marathi voices) | Apache-2.0 |
 | Mouth, last fallback | `facebook/mms-tts-hin`, `-mar` | CC-BY-NC-4.0: test only |
 
-**Results (eval 3, 2026-10-24, Kaggle T4):**
+**Results (eval 5, 2026-10-25, Kaggle T4):**
 
 | What | Result |
 |---|---|
 | 48 test calls, typed: rules only | 46/48 |
-| … with gemma3:4b / qwen3:4b-instruct-2507 / gemma3:12b | 48/48 each; 1.65 s / 1.67 s / 4.1 s per model call |
-| Speech to text, real Hindi (FLEURS, 60 clips), word error rate | 17.0% clean, 26.0% as a phone line (Whisper turbo, transformers); faster-whisper 19.2% / 27.8% |
-| … real Marathi | 36.4% clean, 46.2% phone: weak (an IndicConformer test needs the HF token) |
-| 44 test calls spoken by a synthetic voice over a phone line | 15/44: the ears mishear short words from the synthetic voice ("कल", names, "परसों") |
-| One turn, end to end | hear 0.5 s + understand 0.9 s + speak 2.6 s (Kokoro on CPU) = 4.1 s |
+| … with gemma3:4b / qwen3:4b-instruct-2507 | 48/48 each, 1.6 s per model call (gemma3:12b in eval 3: 48/48, 4.1 s) |
+| Speech to text, real Hindi (FLEURS, 60 clips), word error rate | 19.4% clean, 25.4% as a phone line (Whisper turbo, transformers); faster-whisper 21.2% / 27.6% |
+| … real Marathi | 38.1% clean, 45.0% phone: weak (IndicConformer, with the HF token, is the next try) |
+| 44 test calls spoken by a synthetic voice over a phone line | Kokoro voice 19/44, MMS voice 9/44 |
+| One turn, end to end | hear 0.5 s + understand 0.9 s + speak 2.7 s (Kokoro fell back to the CPU) = 4.0 s |
 
-Eval 1 (before the value checks): qwen3 4B 42/48, gemma3 4B 40/48, gemma3 12B 47/48. The small models repeated known
-values and garbled phone numbers, flipped answers they were not asked, and put whole lines into text fields;
-every model value is now checked against the words (`reconcile` in `understand.py`, with those slips as tests).
-gemma3:4b is the brain for live calls. Next: the ears (Whisper loops on short clips are now capped; the HF token
-brings IndicConformer and Indian voices), and the voice on the GPU.
+What this says: the brain is solved for these calls (every model value is checked against the words; eval 1, before
+the checks: qwen3 4B 42/48, gemma3 4B 40/48, gemma3 12B 47/48). The spoken test is limited by the synthetic test
+voices: Whisper mishears their short words the same way every time ("राहुल" → "जाहुल", "कल" → "कर दो"), much worse than
+real people (25% word errors on real phone-line Hindi). The real test is people on the live page. Fixed along the
+way: Whisper loops on short clips (token cap by clip length), digits Whisper half-hears in phone numbers ("साथ" for
+सात), weekdays misheard by a letter, and a cache so a task's greeting and questions are spoken at once.
 
 **Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
 a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better
