@@ -62,7 +62,7 @@ hands-free page like Gemini Live, `voicebot/server.py` + `web/index.html`; ~15 m
 only reads; `engine.py` decides what to say (never the model). Edit `voicebot/*.py`, tasks or scenarios, then
 `python voicebot/build_voicebot.py` and `python -m pytest`; never edit `voicebot/voicebot.ipynb` by hand. Live calls stay on Kaggle (repo is public).
 "Train the ears" / accents: `voicebot.yml` mode `train-ears` (LoRA Whisper turbo on Hindi/Marathi speech + phone-line
-augmentation; HF_TOKEN Kaggle secret adds IndicVoices); report WER before → after. Edit `voicebot/build_ears.py`, then
+augmentation; HF_TOKEN Kaggle secret adds IndicVoices); report WER before → after. Run 1: hi 31→20% (phone 37→24%), mr 80→36% (phone 89→40%). Edit `voicebot/build_ears.py`, then
 `python voicebot/build_ears.py`; never edit `voicebot/ears_training.ipynb` by hand.
 
 ## Using real data

@@ -304,6 +304,17 @@ then attach and use it (`voicebot/build_ears.py`, `voicebot/run_ears.py`). Note:
 were computed with a text normaliser that dropped Devanagari vowel signs (fixed); they compare models fairly but
 are not exact.
 
+**Ears training run 1 (2026-10-26, Kaggle T4, 276 min):** 5,796 FLEURS clips (Hindi train+dev 2,354, Marathi
+3,442; no HF token, so no IndicVoices), 3 epochs. Word error rate on FLEURS test (100 clips per language), before →
+after:
+
+| Language | Clean | Phone line |
+|---|---|---|
+| Hindi | 31.2% → 19.8% (characters 12.5% → 7.1%) | 36.8% → 24.3% (17.0% → 9.5%) |
+| Marathi | 79.5% → 35.9% (24.3% → 9.3%) | 89.3% → 39.8% (29.5% → 10.8%) |
+
+Saved as `wimb-ears/`; the eval and the live page now use it. Next for accents: IndicVoices (HF token).
+
 **Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
 a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better
 free one comes. The calls the live page saves (with consent) are the data for the next steps: fine-tune the ears on
