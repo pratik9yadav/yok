@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "eval: measure everything (60–90 min). live: the voice page. calls: print saved calls. train-ears: teach the ears Indian speech (1–2 h)"
+        description: "eval: measure everything (60–90 min). live: the voice page. calls: print saved calls. train-ears: teach the ears Indian speech (1–3 h). fetch-ears: print the last training's result"
         type: choice
-        options: [eval, live, calls, train-ears]
+        options: [eval, live, calls, train-ears, fetch-ears]
         default: eval
       minutes:
         description: "live: how long the page stays open (10–300)"
@@ -71,6 +71,7 @@ jobs:
           if [ "$MODE" = "calls" ]; then ARGS+=(--calls); fi
           if [ -n "$BRAINS" ]; then ARGS+=(--brains "$BRAINS"); fi
           if [ "$MODE" = "train-ears" ]; then exec python voicebot/run_ears.py; fi
+          if [ "$MODE" = "fetch-ears" ]; then exec python voicebot/run_ears.py --wait; fi
           python voicebot/run_voicebot.py "${ARGS[@]}"
       - uses: actions/upload-artifact@v4
         if: always() && inputs.mode == 'eval'
