@@ -1,0 +1,11 @@
+{
+  "files": {
+    "data/test.jsonl": "31558bc813ba2910816b72b2eb2b4f4d5f85dc42f4e342da1d9b5810d984f3e9",
+    "data/hard_test.jsonl": "11a963eb95773b772fdef81fec69b59c4a841dc80050d8e74fcfc2c220736ac1",
+    "data/fresh_test.jsonl": "d3ba92d529e0adfdb450d61083d77bc7cdfc343471cfccbde3fbab769a81b605",
+    "data/asr_test.jsonl": "dbc77108d7f9d4be72a8f26494f782eddcc73ba66fd9c5232d80a33b0c8fc91f"
+  },
+  "speech": {
+    "ears": "google/fleurs hi_in and mr_in, split test, first 100 usable clips each (voicebot/build_ears.py), clean and as a phone line"
+  }
+}

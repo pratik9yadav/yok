@@ -65,6 +65,10 @@ only reads; `engine.py` decides what to say (never the model). Edit `voicebot/*.
 augmentation; HF_TOKEN Kaggle secret adds IndicVoices); report WER before → after. Run 1: hi 31→20% (phone 37→24%), mr 80→36% (phone 89→40%). Edit `voicebot/build_ears.py`, then
 `python voicebot/build_ears.py`; never edit `voicebot/ears_training.ipynb` by hand.
 
+## Lab co-worker
+A scheduled task runs a "lab round" twice a day (`.claude/skills/lab/SKILL.md`): check the last Kaggle run, log it in
+`lab/LOG.md`, keep only what is better, start the next experiment from the queue. Frozen test sets: `lab/frozen.json`.
+
 ## Using real data
 Real call transcripts go in `data/train.jsonl`, one JSON object per line:
 `{"product": ..., "said": ..., "answer": {"in_stock": ..., "price_inr": ..., "delivery": ..., "alternative": ...}}`.
