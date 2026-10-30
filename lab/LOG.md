@@ -24,11 +24,29 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    Lahaja) wait for the owner's `HF_TOKEN` Kaggle secret.
 2. Ears, conversational speech: short replies like a shopkeeper's ("हाँ है", "नहीं, कल आएगा", prices, phone numbers)
    are what the bot hears most; FLEURS is read news. Add short, spoken-style clips to training.
-3. Shop model: one rule for how full `alternative` is (CLAUDE.md "next step"), and more "paune / sava / saadhe" prices
-   in `make_data.py`; then train v4 again.
-4. Voice bot spoken score: find out why 25 of 44 spoken calls fail (ears or synthetic voice) and fix the biggest cause.
+3. Voice bot spoken score: find out why 25 of 44 spoken calls fail (ears or synthetic voice) and fix the biggest
+   cause. First step running now (eval 7 with the trained ears).
+4. Tooling for 1–2: this container cannot reach huggingface.co, so dataset pages (gated? licence? columns?) can't be
+   checked from here. Add a small "probe" mode to `fetch_data.yml` (GitHub runner: prints a dataset's licence,
+   gating, columns and a few row lengths, no audio saved) before spending GPU hours on a new speech source.
+   Candidates to probe: AI4Bharat Kathbath (hi, mr; test_unknown = other speakers, good second ears test),
+   AI4Bharat Shrutilipi (radio, many hours), SPRING-INX, OpenSLR 64 (Marathi, CC BY-SA 4.0).
+- Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
+  v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
+
+## Kaggle GPU hours this week (week from Sat 2026-10-24)
+
+About 11 h before the lab (evals 5–6, ears run 1) + eval 7 (~1.5 h) = ~12.5 h of 25.
 
 ## Experiments
+
+### 2026-10-31 00:10 IST · Eval 7: voice bot with the trained ears
+- Change: none in code. The voice bot eval now attaches `wimb-ears` (ears run 1) and uses it first; eval 5 used plain
+  Whisper turbo. One change: the ears.
+- Why: queue item 3 (why spoken calls fail). If the 44 spoken test calls go up from 19/44, the ears were a big cause;
+  if not, the synthetic test voice is.
+- Run: https://github.com/pratik9yadav/yok/actions/runs/41108862320 (mode eval), expected 60–90 min, ends ~01:40 IST.
+- Compare on: FLEURS hi/mr word errors (scoreboard), 48 typed and 44 spoken test calls (eval 5: 48/48, 19/44).
 
 ### 2026-10-26 · Ears run 1 (before the lab)
 - Change: LoRA r=32 on Whisper large-v3 turbo, FLEURS hi+mr train and dev (5,796 clips), half through a phone line, 3 epochs, 276 min on a T4.
