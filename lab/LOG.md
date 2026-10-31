@@ -58,6 +58,15 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
   right in another form ("ग्यारह बजे" → "11 बजे", "9-1-2-...-0"), so "lines heard exactly 64/203" undercounts.
   Still 23 of 44 calls fail: the synthetic voice stays the main suspect; real people on the live page are the real test.
 
+### 2026-10-31 20:50 IST · Round 3: still waiting for the AI4Bharat terms; phone numbers in Devanagari digits
+- Probe again (https://github.com/pratik9yadav/yok/actions/runs/41214182061): Kathbath, Shrutilipi, IndicVoices,
+  Lahaja still "Cannot access gated repo" with our token. Waiting on the owner's "Agree" clicks.
+- Fix (no GPU): `voicebot/numerals.py` read a phone number written in Devanagari digits ("९८७६५ ४३२१०") as no
+  number. Whisper writes such digits (eval 7). All tokens now turn ०-९ into 0-9; two tests added; notebooks rebuilt.
+  Prices were fine already (Python reads ०-९ as numbers). Not measured on GPU: eval 7's phone misses were wrong
+  digits, not this, so an eval now would show no change; it rides along with the next eval.
+- No GPU run this round (19 of 25 h used this week).
+
 ### 2026-10-31 08:50 IST · Tooling: probe speech datasets from a GitHub runner (no GPU)
 - Change: `fetch_data.yml` source `probe` + `fetch_real_data.py probe`: prints each Hugging Face dataset's licence,
   gated or not, folders, file types and one parquet file's columns. Nothing is downloaded or saved.

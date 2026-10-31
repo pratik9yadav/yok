@@ -78,6 +78,7 @@ def test_days(said, d):
     # as Whisper wrote them in eval 4 (from a phone line)
     ("नौ एक, दो, तीन, चार, पांच, छह, साथ, आठ शून्ये।", "9123456780"), ("9-8-7-6-5-4-3-2-1-0", "9876543210"),
     ("नो नो आठ आठ साथ साथ छे छे पांच पांच", "9988776655"),
+    ("९८७६५ ४३२१०", "9876543210"), ("मेरा नंबर ९८१२३४५६७८ है", "9812345678"),  # Devanagari digits
 ])
 def test_phone_numbers(said, number):
     assert numerals.phone(said) == number

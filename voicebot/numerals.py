@@ -197,8 +197,12 @@ class Span:
     strong: bool
 
 
+# Speech to text writes Devanagari digits too (९८७६५ ४३२१०, ₹२५०): read them as 0-9.
+DEV_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
 def tokens(text: str) -> list[str]:
-    return TOKEN.findall(unicodedata.normalize("NFC", text or ""))
+    return TOKEN.findall(unicodedata.normalize("NFC", text or "").translate(DEV_DIGITS))
 
 
 def classify(token: str) -> list[tuple[str, float]]:
