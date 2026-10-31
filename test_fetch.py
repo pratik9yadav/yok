@@ -13,6 +13,7 @@ from fetch_real_data import (
     safe_text,
     shop_talk_score,
     short_name,
+    summarise_files,
 )
 
 
@@ -94,3 +95,11 @@ def test_real_examples_are_well_formed_and_never_in_the_test_sets() -> None:
         assert a["price_inr"] is None or (isinstance(a["price_inr"], int) and a["in_stock"] is True)
         assert r["said"] not in held_out
         assert not re.search(r"[0-9०-९]{6,}|@|https?://", r["said"])
+
+
+def test_summarise_files_counts_folders_and_types() -> None:
+    files = ["README.md", "data/hindi/train-0.parquet", "data/hindi/train-1.parquet", "data/marathi/test.parquet"]
+    s = summarise_files(files)
+    assert s["files"] == 4
+    assert s["folders"] == {"data/hindi": 2, ".": 1, "data/marathi": 1}
+    assert s["types"] == {".parquet": 3, ".md": 1}

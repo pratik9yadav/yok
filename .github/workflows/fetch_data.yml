@@ -6,10 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       sources:
-        description: "products = Kaggle product lists; indicvoices = AI4Bharat transcripts (needs the HF_TOKEN secret); all = both"
+        description: "products = Kaggle product lists; indicvoices = AI4Bharat transcripts (needs the HF_TOKEN secret); all = both; probe = only print what the datasets below are (licence, gated, columns)"
         type: choice
-        options: [all, products, indicvoices]
+        options: [all, products, indicvoices, probe]
         default: all
+      datasets:
+        description: "probe: Hugging Face datasets, comma-separated"
+        type: string
+        default: "ai4bharat/kathbath,ai4bharat/Shrutilipi,ai4bharat/IndicVoices,ai4bharat/Lahaja,google/fleurs"
 
 permissions:
   contents: write
@@ -30,8 +34,12 @@ jobs:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           SOURCES: ${{ inputs.sources }}
-        run: python fetch_real_data.py "$SOURCES"
+          DATASETS: ${{ inputs.datasets }}
+        run: |
+          if [ "$SOURCES" = "probe" ]; then exec python fetch_real_data.py probe "$DATASETS"; fi
+          python fetch_real_data.py "$SOURCES"
       - name: Save the results on a review branch (never straight to main)
+        if: inputs.sources != 'probe'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

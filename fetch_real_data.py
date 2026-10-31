@@ -7,6 +7,8 @@ because this project's Claude container cannot reach Kaggle or Hugging Face.
                                             transcripts (CC BY 4.0). Gated: needs HF_TOKEN from an account that
                                             clicked "Agree" on https://huggingface.co/datasets/ai4bharat/IndicVoices
     python fetch_real_data.py all           both
+    python fetch_real_data.py probe a/b,c/d Hugging Face datasets: licence, gated or not, folders, file types and the
+                                            columns of one parquet file (no audio downloaded, nothing written)
 
 Writes data/real/*.jsonl and data/real/fetch_report.json. Licences and attribution: data/real/NOTICE.md.
 """
@@ -217,8 +219,51 @@ def fetch_indicvoices(report: dict, limit: int = 8000) -> None:
         "conversation_tasks": tasks.most_common(40)}
 
 
+def summarise_files(files: list[str], top: int = 12) -> dict:
+    """What a dataset repo holds: its top folders (two levels, with file counts) and file types."""
+    folders = Counter("/".join(f.split("/")[:2]) if f.count("/") >= 2 else f.split("/")[0] if "/" in f else "."
+                      for f in files)
+    types = Counter(Path(f).suffix.lower() or "(none)" for f in files)
+    return {"files": len(files), "folders": dict(folders.most_common(top)), "types": dict(types.most_common(8))}
+
+
+def probe_dataset(repo: str, token: str | None = None) -> dict:
+    """A Hugging Face dataset's licence, gating and layout, and one parquet file's columns (text only)."""
+    from huggingface_hub import HfApi, HfFileSystem
+
+    out: dict = {"repo": repo, "page": f"https://huggingface.co/datasets/{repo}"}
+    try:
+        info = HfApi(token=token).dataset_info(repo, files_metadata=False)
+    except Exception as e:  # noqa: BLE001 - report it and go on to the next dataset
+        out["error"] = f"{type(e).__name__}: {e}"[:300]
+        return out
+    card = dict(info.card_data or {})
+    files = [s.rfilename for s in info.siblings or []]
+    out.update({"gated": info.gated, "licence": card.get("license"), "languages": card.get("language"),
+                "configs": [c.get("config_name") for c in card.get("configs") or []][:20],
+                "downloads": info.downloads, **summarise_files(files)})
+    parquet = next((f for f in files if f.endswith(".parquet")), None)
+    if parquet:
+        try:
+            import pyarrow.parquet as pq
+
+            meta = pq.ParquetFile(HfFileSystem(token=token).open(f"datasets/{repo}/{parquet}", "rb"))
+            out["sample_file"] = {"path": parquet, "rows": meta.metadata.num_rows,
+                                  "columns": meta.schema_arrow.names}
+        except Exception as e:  # noqa: BLE001 - gated without a token, or not readable
+            out["sample_file"] = {"path": parquet, "error": f"{type(e).__name__}: {e}"[:200]}
+    return out
+
+
 def main() -> None:
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if which == "probe":
+        repos = [r.strip() for r in (sys.argv[2] if len(sys.argv) > 2 else "").split(",") if r.strip()]
+        token = os.environ.get("HF_TOKEN") or None
+        print("HF token:", "yes" if token else "no (gated sets show as not readable)")
+        for repo in repos:
+            print(json.dumps(probe_dataset(repo, token), ensure_ascii=False, indent=1, default=str), flush=True)
+        return
     report_path = OUT / "fetch_report.json"
     report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {}
     if which in ("products", "all"):

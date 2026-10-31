@@ -13,7 +13,7 @@ Best so far. Lower is better for error rates. A new result replaces a line only 
 | Ears | FLEURS test mr, 100 clips: word errors clean / phone | 35.9% / 39.8% | ears run 1, 2026-10-26 |
 | Shop model (Qwen3 4B QLoRA, v4) | test / hard / fresh / asr | 100% / 77% / 82% / 95% | run 11 |
 | Voice bot brain (gemma3:4b + rules) | 48 typed test calls | 48/48 | eval 5 |
-| Voice bot, spoken by synthetic voices | 44 test calls over a phone line | 19/44 | eval 5 |
+| Voice bot, spoken by synthetic voices | 44 test calls over a phone line (Kokoro voice / MMS voice) | 21/44 / 12/44 | eval 7, 2026-10-31 (with `wimb-ears`) |
 
 ## Queue
 
@@ -24,19 +24,19 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    Lahaja) wait for the owner's `HF_TOKEN` Kaggle secret.
 2. Ears, conversational speech: short replies like a shopkeeper's ("हाँ है", "नहीं, कल आएगा", prices, phone numbers)
    are what the bot hears most; FLEURS is read news. Add short, spoken-style clips to training.
-3. Voice bot spoken score: find out why 25 of 44 spoken calls fail (ears or synthetic voice) and fix the biggest
-   cause. First step running now (eval 7 with the trained ears).
-4. Tooling for 1–2: this container cannot reach huggingface.co, so dataset pages (gated? licence? columns?) can't be
-   checked from here. Add a small "probe" mode to `fetch_data.yml` (GitHub runner: prints a dataset's licence,
-   gating, columns and a few row lengths, no audio saved) before spending GPU hours on a new speech source.
-   Candidates to probe: AI4Bharat Kathbath (hi, mr; test_unknown = other speakers, good second ears test),
-   AI4Bharat Shrutilipi (radio, many hours), SPRING-INX, OpenSLR 64 (Marathi, CC BY-SA 4.0).
+3. Voice bot spoken score (21/44 after eval 7): phone numbers said digit by digit are the most common miss. Train the
+   ears on short digit-by-digit and name clips (not from the test calls' text), or try Kokoro's other Hindi voice
+   to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
+4. Probe results decide 1: Kathbath (hi, mr; test_unknown = other speakers, a good second ears test, freeze first),
+   Shrutilipi (radio, many hours); also look for SPRING-INX and OpenSLR 64 (Marathi, CC BY-SA 4.0) on the hub.
 - Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
   v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
 
 ## Kaggle GPU hours this week (week from Sat 2026-10-24)
 
-About 11 h before the lab (evals 5–6, ears run 1) + eval 7 (~1.5 h) = ~12.5 h of 25.
+Kaggle itself said "12.0 h left of 30 h" when eval 7 started (Fri 30 Oct), so ~18 h were used before it (my guess of
+11 h was wrong: read this number from the job log, not from memory) + eval 7 0.8 h = ~19 h of 25. Until Kaggle's
+weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints the fresh number.
 
 ## Experiments
 
@@ -47,6 +47,20 @@ About 11 h before the lab (evals 5–6, ears run 1) + eval 7 (~1.5 h) = ~12.5 h 
   if not, the synthetic test voice is.
 - Run: https://github.com/pratik9yadav/yok/actions/runs/41108862320 (mode eval), expected 60–90 min, ends ~01:40 IST.
 - Compare on: FLEURS hi/mr word errors (scoreboard), 48 typed and 44 spoken test calls (eval 5: 48/48, 19/44).
+- Result (finished 01:00 IST, 49 min): spoken test calls Kokoro voice 19/44 → **21/44**, MMS voice 9/44 → **12/44**;
+  typed 48/48 (qwen3 4B and gemma3 4B), rules only 46/48. Ears in the bot: Hindi FLEURS 20.1% clean / 23.6% phone,
+  Marathi 37.4% / 41.1% (eval's own 60 clips, not the frozen 100: the scoreboard's ears lines stay). One turn 0.86 s
+  (hear 0.44 + understand 0.42; speaking time showed 0.0, looks unmeasured).
+- Kept: yes, the bot already uses `wimb-ears` first. Scoreboard updated.
+- What the ears still get wrong on the synthetic voices: names (राहुल → याहुल), phone numbers said digit by digit
+  (नौ आठ सात → "९८८०००": wrong value, in Devanagari digits), weekdays (सोमवार → सम्वेर), परसों. Some "misheard" lines are
+  right in another form ("ग्यारह बजे" → "11 बजे", "9-1-2-...-0"), so "lines heard exactly 64/203" undercounts.
+  Still 23 of 44 calls fail: the synthetic voice stays the main suspect; real people on the live page are the real test.
+
+### 2026-10-31 08:50 IST · Tooling: probe speech datasets from a GitHub runner (no GPU)
+- Change: `fetch_data.yml` source `probe` + `fetch_real_data.py probe`: prints each Hugging Face dataset's licence,
+  gated or not, folders, file types and one parquet file's columns. Nothing is downloaded or saved.
+- Why: queue items 1–2 need a new speech source; this container cannot reach huggingface.co.
 
 ### 2026-10-26 · Ears run 1 (before the lab)
 - Change: LoRA r=32 on Whisper large-v3 turbo, FLEURS hi+mr train and dev (5,796 clips), half through a phone line, 3 epochs, 276 min on a T4.
