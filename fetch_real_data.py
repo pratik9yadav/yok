@@ -237,7 +237,7 @@ def probe_dataset(repo: str, token: str | None = None) -> dict:
     except Exception as e:  # noqa: BLE001 - report it and go on to the next dataset
         out["error"] = f"{type(e).__name__}: {e}"[:300]
         return out
-    card = dict(info.card_data or {})
+    card = info.card_data.to_dict() if info.card_data else {}
     files = [s.rfilename for s in info.siblings or []]
     out.update({"gated": info.gated, "licence": card.get("license"), "languages": card.get("language"),
                 "configs": [c.get("config_name") for c in card.get("configs") or []][:20],
