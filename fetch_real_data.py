@@ -239,7 +239,7 @@ def probe_dataset(repo: str, token: str | None = None) -> dict:
         return out
     card = info.card_data.to_dict() if info.card_data else {}
     files = [s.rfilename for s in info.siblings or []]
-    out.update({"gated": info.gated, "licence": card.get("license"), "languages": card.get("language"),
+    out.update({"gated": info.gated, "licence": card.get("license"), "languages": (card.get("language") or [])[:12] or None,
                 "configs": [c.get("config_name") for c in card.get("configs") or []][:20],
                 "downloads": info.downloads, **summarise_files(files)})
     parquet = next((f for f in files if f.endswith(".parquet")), None)

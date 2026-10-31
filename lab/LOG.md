@@ -27,8 +27,9 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
 3. Voice bot spoken score (21/44 after eval 7): phone numbers said digit by digit are the most common miss. Train the
    ears on short digit-by-digit and name clips (not from the test calls' text), or try Kokoro's other Hindi voice
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
-4. Probe results decide 1: Kathbath (hi, mr; test_unknown = other speakers, a good second ears test, freeze first),
-   Shrutilipi (radio, many hours); also look for SPRING-INX and OpenSLR 64 (Marathi, CC BY-SA 4.0) on the hub.
+4. When the owner has agreed to the AI4Bharat terms: first freeze a second ears test from Kathbath test (other
+   speakers, hi + mr, 100 clips each), then train ears run 2 on IndicVoices + Shrutilipi (one change: more speakers).
+   Meanwhile: probe OpenSLR 64 (Marathi) via its loading script, and search the hub for other ungated Marathi sets.
 - Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
   v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
 
@@ -61,6 +62,20 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 - Change: `fetch_data.yml` source `probe` + `fetch_real_data.py probe`: prints each Hugging Face dataset's licence,
   gated or not, folders, file types and one parquet file's columns. Nothing is downloaded or saved.
 - Why: queue items 1–2 need a new speech source; this container cannot reach huggingface.co.
+- Result (run https://github.com/pratik9yadav/yok/actions/runs/41164261134, 2 min, no GPU; HF_TOKEN repo secret is set):
+
+  | Dataset | Licence | Gated | Hindi / Marathi | Readable with our token |
+  |---|---|---|---|---|
+  | ai4bharat/kathbath | CC BY 4.0 | yes (auto: one "Agree") | hindi, marathi | no: terms not accepted |
+  | ai4bharat/Shrutilipi | CC BY 4.0 | yes (auto) | hindi (196 files), marathi (85) | no |
+  | ai4bharat/IndicVoices | CC BY 4.0 | yes (auto) | hindi, marathi | no |
+  | ai4bharat/Lahaja | MIT (card) | yes (auto) | Hindi only | no |
+  | google/fleurs | CC BY 4.0 | no | hi_in, mr_in | yes (already used) |
+  | openslr/openslr | CC BY-SA 4.0 | no | mr listed; a loading script, no parquet | not tried |
+  | SPRINGLab/SPRING-INX | - | not on the hub under that name | | |
+
+  All four AI4Bharat sets allow business use but wait for the owner to click "Agree" on each page with the account
+  whose token is the HF_TOKEN secret. No ungated many-speaker Hindi/Marathi set found yet besides FLEURS.
 
 ### 2026-10-26 · Ears run 1 (before the lab)
 - Change: LoRA r=32 on Whisper large-v3 turbo, FLEURS hi+mr train and dev (5,796 clips), half through a phone line, 3 epochs, 276 min on a T4.
