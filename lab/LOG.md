@@ -29,9 +29,8 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
 4. When the owner has agreed to the AI4Bharat terms: first freeze a second ears test from Kathbath test (other
    speakers, hi + mr, 100 clips each), then train ears run 2 on IndicVoices + Shrutilipi (one change: more speakers).
-   Meanwhile (no Agree needed): list the files of infobayai/audio-call-center-marathi and audio-podcast-marathi
-   (transcripts? speakers? where from?). If the call-centre set has transcripts, freeze it as a phone-call ears test
-   BEFORE anything else uses it; then train ears run 2 with the podcast set (one change: conversational Marathi).
+   The Kaggle sets checked so far have no transcripts (dropped). Next free idea: search Kaggle for sets WITH
+   transcripts ("hindi transcription", "marathi transcript", "common voice hindi") and check each one's source.
 - Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
   v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
 
@@ -70,6 +69,10 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 - No GPU run this round (19 of 25 h used this week).
 - 2026-11-02 08:50 IST: still gated (4th check, https://github.com/pratik9yadav/yok/actions/runs/41382299668). Added
   `kaggle:<words>` to the probe: searches Kaggle datasets (no Agree click there) and prints each hit's licence.
+- 2026-11-02 21:05 IST: looked inside (new `kaggle-files:<ref>` probe, https://github.com/pratik9yadav/yok/actions/runs/41473328926):
+  all three are audio only, no transcripts, so they can neither test nor teach the ears. call-center-marathi = 3
+  sample calls (7 .wav, a seller's free sample of a paid set); podcast-marathi = 2 long .wav (sample of "4,162 h",
+  8 kHz); dialect set = 200 test clips labelled by dialect only. Dropped. Kathbath still gated (6th check).
 - Kaggle search (https://github.com/pratik9yadav/yok/actions/runs/41383682578, after two small fixes: show Kaggle's
   error; install `six`, which the kaggle CLI needs on the runner). Business-OK candidates, no Agree click:
 
