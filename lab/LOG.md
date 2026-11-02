@@ -29,7 +29,9 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
 4. When the owner has agreed to the AI4Bharat terms: first freeze a second ears test from Kathbath test (other
    speakers, hi + mr, 100 clips each), then train ears run 2 on IndicVoices + Shrutilipi (one change: more speakers).
-   Meanwhile: probe OpenSLR 64 (Marathi) via its loading script, and search the hub for other ungated Marathi sets.
+   Meanwhile (no Agree needed): list the files of infobayai/audio-call-center-marathi and audio-podcast-marathi
+   (transcripts? speakers? where from?). If the call-centre set has transcripts, freeze it as a phone-call ears test
+   BEFORE anything else uses it; then train ears run 2 with the podcast set (one change: conversational Marathi).
 - Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
   v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
 
@@ -68,6 +70,20 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 - No GPU run this round (19 of 25 h used this week).
 - 2026-11-02 08:50 IST: still gated (4th check, https://github.com/pratik9yadav/yok/actions/runs/41382299668). Added
   `kaggle:<words>` to the probe: searches Kaggle datasets (no Agree click there) and prints each hit's licence.
+- Kaggle search (https://github.com/pratik9yadav/yok/actions/runs/41383682578, after two small fixes: show Kaggle's
+  error; install `six`, which the kaggle CLI needs on the runner). Business-OK candidates, no Agree click:
+
+  | Kaggle dataset | Licence | Size | Note |
+  |---|---|---|---|
+  | infobayai/audio-call-center-marathi | CC BY 4.0 | 9 MB | real call-centre audio, two channels: closest to our calls; small → test set? |
+  | infobayai/audio-podcast-marathi | CC BY 4.0 | 0.5 GB | conversational Marathi, "asr dataset" |
+  | ashwinigulabraopawar/spoken-marathi-dialect-identification-dataset | CC BY-SA 4.0 | 7 GB | many dialects; transcripts? |
+  | neh1277/marathi-nemo-dataset | CC0 | 42 GB | NeMo manifest; source unknown |
+  | samridhikakkar/marathi-read-speech, amitocto/marathi-speech-dataset | Apache-2.0 / MIT | 1.6 / 1.9 GB | may be re-uploads: check where the audio comes from |
+  | vishlb/speech-emotion-recognition-hindi | ODbL | 0.3 GB | acted emotions, likely no transcripts |
+
+  Re-uploads by individuals can carry a licence the original does not allow: check each one's source before use.
+  Also fixed: the licence guard said "no" to Apache-2.0 and MIT (both allow business use).
 - 2026-11-01 08:50 IST: probe again (https://github.com/pratik9yadav/yok/actions/runs/41268607048): still gated. No GPU run: nothing in the queue is honest to run without new data (training the ears on the synthetic test voice would leak into the spoken test).
 
 ### 2026-10-31 08:50 IST · Tooling: probe speech datasets from a GitHub runner (no GPU)

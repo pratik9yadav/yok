@@ -29,7 +29,7 @@ HERE = Path(__file__).parent
 OUT = HERE / "data" / "real"
 
 # Licence names as Kaggle reports them; anything NonCommercial / NoDerivatives / unknown is refused.
-OPEN_LICENCES = ("cc0", "cc-by-4.0", "cc-by-sa-4.0", "odc-by", "odbl", "pddl", "attribution 4.0")
+OPEN_LICENCES = ("cc0", "cc-by-4.0", "cc-by-sa-4.0", "odc-by", "odbl", "pddl", "attribution 4.0", "apache-2.0", "mit")
 CLOSED_MARKERS = ("nc", "nd", "noncommercial", "noderivatives", "other", "unknown")
 
 FLIPKART_TOP = {"Automotive", "Tools & Hardware", "Home Improvement"}
@@ -71,7 +71,7 @@ def licence_ok(names: list[str]) -> bool:
         return False
     if any(m in re.split(r"[^a-z]+", n) for n in lowered for m in CLOSED_MARKERS):
         return False
-    return any(any(o in n for o in OPEN_LICENCES) for n in lowered)
+    return any(any(o in n for o in OPEN_LICENCES if o != "mit") or n == "mit" for n in lowered)
 
 
 def flipkart_products(rows) -> list[dict]:

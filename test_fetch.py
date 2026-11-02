@@ -19,9 +19,9 @@ from fetch_real_data import (
 
 
 def test_licence_guard_keeps_only_open_licences() -> None:
-    for open_ in (["CC-BY-SA-4.0"], ["CC-BY-4.0"], ["ODC-BY-1.0"], ["ODbL-1.0"], ["CC0-1.0"]):
+    for open_ in (["CC-BY-SA-4.0"], ["CC-BY-4.0"], ["ODC-BY-1.0"], ["ODbL-1.0"], ["CC0-1.0"], ["apache-2.0"], ["MIT"]):
         assert licence_ok(open_), open_
-    for closed in (["CC-BY-NC-SA-4.0"], ["CC-BY-NC-4.0"], ["CC-BY-ND-4.0"], ["other"], ["unknown"], []):
+    for closed in (["CC-BY-NC-SA-4.0"], ["CC-BY-NC-4.0"], ["CC-BY-ND-4.0"], ["other"], ["unknown"], [], ["submit-only"]):
         assert not licence_ok(closed), closed
 
 
