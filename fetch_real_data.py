@@ -8,12 +8,14 @@ because this project's Claude container cannot reach Kaggle or Hugging Face.
                                             clicked "Agree" on https://huggingface.co/datasets/ai4bharat/IndicVoices
     python fetch_real_data.py all           both
     python fetch_real_data.py probe a/b,c/d Hugging Face datasets: licence, gated or not, folders, file types and the
-                                            columns of one parquet file (no audio downloaded, nothing written)
+                                            columns of one parquet file (no audio downloaded, nothing written);
+                                            "kaggle:marathi speech" searches Kaggle and shows each hit's licence
 
 Writes data/real/*.jsonl and data/real/fetch_report.json. Licences and attribution: data/real/NOTICE.md.
 """
 
 import csv
+import io
 import json
 import os
 import re
@@ -255,6 +257,30 @@ def probe_dataset(repo: str, token: str | None = None) -> dict:
     return out
 
 
+def parse_kaggle_list(text: str, top: int = 8) -> list[dict]:
+    """The first rows of `kaggle datasets list --csv` as dicts (ref, title, size, ...)."""
+    start = text.find("ref,")  # the CLI may print a warning line first
+    rows = list(csv.DictReader(io.StringIO(text[max(start, 0):].strip())))
+    return [r for r in rows if r.get("ref")][:top]
+
+
+def probe_kaggle_search(terms: str) -> list[dict]:
+    """Kaggle datasets matching the words, each with its licence and whether we may use it in a business."""
+    found = subprocess.run(["kaggle", "datasets", "list", "-s", terms, "--csv"], check=True, capture_output=True,
+                           text=True).stdout
+    out = []
+    for row in parse_kaggle_list(found):
+        item = {k: row.get(k) for k in ("ref", "title", "size", "lastUpdated", "downloadCount")}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                item["licence"] = kaggle_licences(row["ref"], Path(tmp))
+            item["business_ok"] = licence_ok(item["licence"])
+        except Exception as e:  # noqa: BLE001 - report it and go on
+            item["licence"] = f"? {type(e).__name__}"
+        out.append(item)
+    return out
+
+
 def main() -> None:
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     if which == "probe":
@@ -262,6 +288,11 @@ def main() -> None:
         token = os.environ.get("HF_TOKEN") or None
         print("HF token:", "yes" if token else "no (gated sets show as not readable)")
         for repo in repos:
+            if repo.startswith("kaggle:"):
+                print(f"Kaggle search: {repo[7:]!r}")
+                for item in probe_kaggle_search(repo[7:]):
+                    print(json.dumps(item, ensure_ascii=False, default=str), flush=True)
+                continue
             print(json.dumps(probe_dataset(repo, token), ensure_ascii=False, indent=1, default=str), flush=True)
         return
     report_path = OUT / "fetch_report.json"

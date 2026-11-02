@@ -10,6 +10,7 @@ from fetch_real_data import (
     find_licences,
     flipkart_products,
     licence_ok,
+    parse_kaggle_list,
     safe_text,
     shop_talk_score,
     short_name,
@@ -103,3 +104,10 @@ def test_summarise_files_counts_folders_and_types() -> None:
     assert s["files"] == 4
     assert s["folders"] == {"data/hindi": 2, ".": 1, "data/marathi": 1}
     assert s["types"] == {".parquet": 3, ".md": 1}
+
+
+def test_parse_kaggle_list() -> None:
+    text = "Warning: Looks like you're using an outdated API Version\nref,title,size,lastUpdated,downloadCount\na/hindi-asr,Hindi ASR,1GB,2024-01-01,10\nb/mr,Marathi,2GB,2023-01-01,5\n"
+    rows = parse_kaggle_list(text, top=1)
+    assert rows == [{"ref": "a/hindi-asr", "title": "Hindi ASR", "size": "1GB", "lastUpdated": "2024-01-01",
+                     "downloadCount": "10"}]

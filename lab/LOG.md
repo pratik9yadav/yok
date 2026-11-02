@@ -66,6 +66,8 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
   Prices were fine already (Python reads ०-९ as numbers). Not measured on GPU: eval 7's phone misses were wrong
   digits, not this, so an eval now would show no change; it rides along with the next eval.
 - No GPU run this round (19 of 25 h used this week).
+- 2026-11-02 08:50 IST: still gated (4th check, https://github.com/pratik9yadav/yok/actions/runs/41382299668). Added
+  `kaggle:<words>` to the probe: searches Kaggle datasets (no Agree click there) and prints each hit's licence.
 - 2026-11-01 08:50 IST: probe again (https://github.com/pratik9yadav/yok/actions/runs/41268607048): still gated. No GPU run: nothing in the queue is honest to run without new data (training the ears on the synthetic test voice would leak into the spoken test).
 
 ### 2026-10-31 08:50 IST · Tooling: probe speech datasets from a GitHub runner (no GPU)
