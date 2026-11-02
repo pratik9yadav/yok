@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from fetch_real_data import (
     amazon_products,
+    find_key,
     find_licences,
     flipkart_products,
     licence_ok,
@@ -111,3 +112,9 @@ def test_parse_kaggle_list() -> None:
     rows = parse_kaggle_list(text, top=1)
     assert rows == [{"ref": "a/hindi-asr", "title": "Hindi ASR", "size": "1GB", "lastUpdated": "2024-01-01",
                      "downloadCount": "10"}]
+
+
+def test_find_key_in_nested_metadata() -> None:
+    meta = {"id": "a/b", "info": {"title": "Marathi calls", "description": "Recorded by ...", "subtitle": ""}}
+    assert find_key(meta, "description") == "Recorded by ..."
+    assert find_key(meta, "subtitle") is None

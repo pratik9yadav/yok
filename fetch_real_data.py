@@ -9,7 +9,8 @@ because this project's Claude container cannot reach Kaggle or Hugging Face.
     python fetch_real_data.py all           both
     python fetch_real_data.py probe a/b,c/d Hugging Face datasets: licence, gated or not, folders, file types and the
                                             columns of one parquet file (no audio downloaded, nothing written);
-                                            "kaggle:marathi speech" searches Kaggle and shows each hit's licence
+                                            "kaggle:marathi speech" searches Kaggle and shows each hit's licence;
+                                            "kaggle-files:owner/name" shows one Kaggle dataset's description and files
 
 Writes data/real/*.jsonl and data/real/fetch_report.json. Licences and attribution: data/real/NOTICE.md.
 """
@@ -283,6 +284,47 @@ def probe_kaggle_search(terms: str) -> list[dict]:
     return out
 
 
+def find_key(meta, key: str):
+    """The first value of `key` anywhere in nested JSON (Kaggle's metadata nests fields under "info")."""
+    if isinstance(meta, dict):
+        if meta.get(key):
+            return meta[key]
+        meta = list(meta.values())
+    if isinstance(meta, list):
+        for value in meta:
+            found = find_key(value, key)
+            if found:
+                return found
+    return None
+
+
+def probe_kaggle_dataset(ref: str) -> dict:
+    """One Kaggle dataset's title, description (where the audio comes from), licence and files (nothing downloaded
+    but its metadata)."""
+    out: dict = {"ref": ref, "page": f"https://www.kaggle.com/datasets/{ref}"}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            out["licence"] = kaggle_licences(ref, Path(tmp))
+            meta = json.loads((Path(tmp) / "dataset-metadata.json").read_text(encoding="utf-8"))
+        out["business_ok"] = licence_ok(out["licence"])
+        out["title"] = find_key(meta, "title")
+        out["subtitle"] = find_key(meta, "subtitle")
+        out["description"] = str(find_key(meta, "description") or "")[:1500]
+    except Exception as e:  # noqa: BLE001 - report it and go on
+        out["error"] = f"{type(e).__name__}: {e}"[:300]
+    done = subprocess.run(["kaggle", "datasets", "files", ref, "--csv", "--page-size", "200"], capture_output=True,
+                          text=True)
+    if done.returncode:
+        out["files_error"] = (done.stderr or done.stdout).strip()[-300:]
+        return out
+    start = done.stdout.find("name,")
+    files = [r for r in csv.DictReader(io.StringIO(done.stdout[max(start, 0):].strip())) if r.get("name")]
+    names = [r["name"] for r in files]
+    out.update(summarise_files(names))
+    out["first_files"] = [f"{r['name']} ({r.get('size', '?')})" for r in files[:15]]
+    return out
+
+
 def main() -> None:
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     if which == "probe":
@@ -290,6 +332,9 @@ def main() -> None:
         token = os.environ.get("HF_TOKEN") or None
         print("HF token:", "yes" if token else "no (gated sets show as not readable)")
         for repo in repos:
+            if repo.startswith("kaggle-files:"):
+                print(json.dumps(probe_kaggle_dataset(repo[13:]), ensure_ascii=False, indent=1, default=str), flush=True)
+                continue
             if repo.startswith("kaggle:"):
                 print(f"Kaggle search: {repo[7:]!r}")
                 for item in probe_kaggle_search(repo[7:]):
