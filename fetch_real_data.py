@@ -266,8 +266,10 @@ def parse_kaggle_list(text: str, top: int = 8) -> list[dict]:
 
 def probe_kaggle_search(terms: str) -> list[dict]:
     """Kaggle datasets matching the words, each with its licence and whether we may use it in a business."""
-    found = subprocess.run(["kaggle", "datasets", "list", "-s", terms, "--csv"], check=True, capture_output=True,
-                           text=True).stdout
+    done = subprocess.run(["kaggle", "datasets", "list", "-s", terms, "--csv"], capture_output=True, text=True)
+    if done.returncode:
+        return [{"error": (done.stderr or done.stdout).strip()[-500:]}]
+    found = done.stdout
     out = []
     for row in parse_kaggle_list(found):
         item = {k: row.get(k) for k in ("ref", "title", "size", "lastUpdated", "downloadCount")}
