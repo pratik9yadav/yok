@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements-dev.txt pyarrow huggingface_hub six  # six: the kaggle CLI imports it
+      - run: pip install -r requirements-dev.txt pyarrow huggingface_hub
       - run: python -m pytest -q
       - name: Fetch
         env:
