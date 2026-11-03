@@ -51,7 +51,7 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 
 ### 2026-11-03 20:55 IST · Eval 8: the voice bot with ears run 2
 - One change: the bot's ears are run 2 (was run 1). Why: does better Hindi lift the 44 spoken test calls (21/44)?
-- Expected ~50 min, ends ~21:50 IST.
+- Run: https://github.com/pratik9yadav/yok/actions/runs/41663795003 (mode eval). Expected ~50 min, ends ~21:50 IST.
 
 ### 2026-11-03 09:09 IST · Ears run 2: + Common Voice Hindi (more speakers)
 - Found (probe, https://github.com/pratik9yadav/yok/actions/runs/41572243783): a full Mozilla Common Voice Hindi
