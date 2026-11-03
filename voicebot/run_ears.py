@@ -3,8 +3,9 @@
     python voicebot/run_ears.py            train (about 1–2 hours), then print the word error rates before and after
     python voicebot/run_ears.py --wait     wait for the training already running, then print it
 
-The trained model (wimb-ears/) stays in the Kaggle run's Output tab; the voice bot's eval and live page attach it
-from then on (voicebot/run_voicebot.py). Needs KAGGLE_API_TOKEN (and pip install kaggle).
+Each training run is its own Kaggle notebook (SLUG), with the ears the voice bot uses now attached (the best so far,
+run_voicebot.EARS_SLUG), so a worse run never replaces them. Its model (wimb-ears/) is in that run's Output tab
+only when it beats the best so far; the lab then sets run_voicebot.EARS_SLUG to SLUG. Needs KAGGLE_API_TOKEN.
 """
 
 import argparse
@@ -22,8 +23,10 @@ sys.path.insert(0, str(HERE.parent))
 import run_on_kaggle
 from run_on_kaggle import check_gpu, connect, print_log, wait
 from voicebot import build_ears
+from voicebot.run_voicebot import EARS_SLUG
+from voicebot.speechdata import CV_DATASET
 
-SLUG = "wimb-ears-training"
+SLUG = "wimb-ears-training-2"  # ears run 2: + Common Voice Hindi (train; its test split is a second test)
 OUT = HERE.parent / "kaggle_output_ears"
 WAIT_MINUTES = 300
 
@@ -61,7 +64,9 @@ def main() -> None:
     if not opts.wait:
         check_gpu(api, need_hours=2)
         nb = json.loads((HERE / build_ears.NOTEBOOK).read_text(encoding="utf-8"))
-        run_on_kaggle.push_notebook(api, kernel, nb, build_ears.NOTEBOOK)
+        best = [] if EARS_SLUG == SLUG else [f"{kernel.split('/', 1)[0]}/{EARS_SLUG}"]
+        run_on_kaggle.push_notebook(api, kernel, nb, build_ears.NOTEBOOK, kernel_sources=best,
+                                    dataset_sources=[CV_DATASET])
         time.sleep(30)
     ok = wait(api, kernel, limit_min=WAIT_MINUTES)
     r = fetch(api, kernel, ok)

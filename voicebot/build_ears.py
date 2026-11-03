@@ -1,10 +1,11 @@
 """Build voicebot/ears_training.ipynb: teach the ears (Whisper large-v3 turbo) Indian speech, on Kaggle's free GPU.
 
-LoRA fine-tuning on real Hindi and Marathi speech (FLEURS; with an HF token also IndicVoices: many speakers and
-districts), half of it heard through a pretend phone line (8 kHz, μ-law, noise) and at slightly changed speeds, so
-the ears learn accents, phone calls and Marathi (Whisper's weakest). Measured before and after on held-out speech
-(FLEURS test, never trained on), clean and as a phone line. The merged model is saved as wimb-ears/ in the Output
-tab only when it is better; the voice bot uses it from then on.
+LoRA fine-tuning on real Hindi and Marathi speech (FLEURS, Mozilla Common Voice Hindi; with an HF token also
+IndicVoices: many speakers and districts), half of it heard through a pretend phone line (8 kHz, μ-law, noise) and at
+slightly changed speeds, so the ears learn accents, phone calls and Marathi (Whisper's weakest). Measured on held-out
+speech (FLEURS test, Common Voice Hindi test: other speakers, never trained on), clean and as a phone line: the base
+model, the best ears so far (an earlier run's wimb-ears/, when attached) and the new one. The merged model is saved
+as wimb-ears/ in the Output tab only when it beats the best so far; the lab then points the voice bot at it.
 
 Run after changing this file or voicebot/:  python voicebot/build_ears.py   (never edit the notebook by hand)
 """
@@ -27,8 +28,9 @@ SETTINGS_TITLE = "1. Settings"
 INTRO = """
 # Teach the ears Indian speech (Whisper large-v3 turbo, LoRA), on Kaggle's free GPU
 
-Real Hindi and Marathi speech, half of it through a pretend phone line, measured before and after on speech the
-training never saw. The better model is saved as `wimb-ears/` (Output tab) and the voice bot uses it next time.
+Real Hindi and Marathi speech, half of it through a pretend phone line, measured on speech the training never saw:
+the base model, the best ears so far and the new one. The new model is saved as `wimb-ears/` (Output tab) only when it
+beats the best so far.
 Built by `voicebot/build_ears.py`; run it from GitHub: **Actions → Voice bot → Run workflow**, mode `train-ears`.
 """
 
@@ -38,7 +40,7 @@ import json, os, re, shutil, subprocess, sys, time
 BASE = "openai/whisper-large-v3-turbo"
 LANGS = ["hi", "mr"]
 TRAIN_ROWS = 3000  # per language and source, at most
-EVAL_ROWS = 100  # per language, held out (FLEURS test)
+EVAL_ROWS = 100  # per language, held out (FLEURS test; Common Voice Hindi test too)
 EPOCHS = 3
 BATCH = 8
 LEARNING_RATE = 1e-4
@@ -57,7 +59,7 @@ for name, body in PACKAGE_FILES.items():
         fh.write(body)
 sys.path.insert(0, SRC)
 os.makedirs(WORKING_DIR, exist_ok=True)
-RESULTS = {"base": BASE, "data": {}, "before": {}, "after": {}, "train": {}, "saved": False, "summary": [],
+RESULTS = {"base": BASE, "data": {}, "before": {}, "best": {}, "after": {}, "train": {}, "saved": False, "summary": [],
            "versions": {}, "errors": []}
 """
 
@@ -103,9 +105,17 @@ save_results()
 """
 
 DATA = """
-from voicebot.speechdata import error_rates, fleurs, indicvoices
+from voicebot.speechdata import commonvoice, error_rates, fleurs, indicvoices
 
-TRAIN, TEST = [], {}
+TRAIN, TEST = [], {}  # TEST: "hi", "mr" (FLEURS test, the scoreboard's), "hi-cv" (Common Voice Hindi test)
+CV_TEST_SPEAKERS, CV_TEST_TEXT = set(), []
+try:
+    rows, source, CV_TEST_SPEAKERS = commonvoice("hi", EVAL_ROWS, "test")
+    TEST["hi-cv"] = rows
+    CV_TEST_TEXT = [r["text"] for r in rows]
+    RESULTS["data"]["test hi-cv"] = f"{len(rows)} clips, {source}"
+except Exception as e:
+    failed("test data hi-cv", e)
 for lang in LANGS:
     try:
         rows, source = fleurs(lang, EVAL_ROWS, "test")
@@ -115,6 +125,9 @@ for lang in LANGS:
         failed(f"test data {lang}", e)
     sources = [("FLEURS train", lambda: fleurs(lang, TRAIN_ROWS, "train")),
                ("FLEURS dev", lambda: fleurs(lang, TRAIN_ROWS // 3, "validation"))]
+    if lang == "hi":  # Common Voice train split, with no test speaker and no test sentence
+        sources.append(("Common Voice train", lambda: commonvoice(
+            "hi", TRAIN_ROWS, "train", avoid_speakers=CV_TEST_SPEAKERS, avoid_text=CV_TEST_TEXT)[:2]))
     if HF_TOKEN:
         sources.append(("IndicVoices", lambda: indicvoices(lang, TRAIN_ROWS, HF_TOKEN)))
     for name, load in sources:
@@ -147,7 +160,8 @@ def measure(model, label):
     asr = pipeline("automatic-speech-recognition", model=model, tokenizer=PROCESSOR.tokenizer,
                    feature_extractor=PROCESSOR.feature_extractor, device="cuda:0", torch_dtype=torch.float16)
     out = {}
-    for lang, rows in TEST.items():
+    for test, rows in TEST.items():
+        lang = test.split("-")[0]
         for condition in ("clean", "phone"):
             pairs = []
             for i, r in enumerate(rows):
@@ -157,9 +171,9 @@ def measure(model, label):
                 heard = asr({"raw": audio, "sampling_rate": 16000}, generate_kwargs=options)["text"]
                 pairs.append((r["text"], heard))
             wer, cer = error_rates(pairs)
-            out[f"{lang} {condition}"] = {"wer": wer, "cer": cer, "examples": [
+            out[f"{test} {condition}"] = {"wer": wer, "cer": cer, "examples": [
                 {"said": s, "heard": h} for s, h in pairs[:3]]}
-            print(f"{label} | {lang} {condition}: WER {wer}%  CER {cer}%")
+            print(f"{label} | {test} {condition}: WER {wer}%  CER {cer}%")
     RESULTS[label] = out
     save_results()
     return out
@@ -167,6 +181,15 @@ def measure(model, label):
 
 BASE_MODEL = WhisperForConditionalGeneration.from_pretrained(BASE, torch_dtype=torch.float16).to("cuda:0")
 BEFORE = measure(BASE_MODEL, "before")
+from voicebot.audio import trained_ears
+
+PREVIOUS = trained_ears()  # the best ears so far (an earlier run's output, attached), or None
+BEST = None
+if PREVIOUS:
+    best_model = WhisperForConditionalGeneration.from_pretrained(PREVIOUS, torch_dtype=torch.float16).to("cuda:0")
+    BEST = measure(best_model, "best")
+    del best_model
+    RESULTS["data"]["best so far"] = PREVIOUS
 """
 
 TRAIN_CELL = """
@@ -278,20 +301,24 @@ def average(scores, condition):
     return sum(values) / len(values) if values else 999
 
 
-better = average(AFTER, "phone") < average(BEFORE, "phone") and average(AFTER, "clean") <= average(BEFORE, "clean") + 1
+REFERENCE = BEST or BEFORE  # beat the best so far, or the base model when there is none
+better = (average(AFTER, "phone") < average(REFERENCE, "phone")
+          and average(AFTER, "clean") <= average(REFERENCE, "clean") + 1)
 if better:
     model.save_pretrained(SAVE_DIR, safe_serialization=True)
     PROCESSOR.save_pretrained(SAVE_DIR)
     RESULTS["saved"] = True
     print("Better: saved to", SAVE_DIR)
 else:
-    print("Not better: the base model stays")
+    print("Not better: the best so far stays")
 lines = [f"Training: {RESULTS['train'].get('clips')} clips, {RESULTS['train'].get('epochs')} epochs, "
          f"{RESULTS['train'].get('minutes')} min"]
 for key in BEFORE:
+    best = f" | best so far {BEST[key]['wer']}%" if BEST and key in BEST else ""
     lines.append(f"{key}: WER {BEFORE[key]['wer']}% -> {AFTER[key]['wer']}%  (CER {BEFORE[key]['cer']}% -> "
-                 f"{AFTER[key]['cer']}%)")
-lines.append("Saved as wimb-ears/: " + ("yes, the voice bot uses it from now on" if better else "no (not better)"))
+                 f"{AFTER[key]['cer']}%){best}")
+lines.append("Saved as wimb-ears/: " + ("yes (beats the best so far)" if better else
+                                        "no (not better than the best so far)"))
 RESULTS["summary"] = lines
 print("\\n".join(lines))
 save_results()

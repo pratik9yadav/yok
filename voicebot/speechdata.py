@@ -2,6 +2,7 @@
 
     rows, source = fleurs("mr", 100, split="test")      [{"audio": 16 kHz samples, "text", "group"}], where from
     rows, source = indicvoices("hi", 2000, token)        many speakers and districts (gated: an HF token)
+    rows, source, speakers = commonvoice("hi", 100, "test")  Mozilla Common Voice (CC0), attached on Kaggle
     error_rates([(said, heard), ...]) -> (word error rate %, character error rate %)
 
 Every loader streams only the rows it needs and decodes the audio itself (no audio library in `datasets`).
@@ -103,6 +104,65 @@ def fleurs(lang: str, n: int, split: str = "test"):
         except Exception as e:  # noqa: BLE001 - try the other way
             errors.append(f"{how}: {e!r}"[:300])
     raise RuntimeError(" | ".join(errors))
+
+
+CV_DATASET = "saharshlaud/mozilla-common-voice-hindi"  # a full Common Voice Hindi release on Kaggle (CC0)
+
+
+def commonvoice_table(path) -> list[dict]:
+    """A Common Voice .tsv (train, dev, test): its rows as dicts (client_id, path, sentence, ...)."""
+    import csv
+
+    with open(path, encoding="utf-8", newline="") as fh:
+        return list(csv.DictReader(fh, delimiter="\t", quoting=csv.QUOTE_NONE))
+
+
+def decode_file(path):
+    """16 kHz mono float32 samples from an audio file (Common Voice clips are .mp3)."""
+    import numpy as np
+
+    try:
+        import soundfile as sf
+
+        from voicebot.audio import resample
+
+        data, rate = sf.read(path, dtype="float32", always_2d=True)
+        return resample(data.mean(axis=1), rate, 16000)
+    except Exception:  # noqa: BLE001 - an older libsndfile without mp3
+        import librosa
+
+        return np.asarray(librosa.load(path, sr=16000, mono=True)[0], dtype=np.float32)
+
+
+def commonvoice(lang: str, n: int, split: str = "test", root: str = "/kaggle/input", avoid_speakers=(),
+                avoid_text=(), max_seconds: float = 30.0):
+    """Mozilla Common Voice (CC0) from an attached Kaggle copy: (rows, where from, the speakers used).
+    Its test speakers are not in its train split; avoid_speakers / avoid_text keep a training set clear of a
+    test set anyway."""
+    import glob
+    import os
+
+    tables = sorted(glob.glob(os.path.join(root, "**", lang, f"{split}.tsv"), recursive=True))
+    if not tables:
+        raise FileNotFoundError(f"no Common Voice {lang}/{split}.tsv under {root} (attach {CV_DATASET})")
+    folder = os.path.dirname(tables[0])
+    avoid_speakers, avoid_text = set(avoid_speakers), {norm(t) for t in avoid_text}
+    out, speakers = [], set()
+    for row in commonvoice_table(tables[0]):
+        text = (row.get("sentence") or "").strip()
+        if not text or row.get("client_id") in avoid_speakers or norm(text) in avoid_text:
+            continue
+        try:
+            audio = decode_file(os.path.join(folder, "clips", row["path"]))
+        except Exception:  # noqa: BLE001 - a missing or broken clip
+            continue
+        if len(audio) > max_seconds * 16000 or len(audio) < 8000:
+            continue
+        out.append({"audio": audio, "text": text, "group": None})
+        speakers.add(row.get("client_id"))
+        if len(out) >= n:
+            break
+    return out, f"Common Voice {lang} {split} ({CV_DATASET}, {len(speakers)} speakers)", speakers
 
 
 def lahaja(n: int, token: str):

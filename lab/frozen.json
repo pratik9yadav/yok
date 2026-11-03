@@ -6,6 +6,7 @@
     "data/asr_test.jsonl": "dbc77108d7f9d4be72a8f26494f782eddcc73ba66fd9c5232d80a33b0c8fc91f"
   },
   "speech": {
-    "ears": "google/fleurs hi_in and mr_in, split test, first 100 usable clips each (voicebot/build_ears.py), clean and as a phone line"
+    "ears": "google/fleurs hi_in and mr_in, split test, first 100 usable clips each (voicebot/build_ears.py), clean and as a phone line",
+    "ears-cv-hi": "Mozilla Common Voice Hindi (CC0), Kaggle copy saharshlaud/mozilla-common-voice-hindi, hi/test.tsv, first 100 usable clips in file order (voicebot/speechdata.py commonvoice), clean and as a phone line. Its speakers and sentences are kept out of training. Frozen 2026-11-03, before any training used Common Voice."
   }
 }
