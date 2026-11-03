@@ -9,9 +9,9 @@ Best so far. Lower is better for error rates. A new result replaces a line only 
 
 | Model | Test (frozen) | Best | From |
 |---|---|---|---|
-| Ears (Whisper turbo + LoRA `wimb-ears`) | FLEURS test hi, 100 clips: word errors clean / phone | 19.8% / 24.3% | ears run 1, 2026-10-26 |
-| Ears | FLEURS test mr, 100 clips: word errors clean / phone | 35.9% / 39.8% | ears run 1, 2026-10-26 |
-| Ears | Common Voice Hindi test, 100 clips (frozen 2026-11-03): word errors clean / phone | (first measured in ears run 2) | |
+| Ears (Whisper turbo + LoRA `wimb-ears`) | FLEURS test hi, 100 clips: word errors clean / phone | 18.6% / 22.9% | ears run 2, 2026-11-03 (in use) |
+| Ears | FLEURS test mr, 100 clips: word errors clean / phone | 35.9% / 39.8% | ears run 1, 2026-10-26 (run 2, in use: 36.6% / 40.4%) |
+| Ears | Common Voice Hindi test, 100 clips, 73 speakers (frozen 2026-11-03): word errors clean / phone | 26.2% / 33.8% | ears run 2 (run 1: 31.3% / 39.7%) |
 | Shop model (Qwen3 4B QLoRA, v4) | test / hard / fresh / asr | 100% / 77% / 82% / 95% | run 11 |
 | Voice bot brain (gemma3:4b + rules) | 48 typed test calls | 48/48 | eval 5 |
 | Voice bot, spoken by synthetic voices | 44 test calls over a phone line (Kokoro voice / MMS voice) | 21/44 / 12/44 | eval 7, 2026-10-31 (with `wimb-ears`) |
@@ -25,6 +25,8 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    Lahaja) wait for the owner's `HF_TOKEN` Kaggle secret.
 2. Ears, conversational speech: short replies like a shopkeeper's ("हाँ है", "नहीं, कल आएगा", prices, phone numbers)
    are what the bot hears most; FLEURS is read news. Add short, spoken-style clips to training.
+2b. Ears run 3: Common Voice with at most ~40 clips per speaker (validated.tsv minus test speakers), so it adds
+   many speakers (run 2's 3,000 clips were 3 people). One change; compare with run 2 on the same three tests.
 3. Voice bot spoken score (21/44 after eval 7): phone numbers said digit by digit are the most common miss. Train the
    ears on short digit-by-digit and name clips (not from the test calls' text), or try Kokoro's other Hindi voice
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
@@ -37,7 +39,7 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
 
 ## Kaggle GPU hours this week (week from Sat 2026-10-31)
 
-Ears run 2 (~6 h). The job log prints Kaggle's own count at the start.
+Kaggle said 30.0 h left at the start. Ears run 2 ~7.5 h + eval 8 (~1 h) = ~8.5 h of 25.
 
 ## Kaggle GPU hours, week from Sat 2026-10-24
 
@@ -46,6 +48,10 @@ Kaggle itself said "12.0 h left of 30 h" when eval 7 started (Fri 30 Oct), so ~1
 weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints the fresh number.
 
 ## Experiments
+
+### 2026-11-03 20:55 IST · Eval 8: the voice bot with ears run 2
+- One change: the bot's ears are run 2 (was run 1). Why: does better Hindi lift the 44 spoken test calls (21/44)?
+- Expected ~50 min, ends ~21:50 IST.
 
 ### 2026-11-03 09:09 IST · Ears run 2: + Common Voice Hindi (more speakers)
 - Found (probe, https://github.com/pratik9yadav/yok/actions/runs/41572243783): a full Mozilla Common Voice Hindi
@@ -62,6 +68,17 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
   broken): added to requirements-dev.txt.
 - Run: https://github.com/pratik9yadav/yok/actions/runs/41573301940 (mode train-ears). Expected 5–7 h of T4 →
   ends ~14:00–16:00 IST. The GitHub job stops waiting after 5 h: then run mode `fetch-ears`.
+- Result (fetched 20:50 IST, https://github.com/pratik9yadav/yok/actions/runs/41662525846): 8,796 clips, 3 epochs,
+  405 min training. Word errors base → run 2 (run 1, re-measured in the same notebook):
+  FLEURS hi 31.2 → **18.6** (19.8) clean, 36.9 → **22.9** (24.5) phone; Common Voice hi 41.4 → **26.2** (31.3) clean,
+  47.0 → **33.8** (39.7) phone; FLEURS mr 80.0 → 36.6 (**36.1**) clean, 89.0 → 40.4 (**39.9**) phone.
+- Kept: yes. Hindi clearly better on both frozen tests; Marathi 0.5 points worse (about 1 word in 200 on 100
+  clips: likely noise, but it is worse, so the mr scoreboard line stays run 1's). The bot now uses run 2
+  (`run_voicebot.EARS_SLUG = wimb-ears-training-2`); the next ears run is `wimb-ears-training-3`.
+- Surprise: the 3,000 Common Voice train clips came from only **3 speakers** (the train list is sorted, and a few
+  people recorded most of it). So the gain is from Common Voice's recording style and sentences, not from many
+  speakers. Next ears run: at most ~40 clips per speaker, from validated.tsv minus the test speakers (hundreds of
+  speakers). GPU: ~7.5 h.
 
 ### 2026-10-31 00:10 IST · Eval 7: voice bot with the trained ears
 - Change: none in code. The voice bot eval now attaches `wimb-ears` (ears run 1) and uses it first; eval 5 used plain

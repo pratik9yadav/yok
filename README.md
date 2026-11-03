@@ -313,7 +313,20 @@ after:
 | Hindi | 31.2% → 19.8% (characters 12.5% → 7.1%) | 36.8% → 24.3% (17.0% → 9.5%) |
 | Marathi | 79.5% → 35.9% (24.3% → 9.3%) | 89.3% → 39.8% (29.5% → 10.8%) |
 
-Saved as `wimb-ears/`; the eval and the live page now use it. Next for accents: IndicVoices (HF token).
+Saved as `wimb-ears/`. Next for accents: IndicVoices (HF token).
+
+**Ears training run 2 (2026-11-03, Kaggle T4, 405 min):** run 1's recipe + 3,000 Mozilla Common Voice Hindi train
+clips (CC0; 8,796 clips in all). New second test: Common Voice Hindi test, 100 clips from 73 speakers, never trained
+on (speakers and sentences kept out). Word error rate, base → run 2 (run 1 in brackets):
+
+| Test | Clean | Phone line |
+|---|---|---|
+| FLEURS Hindi | 31.2% → 18.6% (19.8%) | 36.9% → 22.9% (24.5%) |
+| Common Voice Hindi | 41.4% → 26.2% (31.3%) | 47.0% → 33.8% (39.7%) |
+| FLEURS Marathi | 80.0% → 36.6% (36.1%) | 89.0% → 40.4% (39.9%) |
+
+Better on Hindi, half a point worse on Marathi (about 1 word in 200): kept; the eval and the live page now use run 2
+(`run_voicebot.EARS_SLUG`). Each ears run is its own Kaggle notebook, so a worse run never replaces the ears in use.
 
 **Why a cascade, not one speech-to-speech model (yet):** no open model speaks Hindi and Marathi back well today;
 a cascade can be measured part by part, keeps every fact checkable, and each part can be swapped when a better

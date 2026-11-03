@@ -65,7 +65,7 @@ def brains_from(text: str | None) -> list[str] | None:
     return names
 
 
-EARS_SLUG = "wimb-ears-training"
+EARS_SLUG = "wimb-ears-training-2"  # the ears the bot uses: the best run so far (ears run 2, lab/LOG.md)
 
 
 def trained_ears(api, kernel: str) -> list[str]:

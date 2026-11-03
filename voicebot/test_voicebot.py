@@ -708,7 +708,7 @@ def test_trained_ears_are_found_and_attached(tmp_path):
                 raise RuntimeError("404")
             return type("S", (), {"status": type("E", (), {"name": self.status})()})()
 
-    assert run_voicebot.trained_ears(Api("COMPLETE"), "me/wimb-voicebot-live") == ["me/wimb-ears-training"]
+    assert run_voicebot.trained_ears(Api("COMPLETE"), "me/wimb-voicebot-live") == ["me/wimb-ears-training-2"]
     assert run_voicebot.trained_ears(Api("RUNNING"), "me/wimb-voicebot-live") == []
     assert run_voicebot.trained_ears(Api(None), "me/wimb-voicebot-live") == []
 

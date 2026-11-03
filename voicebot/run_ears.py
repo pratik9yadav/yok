@@ -26,7 +26,7 @@ from voicebot import build_ears
 from voicebot.run_voicebot import EARS_SLUG
 from voicebot.speechdata import CV_DATASET
 
-SLUG = "wimb-ears-training-2"  # ears run 2: + Common Voice Hindi (train; its test split is a second test)
+SLUG = "wimb-ears-training-3"  # the next ears run (run 2, wimb-ears-training-2, is the best so far)
 OUT = HERE.parent / "kaggle_output_ears"
 WAIT_MINUTES = 300
 
