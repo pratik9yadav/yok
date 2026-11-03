@@ -298,6 +298,17 @@ def find_key(meta, key: str):
     return None
 
 
+AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a"}
+
+
+def parse_files_page(text: str) -> tuple[list[dict], str | None]:
+    """One page of `kaggle datasets files --csv`: its file rows and the next page's token (None on the last)."""
+    m = re.search(r"Next Page Token = (\S+)", text)
+    start = text.find("name,")
+    rows = [r for r in csv.DictReader(io.StringIO(text[max(start, 0):].strip())) if r.get("name")] if start >= 0 else []
+    return rows, m.group(1) if m else None
+
+
 def probe_kaggle_dataset(ref: str) -> dict:
     """One Kaggle dataset's title, description (where the audio comes from), licence and files (nothing downloaded
     but its metadata)."""
@@ -312,15 +323,21 @@ def probe_kaggle_dataset(ref: str) -> dict:
         out["description"] = str(find_key(meta, "description") or "")[:1500]
     except Exception as e:  # noqa: BLE001 - report it and go on
         out["error"] = f"{type(e).__name__}: {e}"[:300]
-    done = subprocess.run(["kaggle", "datasets", "files", ref, "--csv", "--page-size", "200"], capture_output=True,
-                          text=True)
-    if done.returncode:
-        out["files_error"] = (done.stderr or done.stdout).strip()[-300:]
-        return out
-    start = done.stdout.find("name,")
-    files = [r for r in csv.DictReader(io.StringIO(done.stdout[max(start, 0):].strip())) if r.get("name")]
-    names = [r["name"] for r in files]
-    out.update(summarise_files(names))
+    files, token = [], None
+    for _ in range(100):  # pages of 200 files
+        cmd = ["kaggle", "datasets", "files", ref, "--csv", "--page-size", "200"]
+        cmd += ["--page-token", token] if token else []
+        done = subprocess.run(cmd, capture_output=True, text=True)
+        if done.returncode:
+            out["files_error"] = (done.stderr or done.stdout).strip()[-300:]
+            break
+        page, token = parse_files_page(done.stdout)
+        files += page
+        if not token:
+            break
+    out.update(summarise_files([r["name"] for r in files]))
+    out["not_audio"] = [f"{r['name']} ({r.get('size', '?')})" for r in files
+                        if Path(r["name"]).suffix.lower() not in AUDIO_SUFFIXES][:30]
     out["first_files"] = [f"{r['name']} ({r.get('size', '?')})" for r in files[:15]]
     return out
 

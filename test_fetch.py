@@ -11,6 +11,7 @@ from fetch_real_data import (
     find_licences,
     flipkart_products,
     licence_ok,
+    parse_files_page,
     parse_kaggle_list,
     safe_text,
     shop_talk_score,
@@ -118,3 +119,10 @@ def test_find_key_in_nested_metadata() -> None:
     meta = {"id": "a/b", "info": {"title": "Marathi calls", "description": "Recorded by ...", "subtitle": ""}}
     assert find_key(meta, "description") == "Recorded by ..."
     assert find_key(meta, "subtitle") is None
+
+
+def test_parse_files_page_with_and_without_next_token() -> None:
+    page = "Next Page Token = abc123\nname,size,creationDate\nhi/test.tsv,100,2024\nhi/clips/a.mp3,9,2024\n"
+    rows, token = parse_files_page(page)
+    assert [r["name"] for r in rows] == ["hi/test.tsv", "hi/clips/a.mp3"] and token == "abc123"
+    assert parse_files_page("name,size,creationDate\nx.wav,1,2024\n")[1] is None
