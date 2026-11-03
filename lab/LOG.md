@@ -11,6 +11,7 @@ Best so far. Lower is better for error rates. A new result replaces a line only 
 |---|---|---|---|
 | Ears (Whisper turbo + LoRA `wimb-ears`) | FLEURS test hi, 100 clips: word errors clean / phone | 19.8% / 24.3% | ears run 1, 2026-10-26 |
 | Ears | FLEURS test mr, 100 clips: word errors clean / phone | 35.9% / 39.8% | ears run 1, 2026-10-26 |
+| Ears | Common Voice Hindi test, 100 clips (frozen 2026-11-03): word errors clean / phone | (first measured in ears run 2) | |
 | Shop model (Qwen3 4B QLoRA, v4) | test / hard / fresh / asr | 100% / 77% / 82% / 95% | run 11 |
 | Voice bot brain (gemma3:4b + rules) | 48 typed test calls | 48/48 | eval 5 |
 | Voice bot, spoken by synthetic voices | 44 test calls over a phone line (Kokoro voice / MMS voice) | 21/44 / 12/44 | eval 7, 2026-10-31 (with `wimb-ears`) |
@@ -34,13 +35,33 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
 - Done, removed: "one rule for `alternative` + more paune/sava/saadhe prices" is already in v4 (`make_data.py`
   v4 section, run 11). CLAUDE.md's "next step" line is older than v4.
 
-## Kaggle GPU hours this week (week from Sat 2026-10-24)
+## Kaggle GPU hours this week (week from Sat 2026-10-31)
+
+Ears run 2 (~6 h). The job log prints Kaggle's own count at the start.
+
+## Kaggle GPU hours, week from Sat 2026-10-24
 
 Kaggle itself said "12.0 h left of 30 h" when eval 7 started (Fri 30 Oct), so ~18 h were used before it (my guess of
 11 h was wrong: read this number from the job log, not from memory) + eval 7 0.8 h = ~19 h of 25. Until Kaggle's
 weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints the fresh number.
 
 ## Experiments
+
+### 2026-11-03 09:09 IST · Ears run 2: + Common Voice Hindi (more speakers)
+- Found (probe, https://github.com/pratik9yadav/yok/actions/runs/41572243783): a full Mozilla Common Voice Hindi
+  release on Kaggle, saharshlaud/mozilla-common-voice-hindi, CC0 (the original's licence too): 15,148 clips with
+  train/dev/test lists. No Agree click needed.
+- New frozen test first: Common Voice Hindi test, first 100 usable clips (`lab/frozen.json` "ears-cv-hi"). Its
+  speakers and sentences are kept out of training in code.
+- One change: add up to 3,000 Common Voice Hindi train clips (other speakers) to run 1's recipe (FLEURS hi+mr,
+  half through a phone line, 3 epochs, LoRA r=32). Same base, same settings.
+- Safer keeping: run 2 is its own Kaggle notebook (wimb-ears-training-2) with run 1's ears attached; it measures
+  base, run 1 and run 2 on the same tests and saves only if it beats run 1. Before this, a worse run would have
+  wiped the bot's ears (same notebook output). If it wins, the lab sets `run_voicebot.EARS_SLUG` to it.
+- Fixed on the way: the kaggle CLI now needs `six`, which no workflow installed (all Kaggle workflows were
+  broken): added to requirements-dev.txt.
+- Run: https://github.com/pratik9yadav/yok/actions/runs/41573301940 (mode train-ears). Expected 5–7 h of T4 →
+  ends ~14:00–16:00 IST. The GitHub job stops waiting after 5 h: then run mode `fetch-ears`.
 
 ### 2026-10-31 00:10 IST · Eval 7: voice bot with the trained ears
 - Change: none in code. The voice bot eval now attaches `wimb-ears` (ears run 1) and uses it first; eval 5 used plain
