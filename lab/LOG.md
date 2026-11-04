@@ -58,6 +58,8 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 - Why: run 2's gain came from 3 voices; many voices should help accents and real callers more.
 - Measured in the notebook against run 2 (attached, best so far) on FLEURS hi/mr and Common Voice hi test; saved in
   wimb-ears-training-3 only if it beats run 2. GPU this week: ~8.6 h used, run 3 ~7 h → ~15.6 h of 25.
+- Run: https://github.com/pratik9yadav/yok/actions/runs/41766504997 (started 08:50 IST; ~7 h on Kaggle → ~16:00 IST;
+  the GitHub job stops waiting at 5 h, then mode `fetch-ears`).
 
 ### 2026-11-03 20:55 IST · Eval 8: the voice bot with ears run 2
 - One change: the bot's ears are run 2 (was run 1). Why: does better Hindi lift the 44 spoken test calls (21/44)?
