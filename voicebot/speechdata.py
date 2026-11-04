@@ -134,23 +134,40 @@ def decode_file(path):
         return np.asarray(librosa.load(path, sr=16000, mono=True)[0], dtype=np.float32)
 
 
-def commonvoice(lang: str, n: int, split: str = "test", root: str = "/kaggle/input", avoid_speakers=(),
-                avoid_text=(), max_seconds: float = 30.0):
-    """Mozilla Common Voice (CC0) from an attached Kaggle copy: (rows, where from, the speakers used).
-    Its test speakers are not in its train split; avoid_speakers / avoid_text keep a training set clear of a
-    test set anyway."""
+def commonvoice_tsv(lang: str, split: str, root: str = "/kaggle/input") -> str:
+    """The path of Common Voice's <lang>/<split>.tsv in the attached copy."""
     import glob
     import os
 
     tables = sorted(glob.glob(os.path.join(root, "**", lang, f"{split}.tsv"), recursive=True))
     if not tables:
         raise FileNotFoundError(f"no Common Voice {lang}/{split}.tsv under {root} (attach {CV_DATASET})")
-    folder = os.path.dirname(tables[0])
+    return tables[0]
+
+
+def commonvoice_split(lang: str, split: str, root: str = "/kaggle/input") -> tuple[set, set]:
+    """All speakers and sentences of a Common Voice split (to keep a training set clear of the whole test split)."""
+    rows = commonvoice_table(commonvoice_tsv(lang, split, root))
+    return {r.get("client_id") for r in rows}, {(r.get("sentence") or "").strip() for r in rows}
+
+
+def commonvoice(lang: str, n: int, split: str = "test", root: str = "/kaggle/input", avoid_speakers=(),
+                avoid_text=(), max_seconds: float = 30.0, per_speaker: int | None = None):
+    """Mozilla Common Voice (CC0) from an attached Kaggle copy: (rows, where from, the speakers used).
+    Its test speakers are not in its train split; avoid_speakers / avoid_text keep a training set clear of a
+    test set anyway. per_speaker: at most this many clips from one person (a few people recorded most clips)."""
+    import os
+    from collections import Counter
+
+    table = commonvoice_tsv(lang, split, root)
+    folder = os.path.dirname(table)
     avoid_speakers, avoid_text = set(avoid_speakers), {norm(t) for t in avoid_text}
-    out, speakers = [], set()
-    for row in commonvoice_table(tables[0]):
+    out, speakers, taken = [], set(), Counter()
+    for row in commonvoice_table(table):
         text = (row.get("sentence") or "").strip()
         if not text or row.get("client_id") in avoid_speakers or norm(text) in avoid_text:
+            continue
+        if per_speaker and taken[row.get("client_id")] >= per_speaker:
             continue
         try:
             audio = decode_file(os.path.join(folder, "clips", row["path"]))
@@ -160,9 +177,11 @@ def commonvoice(lang: str, n: int, split: str = "test", root: str = "/kaggle/inp
             continue
         out.append({"audio": audio, "text": text, "group": None})
         speakers.add(row.get("client_id"))
+        taken[row.get("client_id")] += 1
         if len(out) >= n:
             break
-    return out, f"Common Voice {lang} {split} ({CV_DATASET}, {len(speakers)} speakers)", speakers
+    cap = f", at most {per_speaker} each" if per_speaker else ""
+    return out, f"Common Voice {lang} {split} ({CV_DATASET}, {len(speakers)} speakers{cap})", speakers
 
 
 def lahaja(n: int, token: str):

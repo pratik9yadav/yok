@@ -25,8 +25,10 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    Lahaja) wait for the owner's `HF_TOKEN` Kaggle secret.
 2. Ears, conversational speech: short replies like a shopkeeper's ("हाँ है", "नहीं, कल आएगा", prices, phone numbers)
    are what the bot hears most; FLEURS is read news. Add short, spoken-style clips to training.
-2b. Ears run 3: Common Voice with at most ~40 clips per speaker (validated.tsv minus test speakers), so it adds
-   many speakers (run 2's 3,000 clips were 3 people). One change; compare with run 2 on the same three tests.
+2b. (running: ears run 3, many Common Voice speakers)
+2c. Spoken test calls lost digits said in pairs ("नौ नौ" heard as one word "नोनो"). A general fix in
+   `numerals.phone` for a fused repeated digit word, written from how Hindi digit words are spelled, not from the
+   test lines. Low cost, no GPU; measure in the next eval.
 3. Voice bot spoken score (21/44 after eval 7): phone numbers said digit by digit are the most common miss. Train the
    ears on short digit-by-digit and name clips (not from the test calls' text), or try Kokoro's other Hindi voice
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
@@ -49,9 +51,24 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 
 ## Experiments
 
+### 2026-11-04 09:00 IST · Ears run 3: Common Voice from many speakers
+- One change from run 2: the Common Voice part is now up to 3,000 clips from validated.tsv, at most 40 per person,
+  minus every speaker and sentence of Common Voice's whole test split (run 2: train.tsv in file order = 3 people).
+  Same FLEURS data, settings and base model.
+- Why: run 2's gain came from 3 voices; many voices should help accents and real callers more.
+- Measured in the notebook against run 2 (attached, best so far) on FLEURS hi/mr and Common Voice hi test; saved in
+  wimb-ears-training-3 only if it beats run 2. GPU this week: ~8.6 h used, run 3 ~7 h → ~15.6 h of 25.
+
 ### 2026-11-03 20:55 IST · Eval 8: the voice bot with ears run 2
 - One change: the bot's ears are run 2 (was run 1). Why: does better Hindi lift the 44 spoken test calls (21/44)?
 - Run: https://github.com/pratik9yadav/yok/actions/runs/41663795003 (mode eval). Expected ~50 min, ends ~21:50 IST.
+- Result (51 min): spoken test calls Kokoro voice 21/44 → **19/44**, MMS voice 12/44 → **10/44** (worse);
+  typed 48/48, rules only 46/48 (same); ears in the bot: FLEURS hi 18.6% / 23.7% phone, mr 37.4% / 41.6%.
+  Misheard lines: digits said in pairs fuse ("नौ नौ" → "नोनो", lost), "पाँच" → "पाण", "राहुल" → "जाहुल".
+- Kept: run 2 stays in use, on judgment, and the owner should know: it is better on real Hindi speech from 2
+  frozen tests (73 + FLEURS speakers) and worse by 2 of 44 on the synthetic test voices, which README already
+  calls a weak stand-in for people. The spoken-calls scoreboard line stays at 21/44 (eval 7). To go back to run 1:
+  `EARS_SLUG = "wimb-ears-training"` in voicebot/run_voicebot.py.
 
 ### 2026-11-03 09:09 IST · Ears run 2: + Common Voice Hindi (more speakers)
 - Found (probe, https://github.com/pratik9yadav/yok/actions/runs/41572243783): a full Mozilla Common Voice Hindi

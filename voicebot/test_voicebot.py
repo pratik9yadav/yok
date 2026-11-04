@@ -758,13 +758,17 @@ def test_commonvoice_reads_a_split_and_keeps_test_speakers_and_sentences_out(tmp
     folder = tmp_path / "mozilla-common-voice-hindi" / "hi"
     (folder / "clips").mkdir(parents=True)
     rows = [("s1", "a.mp3", "नमस्ते दोस्तों"), ("s2", "b.mp3", "आज मौसम अच्छा है"), ("s3", "c.mp3", ""),
-            ("s4", "d.mp3", "कल बाज़ार चलेंगे")]
+            ("s4", "d.mp3", "कल बाज़ार चलेंगे"), ("s2", "e.mp3", "चाय पी लो")]
     (folder / "train.tsv").write_text("client_id\tpath\tsentence\tup_votes\n" + "".join(
         f"{c}\t{p}\t{t}\t2\n" for c, p, t in rows), encoding="utf-8")
     monkeypatch.setattr(speechdata, "decode_file", lambda path: [0.0] * 16000)  # 1 s of audio, no codec needed
     got, source, speakers = speechdata.commonvoice("hi", 10, "train", root=str(tmp_path), avoid_speakers={"s1"},
                                                    avoid_text={"कल बाज़ार चलेंगे।"})
-    assert [r["text"] for r in got] == ["आज मौसम अच्छा है"] and speakers == {"s2"}
+    assert [r["text"] for r in got] == ["आज मौसम अच्छा है", "चाय पी लो"] and speakers == {"s2"}
     assert "Common Voice hi train" in source
     with pytest.raises(FileNotFoundError):
         speechdata.commonvoice("mr", 10, "test", root=str(tmp_path))
+    capped = speechdata.commonvoice("hi", 10, "train", root=str(tmp_path), per_speaker=1)[0]
+    assert len(capped) == 3  # s1, s2, s4 (s3 has no sentence)
+    speakers, sentences = speechdata.commonvoice_split("hi", "train", root=str(tmp_path))
+    assert speakers == {"s1", "s2", "s3", "s4"} and "आज मौसम अच्छा है" in sentences

@@ -40,6 +40,7 @@ import json, os, re, shutil, subprocess, sys, time
 BASE = "openai/whisper-large-v3-turbo"
 LANGS = ["hi", "mr"]
 TRAIN_ROWS = 3000  # per language and source, at most
+CV_PER_SPEAKER = 40  # Common Voice: at most this many clips from one person (run 2's 3,000 came from 3 people)
 EVAL_ROWS = 100  # per language, held out (FLEURS test; Common Voice Hindi test too)
 EPOCHS = 3
 BATCH = 8
@@ -105,7 +106,7 @@ save_results()
 """
 
 DATA = """
-from voicebot.speechdata import commonvoice, error_rates, fleurs, indicvoices
+from voicebot.speechdata import commonvoice, commonvoice_split, error_rates, fleurs, indicvoices
 
 TRAIN, TEST = [], {}  # TEST: "hi", "mr" (FLEURS test, the scoreboard's), "hi-cv" (Common Voice Hindi test)
 CV_TEST_SPEAKERS, CV_TEST_TEXT = set(), []
@@ -125,9 +126,13 @@ for lang in LANGS:
         failed(f"test data {lang}", e)
     sources = [("FLEURS train", lambda: fleurs(lang, TRAIN_ROWS, "train")),
                ("FLEURS dev", lambda: fleurs(lang, TRAIN_ROWS // 3, "validation"))]
-    if lang == "hi":  # Common Voice train split, with no test speaker and no test sentence
-        sources.append(("Common Voice train", lambda: commonvoice(
-            "hi", TRAIN_ROWS, "train", avoid_speakers=CV_TEST_SPEAKERS, avoid_text=CV_TEST_TEXT)[:2]))
+    if lang == "hi":  # Common Voice validated clips: no speaker and no sentence of its whole test split
+        def cv_train():
+            speakers, sentences = commonvoice_split("hi", "test")
+            return commonvoice("hi", TRAIN_ROWS, "validated", avoid_speakers=speakers | CV_TEST_SPEAKERS,
+                               avoid_text=list(sentences) + CV_TEST_TEXT, per_speaker=CV_PER_SPEAKER)[:2]
+
+        sources.append(("Common Voice", cv_train))
     if HF_TOKEN:
         sources.append(("IndicVoices", lambda: indicvoices(lang, TRAIN_ROWS, HF_TOKEN)))
     for name, load in sources:
