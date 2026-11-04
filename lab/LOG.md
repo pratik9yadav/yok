@@ -25,10 +25,8 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
    Lahaja) wait for the owner's `HF_TOKEN` Kaggle secret.
 2. Ears, conversational speech: short replies like a shopkeeper's ("हाँ है", "नहीं, कल आएगा", prices, phone numbers)
    are what the bot hears most; FLEURS is read news. Add short, spoken-style clips to training.
-2b. (running: ears run 3, many Common Voice speakers)
-2c. Spoken test calls lost digits said in pairs ("नौ नौ" heard as one word "नोनो"). A general fix in
-   `numerals.phone` for a fused repeated digit word, written from how Hindi digit words are spelled, not from the
-   test lines. Low cost, no GPU; measure in the next eval.
+2b. Ears, more Hindi hours: Common Voice has no more speakers to give (run 3). Real accents need IndicVoices /
+   Kathbath (owner's Agree click) or another free source.
 3. Voice bot spoken score (21/44 after eval 7): phone numbers said digit by digit are the most common miss. Train the
    ears on short digit-by-digit and name clips (not from the test calls' text), or try Kokoro's other Hindi voice
    to see how much is the test voice. Needs GPU: after Kaggle's weekly reset.
@@ -41,7 +39,7 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
 
 ## Kaggle GPU hours this week (week from Sat 2026-10-31)
 
-Kaggle said 30.0 h left at the start. Ears run 2 ~7.5 h + eval 8 (~1 h) = ~8.5 h of 25.
+Kaggle said 30.0 h left at the start. Ears run 2 ~7.5 h + eval 8 (~1 h) + ears run 3 ~5.5 h = ~14 h of 25.
 
 ## Kaggle GPU hours, week from Sat 2026-10-24
 
@@ -50,6 +48,12 @@ Kaggle itself said "12.0 h left of 30 h" when eval 7 started (Fri 30 Oct), so ~1
 weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints the fresh number.
 
 ## Experiments
+
+### 2026-11-04 20:55 IST · Phone numbers: a digit said twice and written as one word
+- Change (no GPU): `numerals.phone` reads a word that is one digit word twice ("सातसात", "नोनो") as two digits.
+  Written from how digit words are spelled; the test lines only showed that it happens. Tests added.
+- Measured in the next eval (spoken test calls; eval 8: 19/44 Kokoro, 10/44 MMS). Not run now: GPU ~14 of 25 h
+  used this week, and an eval only for this is better batched with the next change.
 
 ### 2026-11-04 09:00 IST · Ears run 3: Common Voice from many speakers
 - One change from run 2: the Common Voice part is now up to 3,000 clips from validated.tsv, at most 40 per person,
@@ -60,6 +64,14 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
   wimb-ears-training-3 only if it beats run 2. GPU this week: ~8.6 h used, run 3 ~7 h → ~15.6 h of 25.
 - Run: https://github.com/pratik9yadav/yok/actions/runs/41766504997 (started 08:50 IST; ~7 h on Kaggle → ~16:00 IST;
   the GitHub job stops waiting at 5 h, then mode `fetch-ears`).
+- Result (fetched 20:50 IST, https://github.com/pratik9yadav/yok/actions/runs/41856272123; 6,356 clips, 287 min):
+  run 3 vs run 2: Common Voice hi 28.3 vs **26.2** clean, 36.7 vs **33.8** phone; FLEURS hi 19.1 vs **18.6**, 23.6 vs
+  **22.9**; FLEURS mr **36.1** vs 36.6, 40.5 vs **40.4**. Worse on Hindi: not saved, run 2 stays (the new
+  "beat the best" guard worked).
+- Why: Common Voice Hindi has few speakers outside its test split. With every test speaker and test sentence
+  removed and 40 per person, only **560 clips from 14 people** were left (run 2 had 3,000). So this copy of Common
+  Voice cannot give many speakers; run 2's gain came from more Common Voice-style audio. Lesson: print the speaker
+  count before spending GPU (now in the data line). Dropped: "many Common Voice speakers".
 
 ### 2026-11-03 20:55 IST · Eval 8: the voice bot with ears run 2
 - One change: the bot's ears are run 2 (was run 1). Why: does better Hindi lift the 44 spoken test calls (21/44)?

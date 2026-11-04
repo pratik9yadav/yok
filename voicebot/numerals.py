@@ -511,6 +511,28 @@ SOUNDS_LIKE = {"साथ": 7, "सात्": 7, "नो": 9, "नव": 9, "श
 SOUND_KEYS = {key(w): n for w, n in SOUNDS_LIKE.items()}
 
 
+def digit_of(word: str) -> str | None:
+    """One digit said as a word ("सात", "seven", "साथ" as speech to text writes it), else None."""
+    lw = word.lower()
+    if lw in DIGIT_WORDS or key(lw) in {key(d) for d in DIGIT_WORDS}:
+        return "0"
+    if key(word) in SOUND_KEYS:
+        return str(SOUND_KEYS[key(word)])
+    parts = classify(word)
+    if len(parts) == 1 and parts[0][0] == "val" and float(parts[0][1]).is_integer() and parts[0][1] < 10:
+        return str(int(parts[0][1]))
+    return None
+
+
+def fused_pair(word: str) -> str | None:
+    """A digit said twice, written as one word by speech to text ("नौ नौ" → "नोनो", "सात सात" → "सातसात"): "99"."""
+    half = len(word) // 2
+    if len(word) % 2 or half < 2 or word[:half] != word[half:]:
+        return None
+    d = digit_of(word[:half])
+    return d * 2 if d else None
+
+
 def phone(text: str) -> str | None:
     """A 10-digit Indian mobile number said in the text (digits, digit words, or pairs like "अट्ठानवे"), or None.
     "+91" and a leading 0 are dropped; "डबल सात" is 77."""
@@ -532,6 +554,8 @@ def phone(text: str) -> str | None:
             parts = classify(w)
             if len(parts) == 1 and parts[0][0] == "val" and float(parts[0][1]).is_integer() and parts[0][1] < 100:
                 piece = str(int(parts[0][1]))
+            else:
+                piece = fused_pair(w)
         if piece is None:
             repeat = 1
             continue
