@@ -54,6 +54,9 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
   Written from how digit words are spelled; the test lines only showed that it happens. Tests added.
 - Measured in the next eval (spoken test calls; eval 8: 19/44 Kokoro, 10/44 MMS). Not run now: GPU ~14 of 25 h
   used this week, and an eval only for this is better batched with the next change.
+- 2026-11-05 08:50 IST: AI4Bharat sets still gated (probe https://github.com/pratik9yadav/yok/actions/runs/41960667500),
+  so nothing else to batch: eval 9 measures this fix now, https://github.com/pratik9yadav/yok/actions/runs/41961003112
+  (~50 min, ends ~09:45 IST; GPU ~15 of 25 h after it).
 
 ### 2026-11-04 09:00 IST · Ears run 3: Common Voice from many speakers
 - One change from run 2: the Common Voice part is now up to 3,000 clips from validated.tsv, at most 40 per person,
