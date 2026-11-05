@@ -39,7 +39,7 @@ Ideas, best expected gain first. The lab picks the top one it can do, and adds o
 
 ## Kaggle GPU hours this week (week from Sat 2026-10-31)
 
-Kaggle said 30.0 h left at the start. Ears run 2 ~7.5 h + eval 8 (~1 h) + ears run 3 ~5.5 h = ~14 h of 25.
+Kaggle said 30.0 h left at the start. Ears run 2 ~7.5 h + eval 8 (~1 h) + ears run 3 ~5.5 h + eval 9 0.9 h = ~15 h of 25.
 
 ## Kaggle GPU hours, week from Sat 2026-10-24
 
@@ -57,6 +57,9 @@ weekly reset: only short runs (≤ 1 h). The next eval/train job's log prints th
 - 2026-11-05 08:50 IST: AI4Bharat sets still gated (probe https://github.com/pratik9yadav/yok/actions/runs/41960667500),
   so nothing else to batch: eval 9 measures this fix now, https://github.com/pratik9yadav/yok/actions/runs/41961003112
   (~50 min, ends ~09:45 IST; GPU ~15 of 25 h after it).
+- Result (53 min): spoken test calls Kokoro voice 19/44 → **20/44**, MMS 10/44 → 10/44; typed 48/48; ears numbers
+  unchanged (FLEURS hi 18.6% / 23.7%). Kept (one more call right, nothing worse). The pair line still loses its
+  end ("छेह छेह पांच पाण"): the ears, not the parser. Kaggle: 15.9 h left at the start → ~15 h of 25 used.
 
 ### 2026-11-04 09:00 IST · Ears run 3: Common Voice from many speakers
 - One change from run 2: the Common Voice part is now up to 3,000 clips from validated.tsv, at most 40 per person,
